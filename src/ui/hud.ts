@@ -3,6 +3,8 @@ import { Hero, MAX_LEVEL, xpForLevel } from '../entities/Hero';
 import type { Unit } from '../entities/Unit';
 import { SearingArrows } from '../abilities/rangerAbilities';
 import { Tile, WorldMap } from '../world/map';
+import { ITEMS, ItemId } from '../entities/items';
+import { CharacterPage } from './characterPage';
 
 export type Command = 'attack' | 'stop' | 'hold';
 
@@ -17,6 +19,7 @@ export interface HudCallbacks {
   lockCamera(): void;
   minimapTap(fx: number, fy: number): void;
   cancelTargeting(): void;
+  usePotion(id: ItemId): void;
 }
 
 export interface CameraRect {
@@ -61,7 +64,9 @@ export class Hud {
   private readonly lockBtn: HTMLButtonElement;
   private readonly minimap: HTMLCanvasElement;
   private readonly minimapBase: HTMLCanvasElement;
-  private readonly cmdButtons: Record<Command, HTMLButtonElement>;
+  private readonly cmdButtons: Partial<Record<Command, HTMLButtonElement>>;
+  private readonly potionSlots: Array<{ id: ItemId; root: HTMLButtonElement; count: HTMLSpanElement }> = [];
+  private readonly charPage: CharacterPage;
 
   constructor(
     parent: HTMLElement,
@@ -74,7 +79,10 @@ export class Hud {
 
     // Hero frame (top-left)
     const frame = el('div', 'hero-frame', this.root);
-    const portrait = el('div', 'portrait', frame);
+    // Tapping the portrait (or the bag) opens the character page.
+    const portrait = el('button', 'portrait', frame);
+    portrait.title = 'Character & inventory (C)';
+    portrait.addEventListener('click', () => this.toggleCharacter());
     const img = el('img', '', portrait);
     img.src = portraitUrl;
     img.alt = 'Ranger';
@@ -90,6 +98,11 @@ export class Hud {
     this.mpText = el('span', 'txt', mp);
     const xp = el('div', 'bar xp', bars);
     this.xpFill = el('div', 'fill', xp);
+    const bag = el('button', 'bag-btn', frame);
+    bag.innerHTML = `<img src="${iconDataUrl('bag', 3)}" alt="">`;
+    bag.title = 'Character & inventory (C)';
+    bag.setAttribute('aria-label', 'Character and inventory');
+    bag.addEventListener('click', () => this.toggleCharacter());
 
     // Minimap (top-right)
     const mmWrap = el('div', 'minimap-wrap', this.root);
@@ -121,10 +134,20 @@ export class Hud {
     };
     this.cmdButtons = {
       attack: mkCmd('attack', 'attack', 'A', 'Attack-move (A): walk to a spot, fighting anything on the way'),
-      hold: mkCmd('hold', 'hold', 'H', 'Hold position (H)'),
-      stop: mkCmd('stop', 'stop', 'S', 'Stop (S)'),
     };
-    this.cmdButtons.attack.classList.add('big');
+    this.cmdButtons.attack!.classList.add('big');
+    // Potion quick slots beside the attack button (keys 1 and 2).
+    (['hp_potion', 'mp_potion'] as ItemId[]).forEach((id, i) => {
+      const b = el('button', 'cmd potion', cmds);
+      b.innerHTML = `<img src="${iconDataUrl(ITEMS[id].icon, 3)}" alt=""><span class="hk">${i + 1}</span>`;
+      b.title = `${ITEMS[id].name} (${i + 1}): ${ITEMS[id].description}`;
+      const count = el('span', 'count', b);
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.cb.usePotion(id);
+      });
+      this.potionSlots.push({ id, root: b, count });
+    });
     const card = el('div', 'command-card', this.root);
     const abil = el('div', 'abilities', card);
     hero.abilities.forEach((ab, i) => this.buttons.push(this.makeAbilityButton(abil, i, ab.icon, ab.hotkey)));
@@ -140,6 +163,7 @@ export class Hud {
     });
     this.tooltip = el('div', 'tooltip hidden', this.root);
     this.respawn = el('div', 'respawn hidden', this.root);
+    this.charPage = new CharacterPage(this.root, hero, portraitUrl, (id) => this.cb.usePotion(id), () => this.toggleCharacter(false));
   }
 
   private makeAbilityButton(parent: HTMLElement, i: number, icon: string, hotkey: string): AbilityButton {
@@ -279,8 +303,29 @@ export class Hud {
     return c;
   }
 
+  get characterOpen(): boolean {
+    return this.charPage.open;
+  }
+
+  toggleCharacter(open = !this.charPage.open): void {
+    this.charPage.setOpen(open);
+  }
+
+  /** A rock was broken: paint its minimap pixel as grass. */
+  clearMinimapTile(tx: number, ty: number): void {
+    const ctx = this.minimapBase.getContext('2d')!;
+    ctx.fillStyle = '#4f9442';
+    ctx.fillRect(tx * 2, ty * 2, 2, 2);
+  }
+
   update(units: readonly Unit[], cam: CameraRect, locked: boolean): void {
     const h = this.hero;
+    for (const p of this.potionSlots) {
+      const n = h.inventory.count(p.id);
+      p.count.textContent = `${n}`;
+      p.root.classList.toggle('empty', n === 0);
+    }
+    this.charPage.refresh();
     const hpP = Math.max(0, h.hp / h.maxHp);
     this.hpFill.style.width = `${hpP * 100}%`;
     this.hpFill.style.background = hpP > 0.5 ? '#3fbf4a' : hpP > 0.25 ? '#e0c030' : '#d0301a';

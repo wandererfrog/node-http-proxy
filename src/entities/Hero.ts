@@ -1,6 +1,8 @@
 import { Ability, Channel } from '../abilities/Ability';
 import { SearingArrows, rangerKit } from '../abilities/rangerAbilities';
 import { TILE } from '../world/map';
+import { heroDamage } from './balance';
+import { Inventory, ItemId } from './items';
 import { Order, Unit, World } from './Unit';
 
 import { MAX_LEVEL, xpForLevel } from './xp';
@@ -14,9 +16,12 @@ export class Hero extends Unit {
   mana: number;
   readonly abilities: Ability[] = rangerKit();
 
+  readonly inventory = new Inventory();
+  kills = 0;
+  private potionCd = 0;
+
   private baseMaxHp = 420;
   private baseMaxMana = 220;
-  private bonusDamage = 0;
 
   private castT = 0;
   private castStarted = false;
@@ -32,9 +37,9 @@ export class Hero extends Unit {
       speed: 46,
       radius: 5,
       attackRange: 6 * TILE,
-      damage: [20, 26],
-      attackCooldown: 1.25,
-      damagePoint: 0.3,
+      damage: heroDamage(1),
+      attackCooldown: 1.1,
+      damagePoint: 0.25,
       backswing: 0.35,
       acquireRange: 7 * TILE,
       ranged: true,
@@ -57,8 +62,33 @@ export class Hero extends Unit {
     return 1.4 + this.level * 0.2;
   }
 
+  get damageRange(): [number, number] {
+    return heroDamage(this.level);
+  }
+
   rollDamage(): number {
-    return super.rollDamage() + this.bonusDamage;
+    const [a, b] = this.damageRange;
+    return Math.round(a + Math.random() * (b - a));
+  }
+
+  /** Drink a potion. Returns an error message for the player, or null on success. */
+  usePotion(id: ItemId): string | null {
+    if (this.dead) return 'Dead';
+    if (this.potionCd > 0) return null;
+    if (id === 'hp_potion' && this.hp >= this.maxHp) return 'Already at full health';
+    if (id === 'mp_potion' && this.mana >= this.maxMana) return 'Already at full mana';
+    if (!this.inventory.takeOne(id)) return id === 'hp_potion' ? 'No healing potions' : 'No mana potions';
+    this.potionCd = 0.6;
+    if (id === 'hp_potion') {
+      this.hp = Math.min(this.maxHp, this.hp + 220);
+      this.world.floatText(this.x, this.y - 30, '+220', '#7dff6a', true);
+      this.world.burst(this.x, this.y - 10, 0xff5a5a, 10);
+    } else {
+      this.mana = Math.min(this.maxMana, this.mana + 120);
+      this.world.floatText(this.x, this.y - 30, '+120', '#8fb8ff', true);
+      this.world.burst(this.x, this.y - 10, 0x5a8aff, 10);
+    }
+    return null;
   }
 
   get channelling(): boolean {
@@ -82,7 +112,6 @@ export class Hero extends Unit {
     while (this.level < MAX_LEVEL && this.xp >= xpForLevel(this.level + 1)) {
       this.level++;
       this.skillPoints++;
-      this.bonusDamage += 3;
       this.hp = Math.min(this.maxHp, this.hp + 45);
       this.mana = Math.min(this.maxMana, this.mana + 18);
       leveled = true;
@@ -154,7 +183,44 @@ export class Hero extends Unit {
       this.channel = null;
     }
     this.castStarted = false;
+    this.searchT = 0;
     this.poseOverride = null;
+  }
+
+  private searchT = 0;
+
+  protected runOrder(dt: number): void {
+    if (this.order.type === 'search') this.runSearch(this.order, dt);
+    else super.runOrder(dt);
+  }
+
+  /** Walk next to the rock, rummage for a moment, then break it. */
+  private runSearch(o: Extract<Order, { type: 'search' }>, dt: number): void {
+    const cx = (o.tx + 0.5) * TILE;
+    const cy = (o.ty + 0.5) * TILE;
+    const d = Math.hypot(cx - this.x, cy - this.y);
+    if (d > TILE * 1.5) {
+      this.searchT = 0;
+      this.poseOverride = null;
+      this.chase(cx, cy, dt);
+      // Path exhausted but still not there: the rock can't be reached.
+      if (this.path.length === 0 && !this.moving && d > TILE * 1.6) {
+        this.world.floatText(this.x, this.y - 30, "Can't reach that", '#ffd84a');
+        this.nextOrder();
+      }
+      return;
+    }
+    this.path = [];
+    this.moving = false;
+    this.turnToward(Math.atan2(cy - this.y, cx - this.x), dt);
+    this.poseOverride = 'attack';
+    this.searchT += dt;
+    if (this.searchT >= 0.6) {
+      this.searchT = 0;
+      this.poseOverride = null;
+      this.world.searchRock(o.tx, o.ty);
+      this.nextOrder();
+    }
   }
 
   protected runCast(o: Extract<Order, { type: 'cast' }>, dt: number): void {
@@ -224,6 +290,7 @@ export class Hero extends Unit {
     this.hp = Math.min(this.maxHp, this.hp + this.hpRegen * dt);
     this.mana = Math.min(this.maxMana, this.mana + this.manaRegen * dt);
     for (const a of this.abilities) a.tick(dt);
+    this.potionCd = Math.max(0, this.potionCd - dt);
     if (this.empowered) {
       this.empowered.t -= dt;
       if (this.empowered.t <= 0) this.empowered = null;

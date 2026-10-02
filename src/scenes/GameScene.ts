@@ -3,6 +3,8 @@ import { buildAllTextures, portraitDataUrl } from '../art/sprites';
 import { ATLASES, IMAGES } from '../assets';
 import { Ability } from '../abilities/Ability';
 import { Camp, Creep, CreepKind } from '../entities/Creep';
+import { CREEP_POTION_DROP } from '../entities/balance';
+import { ITEMS, ItemId } from '../entities/items';
 import { Hero } from '../entities/Hero';
 import { Arrow } from '../entities/Projectile';
 import { DamageOpts, Unit, World } from '../entities/Unit';
@@ -36,6 +38,9 @@ export class GameScene extends Phaser.Scene implements World {
   units: Unit[] = [];
   hero!: Hero;
   private camps: Camp[] = [];
+  /** Searchable rocks by tile index. */
+  private rocks = new Map<number, Phaser.GameObjects.Image>();
+  private levelTags = new Map<Unit, Phaser.GameObjects.Text>();
   private arrows: Arrow[] = [];
   private markers: Marker[] = [];
   private hud!: Hud;
@@ -87,7 +92,7 @@ export class GameScene extends Phaser.Scene implements World {
 
     this.hero = new Hero(this, this.map.spawn.x * TILE, this.map.spawn.y * TILE);
     this.units.push(this.hero);
-    for (const spec of this.map.camps) this.spawnCamp(spec.x * TILE, spec.y * TILE, spec.kind);
+    for (const spec of this.map.camps) this.spawnCamp(spec.x * TILE, spec.y * TILE, spec.kind, spec.level);
 
     const cam = this.cameras.main;
     cam.setBounds(0, 0, worldW, worldH);
@@ -111,11 +116,12 @@ export class GameScene extends Phaser.Scene implements World {
         cam.centerOn(fx * worldW, fy * worldH);
       },
       cancelTargeting: () => this.setTargeting(null),
+      usePotion: (id) => this.drink(id),
     });
 
     this.setupInput();
     this.scale.on('resize', () => this.applyZoom());
-    this.hud.toast('Tap to move · tap enemies to attack · learn an ability with +', 'info');
+    this.hud.toast('Tap to move · tap enemies to attack · tap rocks to search them for potions', 'info');
   }
 
   // --- World construction -------------------------------------------------------------------
@@ -129,13 +135,14 @@ export class GameScene extends Phaser.Scene implements World {
         if (t === Tile.Tree) {
           this.add.image(tx * TILE + 8 + ((v % 3) - 1), bottom + 1, `tree${v % 3}`).setOrigin(0.5, 1).setDepth(bottom - 3);
         } else if (t === Tile.Rock) {
-          this.add.image(tx * TILE + 8, bottom, 'rock').setOrigin(0.5, 1).setDepth(bottom - 3);
+          const img = this.add.image(tx * TILE + 8, bottom, 'rock').setOrigin(0.5, 1).setDepth(bottom - 3);
+          this.rocks.set(ty * this.map.width + tx, img);
         }
       }
     }
   }
 
-  private spawnCamp(x: number, y: number, kind: 'skeletons' | 'boars'): void {
+  private spawnCamp(x: number, y: number, kind: 'skeletons' | 'boars', level: number): void {
     const camp = new Camp(x, y);
     this.add.image(x, y + 4, 'logs').setOrigin(0.5, 1).setDepth(y + 4);
     const flame = this.add.image(x, y - 1, 'spark').setTint(0xff9a3a).setScale(2).setDepth(y + 5);
@@ -144,7 +151,8 @@ export class GameScene extends Phaser.Scene implements World {
     kinds.forEach((k, i) => {
       const a = (i / kinds.length) * Math.PI * 2 + 0.5;
       const r = k === 'alphaBoar' ? 0 : TILE * 1.2;
-      const c = new Creep(this, k, camp, x + Math.cos(a) * r, y + Math.sin(a) * r + (k === 'alphaBoar' ? TILE * 0.9 : 0));
+      const lvl = k === 'alphaBoar' ? level + 1 : level;
+      const c = new Creep(this, k, lvl, camp, x + Math.cos(a) * r, y + Math.sin(a) * r + (k === 'alphaBoar' ? TILE * 0.9 : 0));
       camp.creeps.push(c);
       this.units.push(c);
     });
@@ -171,12 +179,41 @@ export class GameScene extends Phaser.Scene implements World {
           this.burst(this.hero.x, this.hero.y - 8, 0xffd84a, 14);
         }
       }
+      this.hero.kills++;
+      if (Math.random() < CREEP_POTION_DROP) this.giveLoot(target.x, target.y, Math.random() < 0.6 ? 'hp_potion' : 'mp_potion');
       if (target.camp.cleared) target.camp.respawnT = 45;
     } else if (isHero) {
       this.hud.toast('Sylva has fallen!', 'warn');
       this.setTargeting(null);
       for (const c of this.camps) for (const u of c.creeps) if (!u.dead && !u.returning) u.issue({ type: 'idle' });
     }
+  }
+
+  searchRock(tx: number, ty: number): void {
+    const key = ty * this.map.width + tx;
+    const img = this.rocks.get(key);
+    if (!img || this.map.get(tx, ty) !== Tile.Rock) return;
+    this.rocks.delete(key);
+    this.map.set(tx, ty, Tile.Grass);
+    this.hud.clearMinimapTile(tx, ty);
+    const x = (tx + 0.5) * TILE;
+    const y = (ty + 0.5) * TILE;
+    this.burst(x, y, 0x9aa0ac, 12);
+    this.tweens.add({ targets: img, alpha: 0, scaleY: 0.3, duration: 250, onComplete: () => img.destroy() });
+    this.giveLoot(x, y, Math.random() < 0.65 ? 'hp_potion' : 'mp_potion');
+  }
+
+  /** Put an item in the hero's bag with a little pickup flourish. */
+  private giveLoot(x: number, y: number, id: ItemId): void {
+    if (this.hero.dead) return;
+    const def = ITEMS[id];
+    if (!this.hero.inventory.add(id)) {
+      this.hud.toast(`Bag full — ${def.name} left behind`, 'warn');
+      return;
+    }
+    this.floatText(x, y - 12, `+ ${def.name}`, id === 'hp_potion' ? '#ff8a8a' : '#8fb8ff', true);
+    const icon = this.add.image(x, y - 6, 'spark').setTint(id === 'hp_potion' ? 0xff4a4a : 0x4a7aff).setScale(2).setDepth(DEPTH_OVERLAY);
+    this.tweens.add({ targets: icon, x: this.hero.x, y: this.hero.y - 10, duration: 350, ease: 'Quad.easeIn', onComplete: () => icon.destroy() });
   }
 
   fireArrow(from: Unit, target: Unit, damage: number, fire: boolean): void {
@@ -267,7 +304,12 @@ export class GameScene extends Phaser.Scene implements World {
       if (k === 'a') this.onCommand('attack');
       else if (k === 's') this.onCommand('stop');
       else if (k === 'h') this.onCommand('hold');
-      else if (k === 'escape') this.setTargeting(null);
+      else if (k === 'escape') {
+        if (this.hud.characterOpen) this.hud.toggleCharacter(false);
+        else this.setTargeting(null);
+      } else if (k === 'c' || k === 'i') this.hud.toggleCharacter();
+      else if (k === '1') this.drink('hp_potion');
+      else if (k === '2') this.drink('mp_potion');
       else if (k === ' ' || k === 'f1') {
         this.cameraLocked = true;
         e.preventDefault();
@@ -329,7 +371,8 @@ export class GameScene extends Phaser.Scene implements World {
         this.aim = { x: p.worldX, y: p.worldY };
         return;
       }
-      if (!t.dragged && Math.hypot(p.x - t.startX, p.y - t.startY) > 12 * this.dpr) t.dragged = true;
+      // A tap may wobble a little; only a real drag pans the camera (and turns off follow).
+      if (!t.dragged && Math.hypot(p.x - t.startX, p.y - t.startY) > 20 * this.dpr) t.dragged = true;
       if (t.dragged) {
         cam.scrollX -= dx / cam.zoom;
         cam.scrollY -= dy / cam.zoom;
@@ -383,6 +426,8 @@ export class GameScene extends Phaser.Scene implements World {
 
   private onTap(x: number, y: number, queued: boolean): void {
     if (this.hero.dead) return;
+    // Giving an order always brings the camera back to the hero.
+    this.cameraLocked = true;
     if (this.targeting) {
       const tg = this.targeting;
       if (tg.kind === 'attackMove') {
@@ -399,13 +444,28 @@ export class GameScene extends Phaser.Scene implements World {
     this.smartOrder(x, y, queued);
   }
 
-  /** WC3 right-click: attack an enemy under the cursor, otherwise move. */
+  /** Searchable rock under a world point (rocks are drawn in their tile, a little forgiving upwards). */
+  private rockAt(x: number, y: number): { tx: number; ty: number } | null {
+    for (const py of [y, y + 5]) {
+      const tx = Math.floor(x / TILE);
+      const ty = Math.floor(py / TILE);
+      if (this.map.get(tx, ty) === Tile.Rock && this.rocks.has(ty * this.map.width + tx)) return { tx, ty };
+    }
+    return null;
+  }
+
+  /** WC3 right-click: attack an enemy under the cursor, search a rock, otherwise move. */
   private smartOrder(x: number, y: number, queued: boolean): void {
     if (this.hero.dead) return;
+    this.cameraLocked = true;
     const e = this.enemyAt(x, y);
+    const rock = e ? null : this.rockAt(x, y);
     if (e) {
       this.hero.issue({ type: 'attack', target: e }, queued);
       this.addMarker(e.x, e.y, 0xff4a3a);
+    } else if (rock) {
+      this.hero.issue({ type: 'search', tx: rock.tx, ty: rock.ty }, queued);
+      this.addMarker((rock.tx + 0.5) * TILE, (rock.ty + 0.5) * TILE, 0xffd84a);
     } else {
       this.hero.issue({ type: 'move', x, y }, queued);
       this.addMarker(x, y, 0x7dff6a);
@@ -467,7 +527,10 @@ export class GameScene extends Phaser.Scene implements World {
 
   private onAbilityAimEnd(i: number, cast: boolean): void {
     this.buttonAim = null;
-    if (cast && this.aim) this.castAt(i, this.aim.x, this.aim.y);
+    if (cast && this.aim) {
+      this.cameraLocked = true;
+      this.castAt(i, this.aim.x, this.aim.y);
+    }
     this.setTargeting(null);
   }
 
@@ -482,6 +545,11 @@ export class GameScene extends Phaser.Scene implements World {
     } else {
       this.setTargeting(this.targeting?.kind === 'attackMove' ? null : { kind: 'attackMove' });
     }
+  }
+
+  private drink(id: ItemId): void {
+    const err = this.hero.usePotion(id);
+    if (err) this.hud.toast(err, 'warn');
   }
 
   private learn(i: number): void {
@@ -584,11 +652,13 @@ export class GameScene extends Phaser.Scene implements World {
     const g = this.barGfx;
     g.clear();
     for (const u of this.units) {
+      const tag = u instanceof Creep ? this.levelTag(u) : null;
       if (u.dead) continue;
       const s = u.stats.scale ?? 1;
       const w = Math.round(14 * s);
       const x = Math.round(u.x - w / 2);
       const y = Math.round(u.y - u.stats.barHeight * s);
+      tag?.setPosition(x - 2, y + 1);
       const p = Math.max(0, u.hp / u.maxHp);
       const isHero = u === this.hero;
       if (!isHero && p >= 1 && u.order.type === 'idle') continue; // keep the screen calm
@@ -606,6 +676,23 @@ export class GameScene extends Phaser.Scene implements World {
         }
       }
     }
+  }
+
+  /** Small level number next to a creep's health bar, coloured by how tough it is for the hero. */
+  private levelTag(c: Creep): Phaser.GameObjects.Text {
+    let t = this.levelTags.get(c);
+    if (!t) {
+      t = this.add
+        .text(0, 0, `${c.level}`, { fontFamily: '"Press Start 2P", monospace', fontSize: '5px', stroke: '#1a1c2c', strokeThickness: 2 })
+        .setOrigin(1, 0.5)
+        .setResolution(4)
+        .setDepth(DEPTH_OVERLAY + 1);
+      this.levelTags.set(c, t);
+    }
+    const diff = c.level - this.hero.level;
+    t.setColor(diff >= 2 ? '#ff4a3a' : diff === 1 ? '#ffb03a' : diff === 0 ? '#ffd84a' : '#7dff6a');
+    t.setVisible(!c.dead);
+    return t;
   }
 
   private drawAim(): void {

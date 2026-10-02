@@ -42,18 +42,38 @@ npm run build      # static build in dist/ (relative paths, so it works from any
 | Ability | tap the button, then tap the map, **or drag from the button to aim** (release on the button to cancel) | Q W E R, then click (right-click or Esc cancels) |
 | Ability info | long-press the button | hover |
 | Learn ability | the yellow **+** on the button | **+**, or Ctrl+Q/W/E/R |
-| Attack-move / Hold / Stop | big A button + H / S, bottom-left (left thumb) | A / H / S |
+| Attack-move | big A button, bottom-left (left thumb) | A |
+| Drink potion | potion slots next to the A button | 1 / 2 |
+| Search a rock for potions | tap the rock | click the rock |
+| Character & inventory | tap the portrait or the bag | C or I |
+| Hold / Stop | — | H / S |
 | Queue orders | — | hold Shift |
 
 ## How the movement works (the WC3 feel)
 
 - **Pathfinding** (`src/world/pathfinding.ts`): 8-directional A* that never cuts past blocked corners, then *string-pulling*, so the hero walks straight lines across open ground instead of zig-zagging from tile to tile. Clicking on a tree or water sends you to the nearest walkable spot.
+- **Camera**: follows the hero. Dragging pans away, and any order you give brings it back.
 - **Speed and turn rate**: like WC3, the hero walks about half its attack range per second (46 px/s with a 96 px range). Units turn in place before walking off, about 0.33s for a full 180°.
 - **Attack timing**: each attack has a *damage point* (when the arrow leaves the bow) and a *backswing*. Issuing a move during the windup cancels the attack with no cooldown spent. Moving during the backswing cancels it, so the classic orb-walk / attack-cancel tricks work.
 - **Auto-acquire**: an idle hero shoots enemies that come into range and fights back when hit. Attack-move fights everything on the way, Hold position only shoots what is already in range.
 - **Casting out of range** walks into range first and then casts. Blink-style abilities (Tumble) clamp to max range instead.
 - **Unit separation**: bodies push each other apart. Standing units are "heavier", so walkers flow around them, and pushes never shove anyone into walls.
 - The simulation uses real frame time, so slow phones don't play in slow motion.
+
+## Combat balance
+
+All tuning lives in `src/entities/balance.ts`:
+- **Kill speed:** a creep of your level dies in 2–3 arrows. Creep health scales with the hero's damage at that level (checked by `tests/balance.test.ts`).
+- **Kiting:** a melee creep charging from max range eats 2–3 arrows before it reaches you. Creeps move at 30–34 px/s, the archer fires every 1.1s from 96px.
+- **Creep levels:** camps get tougher the further they are from the start. The level shows next to each creep's health bar: green = lower than you, yellow = same, orange/red = higher.
+
+## Items
+
+The hero has six inventory slots, like a WC3 hero. Potions stack up to 9.
+- **Healing Potion:** +220 health.
+- **Mana Potion:** +120 mana.
+
+Find them by searching rocks (each rock crumbles and always gives one), or as occasional creep drops.
 
 ## The Ranger's kit
 
@@ -85,5 +105,8 @@ src/
   world/pathfinding.ts    A*, line of walk, path smoothing
   art/                    terrain/props/icons drawn in code, atlas animation setup
   assets/sprites/         unit atlases generated from art-source/ by tools/slice_sheet.py
-  ui/hud.ts               DOM HUD: hero frame, minimap, command card, tooltips
+  ui/hud.ts               DOM HUD: hero frame, minimap, command card, potion slots, tooltips
+  ui/characterPage.ts     stats + six-slot inventory
+  entities/balance.ts     combat tuning (damage, creep hp per level, xp, drops)
+  entities/items.ts       items and the inventory
 ```

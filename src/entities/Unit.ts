@@ -12,7 +12,9 @@ export type Order =
   | { type: 'attack'; target: Unit }
   | { type: 'attackMove'; x: number; y: number }
   | { type: 'hold' }
-  | { type: 'cast'; ability: Ability; x: number; y: number };
+  | { type: 'cast'; ability: Ability; x: number; y: number }
+  /** Walk up to a rock tile and search it (hero only). */
+  | { type: 'search'; tx: number; ty: number };
 
 export interface DamageOpts {
   color?: string;
@@ -33,6 +35,8 @@ export interface World {
   fallingArrows(x: number, y: number, radius: number, count: number): void;
   floatText(x: number, y: number, text: string, color: string, big?: boolean): void;
   burst(x: number, y: number, color: number, count?: number): void;
+  /** Break a searchable rock and hand out its loot. */
+  searchRock(tx: number, ty: number): void;
 }
 
 export interface UnitStats {
