@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
-import { buildAllTextures } from '../art/sprites';
+import { buildAllTextures, portraitDataUrl } from '../art/sprites';
+import { ATLASES, IMAGES } from '../assets';
 import { Ability } from '../abilities/Ability';
-import { Camp, Creep } from '../entities/Creep';
+import { Camp, Creep, CreepKind } from '../entities/Creep';
 import { Hero } from '../entities/Hero';
 import { Arrow } from '../entities/Projectile';
 import { DamageOpts, Unit, World } from '../entities/Unit';
@@ -65,6 +66,11 @@ export class GameScene extends Phaser.Scene implements World {
     return this;
   }
 
+  preload(): void {
+    for (const a of ATLASES) this.load.atlas(a.key, a.png, a.json);
+    for (const i of IMAGES) this.load.image(i.key, i.png);
+  }
+
   create(): void {
     this.dpr = (this.game.registry.get('dpr') as number) ?? 1;
     this.map = new WorldMap(80, 80, (Math.random() * 1e9) | 0);
@@ -91,7 +97,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.applyZoom();
     cam.centerOn(this.hero.x, this.hero.y);
 
-    this.hud = new Hud(document.getElementById('ui')!, this.hero, this.map, {
+    this.hud = new Hud(document.getElementById('ui')!, this.hero, this.map, portraitDataUrl(this), {
       abilityTap: (i) => this.onAbilityTap(i),
       abilityAim: (i, dx, dy) => this.onAbilityAim(i, dx, dy),
       abilityAimEnd: (i, cast) => this.onAbilityAimEnd(i, cast),
@@ -129,16 +135,16 @@ export class GameScene extends Phaser.Scene implements World {
     }
   }
 
-  private spawnCamp(x: number, y: number, kind: 'goblins' | 'ogre'): void {
+  private spawnCamp(x: number, y: number, kind: 'skeletons' | 'boars'): void {
     const camp = new Camp(x, y);
     this.add.image(x, y + 4, 'logs').setOrigin(0.5, 1).setDepth(y + 4);
     const flame = this.add.image(x, y - 1, 'spark').setTint(0xff9a3a).setScale(2).setDepth(y + 5);
     this.tweens.add({ targets: flame, scaleX: 1.4, scaleY: 2.6, alpha: 0.7, yoyo: true, repeat: -1, duration: 220 });
-    const kinds: Array<'goblin' | 'ogre'> = kind === 'ogre' ? ['ogre', 'goblin', 'goblin'] : ['goblin', 'goblin', 'goblin'];
+    const kinds: CreepKind[] = kind === 'boars' ? ['alphaBoar', 'boar', 'boar'] : ['skeleton', 'skeleton', 'skeleton'];
     kinds.forEach((k, i) => {
       const a = (i / kinds.length) * Math.PI * 2 + 0.5;
-      const r = k === 'ogre' ? 0 : TILE * 1.1;
-      const c = new Creep(this, k, camp, x + Math.cos(a) * r, y + Math.sin(a) * r + (k === 'ogre' ? TILE * 0.9 : 0));
+      const r = k === 'alphaBoar' ? 0 : TILE * 1.2;
+      const c = new Creep(this, k, camp, x + Math.cos(a) * r, y + Math.sin(a) * r + (k === 'alphaBoar' ? TILE * 0.9 : 0));
       camp.creeps.push(c);
       this.units.push(c);
     });
@@ -582,7 +588,7 @@ export class GameScene extends Phaser.Scene implements World {
       const s = u.stats.scale ?? 1;
       const w = Math.round(14 * s);
       const x = Math.round(u.x - w / 2);
-      const y = Math.round(u.y - 19 * s - 2);
+      const y = Math.round(u.y - u.stats.barHeight * s);
       const p = Math.max(0, u.hp / u.maxHp);
       const isHero = u === this.hero;
       if (!isHero && p >= 1 && u.order.type === 'idle') continue; // keep the screen calm

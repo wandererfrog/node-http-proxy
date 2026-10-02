@@ -47,6 +47,8 @@ export interface UnitStats {
   acquireRange: number; // px
   ranged: boolean;
   scale?: number;
+  /** px above the feet where the health bar sits (before scale) */
+  barHeight: number;
 }
 
 /** WC3-ish turn rate: about 0.17s for a full 180° turn. Units only walk once roughly facing their heading. */
@@ -104,8 +106,9 @@ export class Unit {
     this.y = y;
     this.hp = stats.maxHp;
     const scene = world.phaser;
-    this.shadow = scene.add.image(x, y, 'shadow').setOrigin(0.5, 0.5).setScale(stats.scale ?? 1);
-    this.sprite = scene.add.sprite(x, y, textureKey, 'down_idle').setOrigin(0.5, 1).setScale(stats.scale ?? 1);
+    const s = stats.scale ?? 1;
+    this.shadow = scene.add.image(x, y, 'shadow').setOrigin(0.5, 0.5).setScale(Math.max(0.6, (s * stats.radius) / 8));
+    this.sprite = scene.add.sprite(x, y, textureKey, 'down_idle').setOrigin(0.5, 1).setScale(s);
   }
 
   get maxHp(): number {
@@ -478,11 +481,14 @@ export class Unit {
   protected syncSprite(dt: number): void {
     const { facing, flip } = this.facing;
     const sp = this.sprite;
-    sp.setPosition(Math.round(this.x), Math.round(this.y + 3));
+    sp.setPosition(Math.round(this.x), Math.round(this.y + 2));
     sp.setFlipX(flip);
     sp.setDepth(this.y);
     this.shadow.setPosition(Math.round(this.x), Math.round(this.y + 2)).setDepth(this.y - 1000);
-    if (this.attacking || this.poseOverride === 'attack') {
+    if (this.swing?.phase === 'backswing') {
+      sp.anims.stop();
+      sp.setFrame(`${facing}_shoot`);
+    } else if (this.attacking || this.poseOverride === 'attack') {
       sp.anims.stop();
       sp.setFrame(`${facing}_attack`);
     } else if (this.moving) {
@@ -512,12 +518,13 @@ export class Unit {
     this.order = { type: 'idle' };
     const scene = this.world.phaser;
     this.sprite.anims.stop();
-    this.sprite.setTint(0x888888);
+    this.sprite.setFrame(`${this.facing.facing}_death`).clearTint();
+    this.sprite.setDepth(this.y - 8); // corpses lie under the living
     scene.tweens.add({
       targets: [this.sprite, this.shadow],
       alpha: 0,
-      angle: 90,
-      duration: 700,
+      delay: 2500,
+      duration: 900,
       onComplete: () => {
         this.sprite.setVisible(false);
         this.shadow.setVisible(false);

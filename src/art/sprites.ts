@@ -1,5 +1,5 @@
 import type Phaser from 'phaser';
-import { Palette, drawPixels, drawRows, makeCanvas, px, shade } from './pixel';
+import { Palette, drawRows, makeCanvas, px, shade } from './pixel';
 import { TILE, Tile, WorldMap } from '../world/map';
 
 /**
@@ -9,192 +9,32 @@ import { TILE, Tile, WorldMap } from '../world/map';
 
 export type Facing = 'down' | 'up' | 'side';
 export const FACINGS: Facing[] = ['down', 'up', 'side'];
-/** Frame order per facing. */
-export const POSES = ['idle', 'walk1', 'walk2', 'attack'] as const;
+/** Frames every unit atlas provides, named `${facing}_${pose}`. Side frames face right; the game mirrors them. */
+export const POSES = ['idle', 'walk1', 'walk2', 'attack', 'shoot', 'death'] as const;
 export type Pose = (typeof POSES)[number];
 
-// --- Humanoid body, 16x13 upper body + 3 rows of legs ---------------------------------------
+/** Unit atlases sliced from art-source/sprite-sheet.png by tools/slice_sheet.py. */
+export const UNIT_SHEETS = ['archer', 'boar', 'skeleton', 'boar_alpha'] as const;
 
-export const BODY: Record<Facing, string[]> = {
-  down: [
-    '......kkkk......',
-    '.....kGGGGk.....',
-    '....kGGGGGGk....',
-    '...kGssssssGk...',
-    '...kgsessesgk...',
-    '...kgssSSssgk...',
-    '...kggSSSSggk...',
-    '..kdgGGGGGGgdk..',
-    '..kdsGGbGGGsdk..',
-    '..kdsGGGbGGsdk..',
-    '...kdBBBBBBdk...',
-    '...kdGGGGGGdk...',
-    '....kGGGGGGk....',
-  ],
-  up: [
-    '......kkkk......',
-    '.....kGGGGk.....',
-    '....kGGGGGGk....',
-    '...kGGGGGGGGk...',
-    '...kgGGGGGGgk...',
-    '...kgGGGGGGgk...',
-    '...kggggggggk...',
-    '..kddddddddddk..',
-    '..ksddddddddsk..',
-    '..ksddddddddsk..',
-    '...kBBBBBBBBk...',
-    '...kddddddddk...',
-    '....kddddddk....',
-  ],
-  side: [
-    '.....kkkk.......',
-    '....kGGGGk......',
-    '...kGGGGGGk.....',
-    '...kGGGGsssk....',
-    '...kgGGssesk....',
-    '...kggGsssssk...',
-    '...kgggSSSk.....',
-    '...kddGGGGGk....',
-    '...kddGGGsGk....',
-    '...kddGbGGsk....',
-    '...kdBBBBBBk....',
-    '...kdGGGGGk.....',
-    '....kGGGGk......',
-  ],
-};
-
-export const LEGS: Record<Facing, Record<'idle' | 'walk1' | 'walk2', string[]>> = {
-  down: {
-    idle: ['....kll..llk....', '....kll..llk....', '....koo..ook....'],
-    walk1: ['....kll..llk....', '....kll...kk....', '....koo.........'],
-    walk2: ['....kll..llk....', '....kk...llk....', '.........ook....'],
-  },
-  up: {
-    idle: ['....kll..llk....', '....kll..llk....', '....koo..ook....'],
-    walk1: ['....kll..llk....', '....kll...kk....', '....koo.........'],
-    walk2: ['....kll..llk....', '....kk...llk....', '.........ook....'],
-  },
-  side: {
-    idle: ['.....kllk.......', '.....kllk.......', '.....koook......'],
-    walk1: ['....kll.llk.....', '...kll...llk....', '..koo.....ook...'],
-    walk2: ['.....kllk.......', '.....klk........', '.....kook.......'],
-  },
-};
-
-type Px = ReadonlyArray<readonly [number, number, string]>;
-type WeaponArt = Record<Facing, { idle: Px; attack: Px }>;
-
-const line = (x0: number, y0: number, x1: number, y1: number, ch: string): [number, number, string][] => {
-  const out: [number, number, string][] = [];
-  const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
-  for (let i = 0; i <= n; i++) {
-    out.push([Math.round(x0 + ((x1 - x0) * i) / n), Math.round(y0 + ((y1 - y0) * i) / n), ch]);
+export function registerUnitAnims(scene: Phaser.Scene): void {
+  for (const key of UNIT_SHEETS) {
+    for (const f of FACINGS) {
+      scene.anims.create({
+        key: `${key}_walk_${f}`,
+        frames: [
+          { key, frame: `${f}_walk1` },
+          { key, frame: `${f}_idle` },
+          { key, frame: `${f}_walk2` },
+          { key, frame: `${f}_idle` },
+        ],
+        frameRate: 7,
+        repeat: -1,
+      });
+    }
   }
-  return out;
-};
-
-const BOW: WeaponArt = {
-  side: {
-    idle: [
-      [12, 3, 'B'], [13, 4, 'b'], ...line(14, 5, 14, 9, 'b'), [13, 10, 'b'], [12, 11, 'B'],
-      ...line(12, 4, 12, 10, 'w'), [13, 7, 's'],
-    ],
-    attack: [
-      [12, 3, 'B'], [13, 4, 'b'], ...line(14, 5, 14, 9, 'b'), [13, 10, 'b'], [12, 11, 'B'],
-      ...line(12, 4, 9, 7, 'w'), ...line(9, 7, 12, 10, 'w'),
-      ...line(9, 7, 14, 7, 'a'), [15, 7, 'm'], [8, 7, 'r'], [13, 7, 's'],
-    ],
-  },
-  down: {
-    idle: [[14, 6, 'B'], ...line(15, 7, 15, 10, 'b'), [14, 11, 'B'], ...line(14, 7, 14, 10, 'w')],
-    attack: [
-      [3, 11, 'B'], ...line(4, 12, 11, 12, 'b'), [12, 11, 'B'],
-      ...line(4, 11, 7, 9, 'w'), ...line(8, 9, 11, 11, 'w'),
-      ...line(7, 9, 7, 14, 'a'), [7, 15, 'm'],
-    ],
-  },
-  up: {
-    idle: [[10, 4, 'r'], [11, 5, 'r'], ...line(10, 5, 10, 9, 'B'), ...line(11, 6, 11, 9, 'B')],
-    attack: [
-      [10, 4, 'r'], [11, 5, 'r'],
-      [3, 4, 'B'], ...line(4, 3, 11, 3, 'b'), [12, 4, 'B'],
-      ...line(7, 0, 7, 5, 'a'), [7, 0, 'm'],
-    ],
-  },
-};
-
-const CLUB: WeaponArt = {
-  side: {
-    idle: [...line(12, 8, 14, 4, 'b'), [14, 3, 'B'], [15, 3, 'B'], [15, 4, 'B'], [12, 8, 's']],
-    attack: [...line(11, 8, 14, 8, 'b'), [15, 7, 'B'], [15, 8, 'B'], [15, 9, 'B'], [11, 8, 's']],
-  },
-  down: {
-    idle: [...line(14, 9, 14, 5, 'b'), [14, 4, 'B'], [15, 4, 'B'], [15, 5, 'B']],
-    attack: [...line(8, 9, 8, 13, 'b'), [7, 14, 'B'], [8, 14, 'B'], [9, 14, 'B'], [8, 15, 'B']],
-  },
-  up: {
-    idle: [...line(1, 9, 1, 5, 'b'), [0, 4, 'B'], [1, 4, 'B'], [0, 5, 'B']],
-    attack: [...line(8, 5, 8, 2, 'b'), [7, 1, 'B'], [8, 1, 'B'], [9, 1, 'B'], [8, 0, 'B']],
-  },
-};
+}
 
 const OUTLINE = '#1a1c2c';
-
-export const PALETTES: Record<string, Palette> = {
-  ranger: {
-    k: OUTLINE, G: '#4f9a4a', g: '#2e5c35', d: '#23452a', s: '#f0b98d', S: '#c98b62', e: OUTLINE,
-    b: '#9a5f33', B: '#5c3a22', l: '#5a4636', o: '#3b2a20', w: '#e6e6e6', a: '#c8a070', m: '#c0c8d0', r: '#c0392b',
-  },
-  goblin: {
-    k: OUTLINE, G: '#8a5a35', g: '#5c3a22', d: '#6b4a2a', s: '#7bbf4a', S: '#4f8a33', e: '#ff3b30',
-    b: '#8d6e4f', B: '#5a5a66', l: '#4a3a2a', o: '#2a2018', w: '#e6e6e6', a: '#c8a070', m: '#c0c8d0', r: '#c0392b',
-  },
-  ogre: {
-    k: OUTLINE, G: '#7a6a9a', g: '#4d3f6b', d: '#3d3354', s: '#9fb0a0', S: '#6f8070', e: '#ffcc00',
-    b: '#7d5a3a', B: '#3a3a44', l: '#4a3a2a', o: '#2a2018', w: '#e6e6e6', a: '#c8a070', m: '#c0c8d0', r: '#c0392b',
-  },
-};
-
-export function drawHumanoid(
-  ctx: CanvasRenderingContext2D,
-  facing: Facing,
-  pose: Pose,
-  pal: Palette,
-  weapon: WeaponArt,
-  ox = 0,
-  oy = 0,
-): void {
-  const legs = LEGS[facing][pose === 'attack' ? 'idle' : pose];
-  // The weapon goes behind the body when facing up, in front otherwise.
-  const w = weapon[facing][pose === 'attack' ? 'attack' : 'idle'];
-  if (facing === 'up') drawPixels(ctx, w, pal, ox, oy);
-  drawRows(ctx, BODY[facing], pal, ox, oy);
-  drawRows(ctx, legs, pal, ox, oy + 13);
-  if (facing !== 'up') drawPixels(ctx, w, pal, ox, oy);
-}
-
-/** Build a 16x16 spritesheet texture `key` with frames `${key}_${facing}_${pose}`. */
-function buildUnitSheet(scene: Phaser.Scene, key: string, pal: Palette, weapon: WeaponArt): void {
-  const [canvas, ctx] = makeCanvas(16 * POSES.length, 16 * FACINGS.length);
-  FACINGS.forEach((f, row) => POSES.forEach((p, col) => drawHumanoid(ctx, f, p, pal, weapon, col * 16, row * 16)));
-  const tex = scene.textures.addCanvas(key, canvas)!;
-  FACINGS.forEach((f, row) =>
-    POSES.forEach((p, col) => tex.add(`${f}_${p}`, 0, col * 16, row * 16, 16, 16)),
-  );
-  for (const f of FACINGS) {
-    scene.anims.create({
-      key: `${key}_walk_${f}`,
-      frames: [
-        { key, frame: `${f}_walk1` },
-        { key, frame: `${f}_idle` },
-        { key, frame: `${f}_walk2` },
-        { key, frame: `${f}_idle` },
-      ],
-      frameRate: 8,
-      repeat: -1,
-    });
-  }
-}
 
 // --- Terrain ---------------------------------------------------------------------------------
 
@@ -345,15 +185,14 @@ function buildProps(scene: Phaser.Scene): void {
   ], { k: OUTLINE, L: '#c8ccd4', m: '#9aa0ac', D: '#6c7180' });
   scene.textures.addCanvas('rock', rc);
 
-  const [sc, sctx] = makeCanvas(12, 5);
-  sctx.fillStyle = 'rgba(0,0,0,0.35)';
-  sctx.fillRect(2, 0, 8, 5);
-  sctx.fillRect(0, 1, 12, 3);
+  // Soft pixel ellipse, 20x6; units scale it to their body radius.
+  const [sc, sctx] = makeCanvas(20, 6);
+  sctx.fillStyle = 'rgba(0,0,0,0.32)';
+  for (let y = 0; y < 6; y++) {
+    const half = Math.round(10 * Math.sqrt(1 - ((y + 0.5 - 3) / 3) ** 2));
+    sctx.fillRect(10 - half, y, half * 2, 1);
+  }
   scene.textures.addCanvas('shadow', sc);
-
-  const [ac, actx] = makeCanvas(9, 3);
-  drawRows(actx, ['rr.......', '.raaaaaam', 'rr.......'], { r: '#e6e6e6', a: '#c8a070', m: '#d8dee6' });
-  scene.textures.addCanvas('arrow', ac);
 
   const [fc, fctx] = makeCanvas(9, 3);
   drawRows(fctx, ['yy....ooy', '.yaaaoooY', 'yy....ooy'], { y: '#ffd84a', a: '#ff9a3a', o: '#ff5a1f', Y: '#fff2a8' });
@@ -558,22 +397,33 @@ export function iconDataUrl(name: string, scale = 4): string {
   return c.toDataURL();
 }
 
-export function portraitDataUrl(scale = 4): string {
-  const [c, ctx] = makeCanvas(16 * scale, 12 * scale);
+/** Hero portrait for the HUD: the head and shoulders of the archer's idle frame. */
+/** Hero portrait for the HUD: head and shoulders cropped from the archer's idle frame. */
+export function portraitDataUrl(scene: Phaser.Scene, scale = 4): string {
+  const frame = scene.textures.getFrame('archer', 'down_idle');
+  const [probe, pctx] = makeCanvas(frame.width, frame.height);
+  pctx.drawImage(frame.source.image as HTMLImageElement, frame.cutX, frame.cutY, frame.width, frame.height, 0, 0, frame.width, frame.height);
+  const data = pctx.getImageData(0, 0, frame.width, frame.height).data;
+  const opaque = (x: number, y: number) => data[(y * frame.width + x) * 4 + 3] > 0;
+  // Bounding box of the head: the first opaque rows of the sprite.
+  let top = 0;
+  while (top < frame.height - 1 && !Array.from({ length: frame.width }, (_, x) => opaque(x, top)).some(Boolean)) top++;
+  let minX = frame.width;
+  let maxX = 0;
+  for (let y = top; y < Math.min(frame.height, top + 8); y++)
+    for (let x = 0; x < frame.width; x++) if (opaque(x, y)) [minX, maxX] = [Math.min(minX, x), Math.max(maxX, x)];
+  const w = 20;
+  const h = 15;
+  const sx = Math.round((minX + maxX + 1) / 2 - w / 2);
+  const [c, ctx] = makeCanvas(w * scale, h * scale);
   ctx.fillStyle = '#20301f';
   ctx.fillRect(0, 0, c.width, c.height);
-  ctx.save();
-  ctx.scale(scale, scale);
-  drawRows(ctx, BODY.down.slice(0, 12), PALETTES.ranger, 0, 1);
-  drawPixels(ctx, BOW.down.idle, PALETTES.ranger, 0, 1);
-  ctx.restore();
+  ctx.drawImage(probe, sx, top - 1, w, h, 0, 0, w * scale, h * scale);
   return c.toDataURL();
 }
 
 export function buildAllTextures(scene: Phaser.Scene, map: WorldMap): void {
-  buildUnitSheet(scene, 'ranger', PALETTES.ranger, BOW);
-  buildUnitSheet(scene, 'goblin', PALETTES.goblin, CLUB);
-  buildUnitSheet(scene, 'ogre', PALETTES.ogre, CLUB);
+  registerUnitAnims(scene);
   buildGround(scene, map);
   buildProps(scene);
 }

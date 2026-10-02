@@ -27,7 +27,7 @@ export class Hero extends Unit {
   respawnT = 0;
 
   constructor(world: World, x: number, y: number) {
-    super(world, 'player', 'ranger', {
+    super(world, 'player', 'archer', {
       maxHp: 420,
       speed: 66,
       radius: 5,
@@ -38,6 +38,7 @@ export class Hero extends Unit {
       backswing: 0.35,
       acquireRange: 7 * TILE,
       ranged: true,
+      barHeight: 24,
     }, x, y);
     this.mana = this.maxMana;
   }

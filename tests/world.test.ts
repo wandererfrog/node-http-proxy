@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { WorldMap } from '../src/world/map';
-import { BODY, LEGS, FACINGS } from '../src/art/sprites';
+import { FACINGS, POSES, UNIT_SHEETS } from '../src/art/sprites';
 import { xpForLevel } from '../src/entities/xp';
+import archer from '../src/assets/sprites/archer.json';
+import boar from '../src/assets/sprites/boar.json';
+import skeleton from '../src/assets/sprites/skeleton.json';
+import boarAlpha from '../src/assets/sprites/boar_alpha.json';
 
 describe('WorldMap', () => {
   it.each([1, 2, 3, 42, 1337, 99999])('seed %i: spawn is open and every camp is reachable', (seed) => {
@@ -12,16 +16,10 @@ describe('WorldMap', () => {
   });
 });
 
-describe('sprites', () => {
-  it('every humanoid row is 16 pixels wide and frames are 16 tall', () => {
-    for (const f of FACINGS) {
-      expect(BODY[f]).toHaveLength(13);
-      for (const r of BODY[f]) expect(r).toHaveLength(16);
-      for (const legs of Object.values(LEGS[f])) {
-        expect(legs).toHaveLength(3);
-        for (const r of legs) expect(r).toHaveLength(16);
-      }
-    }
+describe('sprite atlases', () => {
+  const atlases: Record<string, { frames: Record<string, unknown> }> = { archer, boar, skeleton, boar_alpha: boarAlpha };
+  it.each([...UNIT_SHEETS])('%s has every facing x pose frame the game uses', (key) => {
+    for (const f of FACINGS) for (const p of POSES) expect(atlases[key].frames).toHaveProperty(`${f}_${p}`);
   });
 });
 

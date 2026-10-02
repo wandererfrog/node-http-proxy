@@ -14,7 +14,7 @@ export interface CampSpec {
   /** tile-space centre */
   x: number;
   y: number;
-  kind: 'goblins' | 'ogre';
+  kind: 'skeletons' | 'boars';
 }
 
 /** Small deterministic PRNG so a seed always gives the same map. */
@@ -91,7 +91,7 @@ export class WorldMap implements Grid {
       this.clearCircle(cx, cy, 3.5);
       this.paintCircle(cx, cy, 1.8, Tile.Dirt);
       this.carveRoad(this.spawn, { x: cx + 0.5, y: cy + 0.5 }, rand);
-      this.camps.push({ x: cx + 0.5, y: cy + 0.5, kind: dist > 22 ? 'ogre' : 'goblins' });
+      this.camps.push({ x: cx + 0.5, y: cy + 0.5, kind: dist > 22 ? 'boars' : 'skeletons' });
     }
   }
 

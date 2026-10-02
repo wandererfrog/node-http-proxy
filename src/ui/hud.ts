@@ -1,4 +1,4 @@
-import { iconDataUrl, portraitDataUrl } from '../art/sprites';
+import { iconDataUrl } from '../art/sprites';
 import { Hero, MAX_LEVEL, xpForLevel } from '../entities/Hero';
 import type { Unit } from '../entities/Unit';
 import { SearingArrows } from '../abilities/rangerAbilities';
@@ -67,6 +67,7 @@ export class Hud {
     parent: HTMLElement,
     private readonly hero: Hero,
     private readonly map: WorldMap,
+    portraitUrl: string,
     private readonly cb: HudCallbacks,
   ) {
     this.root = el('div', 'hud', parent);
@@ -75,7 +76,7 @@ export class Hud {
     const frame = el('div', 'hero-frame', this.root);
     const portrait = el('div', 'portrait', frame);
     const img = el('img', '', portrait);
-    img.src = portraitDataUrl(4);
+    img.src = portraitUrl;
     img.alt = 'Ranger';
     this.levelBadge = el('div', 'level', portrait);
     const bars = el('div', 'bars', frame);

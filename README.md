@@ -3,7 +3,21 @@
 A top-down pixel-art action RPG: old-school Zelda look, **Warcraft III hero controls**.
 Built with [Phaser 3](https://phaser.io) + TypeScript + Vite. **Mobile first** (touch), and it also plays with mouse and keyboard.
 
-All art is pixel art generated in code at startup (`src/art/sprites.ts`), so there are no asset files to manage.
+Unit art (the archer, boars, skeletons, arrows) comes from the concept sheet in `art-source/sprite-sheet.png`.
+`tools/slice_sheet.py` cuts it into game-ready pixel-art atlases in `src/assets/sprites/`.
+Terrain, props and HUD icons are drawn in code (`src/art/sprites.ts`).
+
+### Re-slicing the sprite sheet
+
+```bash
+pip install pillow numpy scipy
+python3 tools/slice_sheet.py
+```
+
+The source sheet is not a regular grid, and some of its frames face a different way from their column label.
+So the slicer finds each sprite automatically, and `picks` in the script chooses which one to use for each frame (`down` / `up` / `side` × `idle`, `walk1`, `walk2`, `attack`, `shoot`, `death`).
+Side frames are stored facing right, and the game mirrors them for left.
+The alpha boar is the same art sliced at a finer scale, so it's bigger without blurry upscaling.
 
 ## Run it
 
@@ -52,7 +66,7 @@ Abilities level up WC3-style: a skill point per hero level, and basic abilities 
 
 ## Creeps
 
-Goblin and ogre camps sit around the map, each with a campfire. Camps aggro together, leash home (regenerating) if you drag them too far, and respawn 45s after being cleared once you're not standing on top of them.
+Skeleton camps sit near the start and boar packs (led by an alpha boar) further out, each around a campfire. Camps aggro together, leash home (regenerating) if you drag them too far, and respawn 45s after being cleared once you're not standing on top of them.
 
 ## Code map
 
@@ -67,6 +81,7 @@ src/
   abilities/              Ability base class and the Ranger kit
   world/map.ts            seeded map generation (forests, lakes, roads to every camp)
   world/pathfinding.ts    A*, line of walk, path smoothing
-  art/                    pixel art authored in code
+  art/                    terrain/props/icons drawn in code, atlas animation setup
+  assets/sprites/         unit atlases generated from art-source/ by tools/slice_sheet.py
   ui/hud.ts               DOM HUD: hero frame, minimap, command card, tooltips
 ```
