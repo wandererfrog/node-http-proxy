@@ -8,7 +8,9 @@ Unit art (archer, boars, skeletons) comes from `art-source/units-sheet.png`.
 Units face 8 directions: five drawn views (front, front ¾, side, back ¾, back), with the left half mirrored.
 The atlases are sliced at 2x density and drawn at half size, so the detail survives on phone screens.
 The arrow comes from the older concept sheet, `art-source/sprite-sheet.png`.
-Terrain, props and HUD icons are drawn in code (`src/art/sprites.ts`).
+The world (ground textures, trees, rocks, ponds, ruins, village props, flowers) comes from `art-source/environment-sheet.png`.
+It's sliced into the `env` atlas by the same script.
+HUD icons, the chest and effects are drawn in code (`src/art/sprites.ts`).
 
 ### Re-slicing the sprite sheet
 
@@ -86,6 +88,25 @@ Find them by searching rocks (each rock crumbles and always gives one), or as oc
 
 Abilities level up WC3-style: a skill point per hero level, and basic abilities need hero level 1/3/5.
 
+## World generation
+
+Every game builds a new random map (`src/world/map.ts`, seeded, so a seed always gives the same map).
+
+**Biomes come from noise layers:**
+- **Forests:** oak woods and pine woods, with bushes and young trees along their edges.
+- **Rocky areas:** boulders, searchable rocks and dead trees.
+- **Ponds:** muddy banks, reeds and lily pads.
+- **Open meadows:** flowers, tufts, clover; mushrooms and fallen leaves near trees.
+
+**Props** (`src/world/props.ts`) have footprints:
+- Trees block arrows.
+- Boulders, ruins and logs only block movement.
+- Rocks can be searched.
+
+**Camps are dressed to match their occupants.** Skeletons live among ruins, boars among logs and stumps, and treasure camps sit by a stone arch with crates and barrels. The start is a small outpost with a signpost, lantern and cart. Dressing is removed again if it would ever cut a camp off from the road network.
+
+**Ground is baked at load** into chunk textures (`src/art/ground.ts`). The sheet's grass squares are laid in a jittered grid, and dirt and water show through noisy masks so roads and ponds get ragged pixel edges. Prop shadows and small ground details are painted in too.
+
 ## Creeps
 
 The map is 96×96 tiles with about 24 camps scattered across it, all joined by dirt roads.
@@ -111,7 +132,9 @@ src/
   entities/Creep.ts       camp AI: group aggro, leash, regen
   entities/Projectile.ts  homing and skillshot arrows
   abilities/              Ability base class and the Ranger kit
-  world/map.ts            seeded map generation (forests, lakes, roads to every camp)
+  world/map.ts            seeded map generation (biomes, props, decor, camps, roads)
+  world/props.ts          environment prop catalogue (footprints, blocking kind, groups)
+  art/ground.ts           bakes ground chunks from the environment sheet
   world/pathfinding.ts    A*, line of walk, path smoothing
   art/                    terrain/props/icons drawn in code, atlas animation setup
   assets/sprites/         unit atlases generated from art-source/ by tools/slice_sheet.py

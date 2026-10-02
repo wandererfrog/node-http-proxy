@@ -1,5 +1,6 @@
 import { Grid, Point, findTilePath } from './pathfinding';
 import type { CreepKind } from '../entities/balance';
+import { GROUPS, PROPS } from './props';
 
 export const TILE = 16;
 
@@ -11,6 +12,22 @@ export enum Tile {
   Rock = 4,
   /** Treasure chest in the middle of a guarded camp. */
   Chest = 5,
+  /** Solid prop that doesn't stop arrows: boulders, ruins, logs, village props. */
+  Block = 6,
+}
+
+/** A prop sprite on the map, anchored at its bottom-left footprint tile. */
+export interface PropPlacement {
+  key: string;
+  tx: number;
+  ty: number;
+}
+
+/** Non-blocking ground detail (tufts, flowers, pebbles, lily pads), in world pixels. */
+export interface Decor {
+  key: string;
+  x: number;
+  y: number;
 }
 
 export interface CampSpec {
@@ -78,42 +95,225 @@ function makeNoise(rand: () => number, size: number): (x: number, y: number) => 
   };
 }
 
+const pickFrom = <T>(rand: () => number, list: readonly T[]): T => list[Math.floor(rand() * list.length)];
+
+/** Biome noise sampled per tile; kept so decoration can follow the same regions. */
+interface Biome {
+  forest: number;
+  pine: number;
+  rocky: number;
+}
+
 export class WorldMap implements Grid {
   readonly tiles: Uint8Array;
   /** per-tile random variant for decoration (grass tufts, flowers...) */
   readonly variant: Uint8Array;
   readonly camps: CampSpec[] = [];
   readonly spawn: Point;
+  /** Props by anchor tile index. */
+  readonly props = new Map<number, PropPlacement>();
+  /** For every blocked tile that belongs to a prop: the anchor index of that prop. */
+  private readonly owner: Int32Array;
+  readonly decor: Decor[] = [];
+  private readonly biome: Biome[] = [];
+  /** Props placed to dress camps and the start, so they can be removed if they block a path. */
+  private dressing: Array<{ anchor: number; camp: number }> = [];
 
   constructor(readonly width: number, readonly height: number, seed = 1337) {
     this.tiles = new Uint8Array(width * height);
     this.variant = new Uint8Array(width * height);
+    this.owner = new Int32Array(width * height).fill(-1);
     const rand = mulberry32(seed);
     const forest = makeNoise(rand, 64);
     const lakes = makeNoise(rand, 64);
+    const pines = makeNoise(rand, 64);
+    const rocks = makeNoise(rand, 64);
 
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const i = y * width + x;
         this.variant[i] = Math.floor(rand() * 256);
+        this.biome.push({
+          forest: forest(x / 7, y / 7) + forest(x / 3, y / 3) * 0.35,
+          pine: pines(x / 11 + 50, y / 11 + 50),
+          rocky: rocks(x / 6 + 200, y / 6 + 200),
+        });
+      }
+    }
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const i = y * width + x;
+        if (this.owner[i] !== -1) continue; // part of a multi-tile prop placed earlier in this row
+        const b = this.biome[i];
         const edge = Math.min(x, y, width - 1 - x, height - 1 - y);
-        const f = forest(x / 7, y / 7) + forest(x / 3, y / 3) * 0.35;
-        const w = lakes(x / 9 + 100, y / 9 + 100);
-        let t: Tile = Tile.Grass;
-        if (edge < 2) t = Tile.Tree;
-        else if (w > 0.78) t = Tile.Water;
-        else if (f > 1.0) t = Tile.Tree;
-        else if (rand() < 0.015) t = Tile.Rock;
-        else if (rand() < 0.01) t = Tile.Tree;
-        this.tiles[i] = t;
+        if (edge < 2) {
+          this.placeProp(x, y, this.treeFor(b, rand), true);
+          continue;
+        }
+        if (lakes(x / 9 + 100, y / 9 + 100) > 0.78) {
+          this.tiles[i] = Tile.Water;
+          continue;
+        }
+        const r = rand();
+        if (b.forest > 1.0) this.placeProp(x, y, this.treeFor(b, rand));
+        else if (b.forest > 0.9 && r < 0.4) this.placeProp(x, y, rand() < 0.75 ? pickFrom(rand, GROUPS.bush) : this.treeFor(b, rand));
+        else if (b.rocky > 0.68 && r < 0.16) {
+          const q = rand();
+          this.placeProp(x, y, q < 0.45 ? pickFrom(rand, GROUPS.boulder) : q < 0.8 ? pickFrom(rand, GROUPS.rock) : pickFrom(rand, GROUPS.dead));
+        } else if (r < 0.012) this.placeProp(x, y, pickFrom(rand, GROUPS.rock));
+        else if (r < 0.022) this.placeProp(x, y, this.treeFor(b, rand, true));
+        else if (r < 0.032) this.placeProp(x, y, pickFrom(rand, GROUPS.bush));
+        else if (r < 0.036) this.placeProp(x, y, pickFrom(rand, [...GROUPS.stump, ...GROUPS.wood]));
       }
     }
 
     this.spawn = { x: Math.floor(width / 2) + 0.5, y: Math.floor(height / 2) + 0.5 };
-    this.clearCircle(this.spawn.x, this.spawn.y, 4);
+    this.clearCircle(this.spawn.x, this.spawn.y, 4.5);
     this.paintCircle(this.spawn.x, this.spawn.y, 2.2, Tile.Dirt);
 
     this.placeCamps(rand);
+    this.dressSpawn(rand);
+    this.ensureReachable();
+    // Chests go in last so no road or dressing clears them away.
+    for (const c of this.camps) if (c.treasure) this.set(Math.floor(c.x), Math.floor(c.y), Tile.Chest);
+    this.scatterDecor(rand);
+  }
+
+  /** A tree that fits the biome: pine woods, oak woods, or a lone tree in the open. */
+  private treeFor(b: Biome, rand: () => number, lone = false): string {
+    const r = rand();
+    if (b.pine > 0.52) return r < 0.75 ? pickFrom(rand, GROUPS.pine) : r < 0.9 ? pickFrom(rand, GROUPS.pineSmall) : pickFrom(rand, GROUPS.oakSmall);
+    if (lone) return r < 0.6 ? pickFrom(rand, GROUPS.oakSmall) : pickFrom(rand, GROUPS.oakBig);
+    return r < 0.55 ? pickFrom(rand, GROUPS.oakBig) : r < 0.9 ? pickFrom(rand, GROUPS.oakSmall) : pickFrom(rand, GROUPS.pine);
+  }
+
+  /**
+   * Put a prop with its footprint (anchor = bottom-left, growing right and up). Every footprint
+   * tile must be free grass unless `force` (map border). Returns the anchor index or -1.
+   */
+  placeProp(tx: number, ty: number, key: string, force = false): number {
+    const def = PROPS[key];
+    const tiles: number[] = [];
+    for (let dy = 0; dy < def.h; dy++)
+      for (let dx = 0; dx < def.w; dx++) {
+        const x = tx + dx;
+        const y = ty - dy;
+        if (x < 0 || y < 0 || x >= this.width || y >= this.height) return -1;
+        const i = y * this.width + x;
+        if (!force && (this.tiles[i] !== Tile.Grass || this.owner[i] !== -1)) return -1;
+        if (force && this.owner[i] !== -1) return -1;
+        tiles.push(i);
+      }
+    const anchor = ty * this.width + tx;
+    const t = def.kind === 'tree' ? Tile.Tree : def.kind === 'rock' ? Tile.Rock : Tile.Block;
+    for (const i of tiles) {
+      this.tiles[i] = t;
+      this.owner[i] = anchor;
+    }
+    this.props.set(anchor, { key, tx, ty });
+    return anchor;
+  }
+
+  /** Remove a whole prop (all footprint tiles become grass). */
+  removeProp(anchor: number): void {
+    const p = this.props.get(anchor);
+    if (!p) return;
+    const def = PROPS[p.key];
+    for (let dy = 0; dy < def.h; dy++)
+      for (let dx = 0; dx < def.w; dx++) {
+        const i = (p.ty - dy) * this.width + p.tx + dx;
+        this.tiles[i] = Tile.Grass;
+        this.owner[i] = -1;
+      }
+    this.props.delete(anchor);
+  }
+
+  /** Anchor index of the prop covering a tile, or -1. */
+  propAt(tx: number, ty: number): number {
+    if (tx < 0 || ty < 0 || tx >= this.width || ty >= this.height) return -1;
+    return this.owner[ty * this.width + tx];
+  }
+
+  /** Dress a camp's clearing to match who lives there, on grass around the edge (never on the road). */
+  private dressCamp(campIndex: number, rand: () => number): void {
+    const c = this.camps[campIndex];
+    const skeletons = c.members.filter((m) => m === 'skeleton').length;
+    const pool: readonly string[] = c.treasure
+      ? ['arch', ...GROUPS.supplies, ...GROUPS.supplies, ...GROUPS.ruins]
+      : skeletons * 2 >= c.members.length
+        ? GROUPS.ruins
+        : [...GROUPS.wood, ...GROUPS.stump, ...GROUPS.bush, 'firewood'];
+    const count = 2 + Math.floor(rand() * 3);
+    let placed = 0;
+    for (let tries = 0; tries < 30 && placed < count; tries++) {
+      const a = rand() * Math.PI * 2;
+      const r = 3 + rand() * 0.8;
+      const tx = Math.floor(c.x + Math.cos(a) * r);
+      const ty = Math.floor(c.y + Math.sin(a) * r);
+      const key = c.treasure && placed === 0 ? 'arch' : pickFrom(rand, pool);
+      const anchor = this.placeProp(tx, ty, key);
+      if (anchor >= 0) {
+        this.dressing.push({ anchor, camp: campIndex });
+        placed++;
+      }
+    }
+  }
+
+  /** A little outpost around the start: signpost, lamp, cart and supplies. */
+  private dressSpawn(rand: () => number): void {
+    const items = ['signpost', 'lamppost', 'cart', 'barrel', 'crate', 'sack', 'fence_0'];
+    for (const key of items) {
+      for (let tries = 0; tries < 20; tries++) {
+        const a = rand() * Math.PI * 2;
+        const r = 3 + rand() * 1.2;
+        const anchor = this.placeProp(Math.floor(this.spawn.x + Math.cos(a) * r), Math.floor(this.spawn.y + Math.sin(a) * r), key);
+        if (anchor >= 0) {
+          this.dressing.push({ anchor, camp: -1 });
+          break;
+        }
+      }
+    }
+  }
+
+  /** Dressing must never cut a camp off: strip a camp's (and the start's) props if it does. */
+  private ensureReachable(): void {
+    const sx = Math.floor(this.spawn.x);
+    const sy = Math.floor(this.spawn.y);
+    const reach = (c: CampSpec) => findTilePath(this, sx, sy, Math.floor(c.x), Math.floor(c.y)) !== null;
+    this.camps.forEach((c, i) => {
+      if (reach(c)) return;
+      for (const d of this.dressing) if (d.camp === i || d.camp === -1) this.removeProp(d.anchor);
+    });
+  }
+
+  /** Ground detail, baked into the ground texture by the renderer. */
+  private scatterDecor(rand: () => number): void {
+    const { width, height } = this;
+    const add = (key: string, tx: number, ty: number) =>
+      this.decor.push({ key, x: (tx + 0.15 + rand() * 0.7) * TILE, y: (ty + 0.3 + rand() * 0.6) * TILE });
+    const nearTree = (x: number, y: number) =>
+      this.get(x - 1, y) === Tile.Tree || this.get(x + 1, y) === Tile.Tree || this.get(x, y - 1) === Tile.Tree || this.get(x, y + 1) === Tile.Tree;
+    for (let y = 1; y < height - 1; y++) {
+      for (let x = 1; x < width - 1; x++) {
+        const t = this.get(x, y);
+        const b = this.biome[y * width + x];
+        const r = rand();
+        if (t === Tile.Grass) {
+          if (r < 0.1) add(pickFrom(rand, GROUPS.tuft), x, y);
+          else if (r < 0.17 && b.forest < 0.6) add(pickFrom(rand, GROUPS.flower), x, y);
+          else if (r < 0.19) add(pickFrom(rand, GROUPS.clover), x, y);
+          else if (r < 0.25 && nearTree(x, y)) add(rand() < 0.5 ? pickFrom(rand, GROUPS.mushroom) : pickFrom(rand, GROUPS.litter), x, y);
+          else if (r < 0.35 && b.rocky > 0.62) add(pickFrom(rand, GROUPS.pebble), x, y);
+        } else if (t === Tile.Dirt) {
+          if (r < 0.04) add(pickFrom(rand, GROUPS.pebble), x, y);
+          else if (r < 0.06) add('twigs', x, y);
+        } else if (t === Tile.Water) {
+          const shore = [this.get(x - 1, y), this.get(x + 1, y), this.get(x, y - 1), this.get(x, y + 1)].some((n) => n !== Tile.Water);
+          if (shore && r < 0.18) add(pickFrom(rand, GROUPS.reeds), x, y);
+          else if (!shore && r < 0.08) add(pickFrom(rand, GROUPS.lily), x, y);
+        }
+      }
+    }
   }
 
   /**
@@ -150,8 +350,7 @@ export class WorldMap implements Grid {
       this.carveRoad(nearest, s, rand);
       this.camps.push({ x: s.x, y: s.y, level: campLevel(s.dist) + levelBonus, members, treasure: isTreasure });
     });
-    // Chests go in last so no later road clears them away.
-    for (const c of this.camps) if (c.treasure) this.set(Math.floor(c.x), Math.floor(c.y), Tile.Chest);
+    this.camps.forEach((_, i) => this.dressCamp(i, rand));
   }
 
   get(tx: number, ty: number): Tile {
@@ -161,7 +360,10 @@ export class WorldMap implements Grid {
 
   set(tx: number, ty: number, t: Tile): void {
     if (tx < 2 || ty < 2 || tx >= this.width - 2 || ty >= this.height - 2) return;
-    this.tiles[ty * this.width + tx] = t;
+    const i = ty * this.width + tx;
+    // Clearing part of a prop removes the whole prop.
+    if (this.owner[i] !== -1) this.removeProp(this.owner[i]);
+    this.tiles[i] = t;
   }
 
   isWalkable(tx: number, ty: number): boolean {

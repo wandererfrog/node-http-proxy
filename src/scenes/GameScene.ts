@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 import { buildAllTextures, portraitDataUrl } from '../art/sprites';
+import { DENSITY, buildGround } from '../art/ground';
+import { PROPS } from '../world/props';
 import { ATLASES, IMAGES } from '../assets';
 import { Ability } from '../abilities/Ability';
 import { Camp, Creep } from '../entities/Creep';
@@ -92,11 +94,11 @@ export class GameScene extends Phaser.Scene implements World {
   create(): void {
     this.dpr = (this.game.registry.get('dpr') as number) ?? 1;
     this.map = new WorldMap(96, 96, (Math.random() * 1e9) | 0);
-    buildAllTextures(this, this.map);
+    buildAllTextures(this);
 
     const worldW = this.map.width * TILE;
     const worldH = this.map.height * TILE;
-    this.add.image(0, 0, 'ground').setOrigin(0, 0).setDepth(-1e6);
+    for (const g of buildGround(this, this.map)) this.add.image(g.x, g.y, g.key).setOrigin(0, 0).setScale(1 / DENSITY).setDepth(-1e6);
     this.placeProps();
 
     this.fxGfx = this.add.graphics().setDepth(DEPTH_GROUND_FX);
@@ -139,19 +141,18 @@ export class GameScene extends Phaser.Scene implements World {
 
   // --- World construction -------------------------------------------------------------------
 
+  /** One sprite per map prop (trees, rocks, ruins...), from the environment atlas at 2x density. */
   private placeProps(): void {
-    for (let ty = 0; ty < this.map.height; ty++) {
-      for (let tx = 0; tx < this.map.width; tx++) {
-        const t = this.map.get(tx, ty);
-        const v = this.map.variant[ty * this.map.width + tx];
-        const bottom = (ty + 1) * TILE;
-        if (t === Tile.Tree) {
-          this.props.push(this.add.image(tx * TILE + 8 + ((v % 3) - 1), bottom + 1, `tree${v % 3}`).setOrigin(0.5, 1).setDepth(bottom - 3));
-        } else if (t === Tile.Rock) {
-          const img = this.add.image(tx * TILE + 8, bottom, 'rock').setOrigin(0.5, 1).setDepth(bottom - 3);
-          this.rocks.set(ty * this.map.width + tx, img);
-        }
-      }
+    for (const [anchor, p] of this.map.props) {
+      const def = PROPS[p.key];
+      const bottom = (p.ty + 1) * TILE;
+      const img = this.add
+        .image((p.tx + def.w / 2) * TILE, bottom + 1, 'env', p.key)
+        .setOrigin(0.5, 1)
+        .setScale(1 / DENSITY)
+        .setDepth(bottom - 3);
+      this.props.push(img);
+      if (def.kind === 'rock') this.rocks.set(anchor, img);
     }
   }
 
@@ -168,7 +169,7 @@ export class GameScene extends Phaser.Scene implements World {
       this.tweens.add({ targets: glint, alpha: 1, scale: 1.4, yoyo: true, repeat: -1, repeatDelay: 1400, duration: 260 });
       this.chests.set(ty * this.map.width + tx, { img, glint, camp, level: spec.level, opened: false });
     } else {
-      this.add.image(x, y + 4, 'logs').setOrigin(0.5, 1).setDepth(y + 4);
+      this.add.image(x, y + 5, 'env', 'firewood').setOrigin(0.5, 1).setScale(0.35).setDepth(y + 4);
       const flame = this.add.image(x, y - 1, 'spark').setTint(0xff9a3a).setScale(2).setDepth(y + 5);
       this.tweens.add({ targets: flame, scaleX: 1.4, scaleY: 2.6, alpha: 0.7, yoyo: true, repeat: -1, duration: 220 });
     }
@@ -227,6 +228,7 @@ export class GameScene extends Phaser.Scene implements World {
     const img = this.rocks.get(key);
     if (!img || this.map.get(tx, ty) !== Tile.Rock) return;
     this.rocks.delete(key);
+    this.props = this.props.filter((p) => p !== img);
     this.map.set(tx, ty, Tile.Grass);
     this.hud.clearMinimapTile(tx, ty);
     const x = (tx + 0.5) * TILE;

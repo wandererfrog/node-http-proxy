@@ -6,6 +6,8 @@ import archer from '../src/assets/sprites/archer.json';
 import boar from '../src/assets/sprites/boar.json';
 import skeleton from '../src/assets/sprites/skeleton.json';
 import boarAlpha from '../src/assets/sprites/boar_alpha.json';
+import env from '../src/assets/sprites/env.json';
+import { GRASS_FRAMES, GROUPS, PROPS } from '../src/world/props';
 
 describe('WorldMap', () => {
   it.each([1, 2, 3, 42, 1337, 99999])('seed %i: lots of camps, all reachable, with guarded treasure', (seed) => {
@@ -36,6 +38,40 @@ describe('WorldMap', () => {
     const t = rollGroup(rand, 4, true);
     expect(t.members).toHaveLength(3);
     expect(t.levelBonus).toBe(1);
+  });
+});
+
+describe('environment props', () => {
+  it.each([5, 77, 2024])('seed %i: props own their footprint, decor sits on open ground', (seed) => {
+    const m = new WorldMap(96, 96, seed);
+    expect(m.props.size).toBeGreaterThan(500);
+    for (const [anchor, p] of m.props) {
+      const def = PROPS[p.key];
+      expect(def, p.key).toBeDefined();
+      for (let dy = 0; dy < def.h; dy++)
+        for (let dx = 0; dx < def.w; dx++) {
+          expect(m.isWalkable(p.tx + dx, p.ty - dy)).toBe(false);
+          expect(m.propAt(p.tx + dx, p.ty - dy)).toBe(anchor);
+        }
+    }
+    for (const d of m.decor) {
+      const t = m.get(Math.floor(d.x / 16), Math.floor(d.y / 16));
+      expect([Tile.Grass, Tile.Dirt, Tile.Water]).toContain(t);
+    }
+  });
+
+  it('every prop and ground frame exists in the env atlas', () => {
+    for (const key of Object.keys(PROPS)) expect(env.frames).toHaveProperty(key);
+    for (const list of Object.values(GROUPS)) for (const key of list) expect(env.frames).toHaveProperty(key);
+    for (const key of [...GRASS_FRAMES, 'ground_dirt', 'ground_water', 'firewood']) expect(env.frames).toHaveProperty(key);
+  });
+
+  it('clearing one tile of a multi-tile prop removes the whole prop', () => {
+    const m = new WorldMap(96, 96, 9);
+    const [anchor, p] = [...m.props].find(([, q]) => PROPS[q.key].w > 1)!;
+    m.set(p.tx + 1, p.ty, Tile.Grass);
+    expect(m.props.has(anchor)).toBe(false);
+    expect(m.isWalkable(p.tx, p.ty)).toBe(true);
   });
 });
 
