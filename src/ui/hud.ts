@@ -107,8 +107,8 @@ export class Hud {
     this.lockBtn.addEventListener('click', () => this.cb.lockCamera());
 
     // Command card (bottom-right)
-    const card = el('div', 'command-card', this.root);
-    const cmds = el('div', 'cmds', card);
+    // Unit commands sit bottom-left under the left thumb; abilities sit bottom-right.
+    const cmds = el('div', 'command-left', this.root);
     const mkCmd = (c: Command, icon: string, key: string, title: string) => {
       const b = el('button', 'cmd', cmds);
       b.innerHTML = `<img src="${iconDataUrl(icon, 3)}" alt=""><span class="hk">${key}</span>`;
@@ -124,6 +124,8 @@ export class Hud {
       hold: mkCmd('hold', 'hold', 'H', 'Hold position (H)'),
       stop: mkCmd('stop', 'stop', 'S', 'Stop (S)'),
     };
+    this.cmdButtons.attack.classList.add('big');
+    const card = el('div', 'command-card', this.root);
     const abil = el('div', 'abilities', card);
     hero.abilities.forEach((ab, i) => this.buttons.push(this.makeAbilityButton(abil, i, ab.icon, ab.hotkey)));
 

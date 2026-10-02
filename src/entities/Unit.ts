@@ -51,8 +51,8 @@ export interface UnitStats {
   barHeight: number;
 }
 
-/** WC3-ish turn rate: about 0.17s for a full 180° turn. Units only walk once roughly facing their heading. */
-const TURN_RATE = Math.PI * 6;
+/** WC3-ish turn rate: about 0.33s for a full 180° turn. Units only walk once roughly facing their heading. */
+const TURN_RATE = Math.PI * 3;
 const WALK_FACING_TOLERANCE = Math.PI / 3;
 const ATTACK_FACING_TOLERANCE = Math.PI / 8;
 const REPATH_INTERVAL = 0.3;

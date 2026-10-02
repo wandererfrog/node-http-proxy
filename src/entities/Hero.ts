@@ -29,7 +29,7 @@ export class Hero extends Unit {
   constructor(world: World, x: number, y: number) {
     super(world, 'player', 'archer', {
       maxHp: 420,
-      speed: 66,
+      speed: 46,
       radius: 5,
       attackRange: 6 * TILE,
       damage: [20, 26],

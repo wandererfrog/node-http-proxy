@@ -40,13 +40,13 @@ npm run build      # static build in dist/ (relative paths, so it works from any
 | Ability | tap the button, then tap the map, **or drag from the button to aim** (release on the button to cancel) | Q W E R, then click (right-click or Esc cancels) |
 | Ability info | long-press the button | hover |
 | Learn ability | the yellow **+** on the button | **+**, or Ctrl+Q/W/E/R |
-| Attack-move / Hold / Stop | A / H / S buttons | A / H / S |
+| Attack-move / Hold / Stop | big A button + H / S, bottom-left (left thumb) | A / H / S |
 | Queue orders | — | hold Shift |
 
 ## How the movement works (the WC3 feel)
 
 - **Pathfinding** (`src/world/pathfinding.ts`): 8-directional A* that never cuts past blocked corners, then *string-pulling*, so the hero walks straight lines across open ground instead of zig-zagging from tile to tile. Clicking on a tree or water sends you to the nearest walkable spot.
-- **Turn rate**: units turn in place briefly before walking off in a new direction. A full 180° turn takes about 0.17s.
+- **Speed and turn rate**: like WC3, the hero walks about half its attack range per second (46 px/s with a 96 px range). Units turn in place before walking off, about 0.33s for a full 180°.
 - **Attack timing**: each attack has a *damage point* (when the arrow leaves the bow) and a *backswing*. Issuing a move during the windup cancels the attack with no cooldown spent. Moving during the backswing cancels it, so the classic orb-walk / attack-cancel tricks work.
 - **Auto-acquire**: an idle hero shoots enemies that come into range and fights back when hit. Attack-move fights everything on the way, Hold position only shoots what is already in range.
 - **Casting out of range** walks into range first and then casts. Blink-style abilities (Tumble) clamp to max range instead.

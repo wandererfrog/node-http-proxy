@@ -27,7 +27,7 @@ export function registerUnitAnims(scene: Phaser.Scene): void {
           { key, frame: `${f}_walk2` },
           { key, frame: `${f}_idle` },
         ],
-        frameRate: 7,
+        frameRate: 5,
         repeat: -1,
       });
     }
