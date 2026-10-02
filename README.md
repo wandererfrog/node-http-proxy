@@ -88,7 +88,17 @@ Abilities level up WC3-style: a skill point per hero level, and basic abilities 
 
 ## Creeps
 
-Skeleton camps sit near the start and boar packs (led by an alpha boar) further out, each around a campfire. Camps aggro together, leash home (regenerating) if you drag them too far, and respawn 45s after being cleared once you're not standing on top of them.
+The map is 96×96 tiles with about 24 camps scattered across it, all joined by dirt roads.
+- **Group sizes vary:** loners (a level higher, so they still matter), pairs, trios, and packs of 4–5. Groups can mix skeletons and boars; boars get more common further out, and big packs may be led by an alpha boar.
+- **Levels:** camps get tougher with distance from the start.
+- **Behaviour:** camps aggro together, leash home (regenerating) if you pull them too far, and respawn 45s after being cleared, as long as you're not standing in them.
+- **Treasure camps** are rare (about 1 in 10, at least 2 per map). Three elite guards, a level higher, stand around a glinting chest. Once the guards are dead, tap the chest to open it: you get a tome, two potions and bonus XP.
+
+Tomes work like WC3 tomes: they're read on pickup and permanently boost a stat.
+- Tome of Vitality: +60 health
+- Tome of Insight: +40 mana
+- Tome of Power: +4 damage
+- Tome of Swiftness: +3 move speed
 
 ## Code map
 

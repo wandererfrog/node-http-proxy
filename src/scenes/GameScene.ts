@@ -2,14 +2,22 @@ import Phaser from 'phaser';
 import { buildAllTextures, portraitDataUrl } from '../art/sprites';
 import { ATLASES, IMAGES } from '../assets';
 import { Ability } from '../abilities/Ability';
-import { Camp, Creep, CreepKind } from '../entities/Creep';
+import { Camp, Creep } from '../entities/Creep';
 import { CREEP_POTION_DROP } from '../entities/balance';
-import { ITEMS, ItemId } from '../entities/items';
+import { ITEMS, ItemId, TOMES, TOME_IDS } from '../entities/items';
 import { Hero } from '../entities/Hero';
 import { Arrow } from '../entities/Projectile';
 import { DamageOpts, Unit, World } from '../entities/Unit';
 import { Command, Hud } from '../ui/hud';
-import { TILE, Tile, WorldMap } from '../world/map';
+import { CampSpec, TILE, Tile, WorldMap } from '../world/map';
+
+interface Chest {
+  img: Phaser.GameObjects.Image;
+  glint: Phaser.GameObjects.Image;
+  camp: Camp;
+  level: number;
+  opened: boolean;
+}
 
 type Targeting = { kind: 'ability'; index: number } | { kind: 'attackMove' };
 
@@ -40,6 +48,11 @@ export class GameScene extends Phaser.Scene implements World {
   private camps: Camp[] = [];
   /** Searchable rocks by tile index. */
   private rocks = new Map<number, Phaser.GameObjects.Image>();
+  /** Trees, culled to the camera view so the renderer skips the thousands off-screen. */
+  private props: Phaser.GameObjects.Image[] = [];
+  private lastCull = { x: Infinity, y: Infinity, zoom: 0 };
+  /** Treasure chests by tile index. */
+  private chests = new Map<number, Chest>();
   private levelTags = new Map<Unit, Phaser.GameObjects.Text>();
   private arrows: Arrow[] = [];
   private markers: Marker[] = [];
@@ -78,7 +91,7 @@ export class GameScene extends Phaser.Scene implements World {
 
   create(): void {
     this.dpr = (this.game.registry.get('dpr') as number) ?? 1;
-    this.map = new WorldMap(80, 80, (Math.random() * 1e9) | 0);
+    this.map = new WorldMap(96, 96, (Math.random() * 1e9) | 0);
     buildAllTextures(this, this.map);
 
     const worldW = this.map.width * TILE;
@@ -92,7 +105,7 @@ export class GameScene extends Phaser.Scene implements World {
 
     this.hero = new Hero(this, this.map.spawn.x * TILE, this.map.spawn.y * TILE);
     this.units.push(this.hero);
-    for (const spec of this.map.camps) this.spawnCamp(spec.x * TILE, spec.y * TILE, spec.kind, spec.level);
+    for (const spec of this.map.camps) this.spawnCamp(spec);
 
     const cam = this.cameras.main;
     cam.setBounds(0, 0, worldW, worldH);
@@ -133,7 +146,7 @@ export class GameScene extends Phaser.Scene implements World {
         const v = this.map.variant[ty * this.map.width + tx];
         const bottom = (ty + 1) * TILE;
         if (t === Tile.Tree) {
-          this.add.image(tx * TILE + 8 + ((v % 3) - 1), bottom + 1, `tree${v % 3}`).setOrigin(0.5, 1).setDepth(bottom - 3);
+          this.props.push(this.add.image(tx * TILE + 8 + ((v % 3) - 1), bottom + 1, `tree${v % 3}`).setOrigin(0.5, 1).setDepth(bottom - 3));
         } else if (t === Tile.Rock) {
           const img = this.add.image(tx * TILE + 8, bottom, 'rock').setOrigin(0.5, 1).setDepth(bottom - 3);
           this.rocks.set(ty * this.map.width + tx, img);
@@ -142,17 +155,32 @@ export class GameScene extends Phaser.Scene implements World {
     }
   }
 
-  private spawnCamp(x: number, y: number, kind: 'skeletons' | 'boars', level: number): void {
+  private spawnCamp(spec: CampSpec): void {
+    const x = spec.x * TILE;
+    const y = spec.y * TILE;
     const camp = new Camp(x, y);
-    this.add.image(x, y + 4, 'logs').setOrigin(0.5, 1).setDepth(y + 4);
-    const flame = this.add.image(x, y - 1, 'spark').setTint(0xff9a3a).setScale(2).setDepth(y + 5);
-    this.tweens.add({ targets: flame, scaleX: 1.4, scaleY: 2.6, alpha: 0.7, yoyo: true, repeat: -1, duration: 220 });
-    const kinds: CreepKind[] = kind === 'boars' ? ['alphaBoar', 'boar', 'boar'] : ['skeleton', 'skeleton', 'skeleton'];
-    kinds.forEach((k, i) => {
-      const a = (i / kinds.length) * Math.PI * 2 + 0.5;
-      const r = k === 'alphaBoar' ? 0 : TILE * 1.2;
-      const lvl = k === 'alphaBoar' ? level + 1 : level;
-      const c = new Creep(this, k, lvl, camp, x + Math.cos(a) * r, y + Math.sin(a) * r + (k === 'alphaBoar' ? TILE * 0.9 : 0));
+    if (spec.treasure) {
+      // The chest sits on the centre tile (which the map marks as blocked); guards stand around it.
+      const tx = Math.floor(spec.x);
+      const ty = Math.floor(spec.y);
+      const img = this.add.image(x, (ty + 1) * TILE, 'chest').setOrigin(0.5, 1).setDepth((ty + 1) * TILE - 3);
+      const glint = this.add.image(x + 3, y - 4, 'spark').setTint(0xfff2a8).setDepth(DEPTH_OVERLAY - 3).setAlpha(0);
+      this.tweens.add({ targets: glint, alpha: 1, scale: 1.4, yoyo: true, repeat: -1, repeatDelay: 1400, duration: 260 });
+      this.chests.set(ty * this.map.width + tx, { img, glint, camp, level: spec.level, opened: false });
+    } else {
+      this.add.image(x, y + 4, 'logs').setOrigin(0.5, 1).setDepth(y + 4);
+      const flame = this.add.image(x, y - 1, 'spark').setTint(0xff9a3a).setScale(2).setDepth(y + 5);
+      this.tweens.add({ targets: flame, scaleX: 1.4, scaleY: 2.6, alpha: 0.7, yoyo: true, repeat: -1, duration: 220 });
+    }
+    const n = spec.members.length;
+    spec.members.forEach((k, i) => {
+      // A lone creep stands at the fire; packs spread around it. Alphas lead from the front (below).
+      const a = (i / n) * Math.PI * 2 + 0.5;
+      const r = n === 1 ? TILE * 0.9 : TILE * (n >= 4 ? 1.6 : 1.25);
+      const lead = k === 'alphaBoar' && !spec.treasure;
+      const px = lead ? x : x + Math.cos(a) * r;
+      const py = lead ? y + TILE * 1.1 : y + Math.sin(a) * r;
+      const c = new Creep(this, k, k === 'alphaBoar' ? spec.level + 1 : spec.level, camp, px, py);
       camp.creeps.push(c);
       this.units.push(c);
     });
@@ -191,6 +219,11 @@ export class GameScene extends Phaser.Scene implements World {
 
   searchRock(tx: number, ty: number): void {
     const key = ty * this.map.width + tx;
+    const chest = this.chests.get(key);
+    if (chest) {
+      this.openChest(chest);
+      return;
+    }
     const img = this.rocks.get(key);
     if (!img || this.map.get(tx, ty) !== Tile.Rock) return;
     this.rocks.delete(key);
@@ -201,6 +234,28 @@ export class GameScene extends Phaser.Scene implements World {
     this.burst(x, y, 0x9aa0ac, 12);
     this.tweens.add({ targets: img, alpha: 0, scaleY: 0.3, duration: 250, onComplete: () => img.destroy() });
     this.giveLoot(x, y, Math.random() < 0.65 ? 'hp_potion' : 'mp_potion');
+  }
+
+  private openChest(chest: Chest): void {
+    if (chest.opened) return;
+    if (!chest.camp.cleared) {
+      this.hud.toast('The chest is guarded — defeat the guards first', 'warn');
+      return;
+    }
+    chest.opened = true;
+    chest.img.setTexture('chest_open');
+    chest.glint.destroy();
+    const x = chest.img.x;
+    const y = chest.img.y - 8;
+    this.burst(x, y, 0xffd84a, 20);
+    const tome = TOME_IDS[Math.floor(Math.random() * TOME_IDS.length)];
+    this.hud.toast(`Treasure! ${this.hero.readTome(tome)}`, 'good');
+    this.floatText(x, y - 14, TOMES[tome].name, '#ffd84a', true);
+    this.giveLoot(x - 4, y, 'hp_potion');
+    this.time.delayedCall(250, () => this.giveLoot(x + 4, y, Math.random() < 0.5 ? 'hp_potion' : 'mp_potion'));
+    const xp = 40 * chest.level;
+    this.floatText(this.hero.x, this.hero.y - 34, `+${xp} xp`, '#c28cff');
+    if (this.hero.gainXp(xp)) this.hud.toast(`Level ${this.hero.level}! New skill point`, 'good');
   }
 
   /** Put an item in the hero's bag with a little pickup flourish. */
@@ -444,12 +499,13 @@ export class GameScene extends Phaser.Scene implements World {
     this.smartOrder(x, y, queued);
   }
 
-  /** Searchable rock under a world point (rocks are drawn in their tile, a little forgiving upwards). */
+  /** Searchable rock or unopened chest under a world point (a little forgiving upwards). */
   private rockAt(x: number, y: number): { tx: number; ty: number } | null {
     for (const py of [y, y + 5]) {
       const tx = Math.floor(x / TILE);
       const ty = Math.floor(py / TILE);
-      if (this.map.get(tx, ty) === Tile.Rock && this.rocks.has(ty * this.map.width + tx)) return { tx, ty };
+      const key = ty * this.map.width + tx;
+      if (this.rocks.has(key) || (this.chests.has(key) && !this.chests.get(key)!.opened)) return { tx, ty };
     }
     return null;
   }
@@ -578,6 +634,7 @@ export class GameScene extends Phaser.Scene implements World {
 
     this.updateRespawns(dt);
     this.updateCamera(dt);
+    this.cullProps();
     this.drawMarkers(dt);
     this.drawBars();
     this.drawAim();
@@ -605,6 +662,16 @@ export class GameScene extends Phaser.Scene implements World {
         }
       }
     }
+  }
+
+  private cullProps(): void {
+    const cam = this.cameras.main;
+    const v = cam.worldView;
+    const last = this.lastCull;
+    if (Math.abs(v.x - last.x) < TILE && Math.abs(v.y - last.y) < TILE && cam.zoom === last.zoom) return;
+    this.lastCull = { x: v.x, y: v.y, zoom: cam.zoom };
+    const m = TILE * 3; // margin so nothing pops in at the edges
+    for (const p of this.props) p.setVisible(p.x > v.x - m && p.x < v.right + m && p.y > v.y - m && p.y < v.bottom + m + TILE * 2);
   }
 
   private updateCamera(dt: number): void {
@@ -690,7 +757,12 @@ export class GameScene extends Phaser.Scene implements World {
       this.levelTags.set(c, t);
     }
     const diff = c.level - this.hero.level;
-    t.setColor(diff >= 2 ? '#ff4a3a' : diff === 1 ? '#ffb03a' : diff === 0 ? '#ffd84a' : '#7dff6a');
+    const color = diff >= 2 ? '#ff4a3a' : diff === 1 ? '#ffb03a' : diff === 0 ? '#ffd84a' : '#7dff6a';
+    // setColor re-renders the text texture, so only touch it when the colour actually changes.
+    if (t.getData('color') !== color) {
+      t.setColor(color);
+      t.setData('color', color);
+    }
     t.setVisible(!c.dead);
     return t;
   }

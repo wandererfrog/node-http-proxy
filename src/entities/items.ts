@@ -27,6 +27,18 @@ export const ITEMS: Record<ItemId, ItemDef> = {
   },
 };
 
+/** WC3-style tomes: read on pickup, permanently raise a stat. Found in treasure chests. */
+export type TomeId = 'vitality' | 'insight' | 'power' | 'swiftness';
+
+export const TOMES: Record<TomeId, { name: string; effect: string }> = {
+  vitality: { name: 'Tome of Vitality', effect: '+60 max health' },
+  insight: { name: 'Tome of Insight', effect: '+40 max mana' },
+  power: { name: 'Tome of Power', effect: '+4 damage' },
+  swiftness: { name: 'Tome of Swiftness', effect: '+3 move speed' },
+};
+
+export const TOME_IDS = Object.keys(TOMES) as TomeId[];
+
 export interface ItemStack {
   id: ItemId;
   count: number;

@@ -1,4 +1,5 @@
 import { Grid, Point, findTilePath } from './pathfinding';
+import type { CreepKind } from '../entities/balance';
 
 export const TILE = 16;
 
@@ -8,15 +9,45 @@ export enum Tile {
   Water = 2,
   Tree = 3,
   Rock = 4,
+  /** Treasure chest in the middle of a guarded camp. */
+  Chest = 5,
 }
 
 export interface CampSpec {
   /** tile-space centre */
   x: number;
   y: number;
-  kind: 'skeletons' | 'boars';
   /** Creep level: camps get tougher the further they are from the spawn. */
   level: number;
+  /** Who guards the camp. Groups vary from a lone creep to packs of five. */
+  members: CreepKind[];
+  /** Rare: three elite guards around a treasure chest at the centre tile. */
+  treasure: boolean;
+}
+
+/** Camp level from distance to the spawn (tiles). */
+export function campLevel(dist: number): number {
+  return Math.max(1, Math.min(8, 1 + Math.floor((dist - 10) / 6)));
+}
+
+/**
+ * Pick a group of creeps for a camp. Solo creeps are a level up so they still matter;
+ * boars get more common deeper in; big boar packs at level 3+ may be led by an alpha.
+ * Returns the members and the level adjustment.
+ */
+export function rollGroup(rand: () => number, level: number, treasure: boolean): { members: CreepKind[]; levelBonus: number } {
+  const pBoar = Math.min(0.7, 0.15 + 0.1 * level);
+  const pick = (): CreepKind => (rand() < pBoar ? 'boar' : 'skeleton');
+  if (treasure) {
+    const members: CreepKind[] = [pick(), pick(), pick()];
+    if (level >= 3 && rand() < 0.6) members[0] = 'alphaBoar';
+    return { members, levelBonus: 1 };
+  }
+  const r = rand();
+  const size = r < 0.15 ? 1 : r < 0.45 ? 2 : r < 0.8 ? 3 : 4 + (rand() < 0.5 ? 1 : 0);
+  const members = Array.from({ length: size }, pick);
+  if (size >= 4 && level >= 3 && members.includes('boar') && rand() < 0.5) members[members.indexOf('boar')] = 'alphaBoar';
+  return { members, levelBonus: size === 1 ? 1 : 0 };
 }
 
 /** Small deterministic PRNG so a seed always gives the same map. */
@@ -72,7 +103,7 @@ export class WorldMap implements Grid {
         if (edge < 2) t = Tile.Tree;
         else if (w > 0.78) t = Tile.Water;
         else if (f > 1.0) t = Tile.Tree;
-        else if (rand() < 0.012) t = Tile.Rock;
+        else if (rand() < 0.015) t = Tile.Rock;
         else if (rand() < 0.01) t = Tile.Tree;
         this.tiles[i] = t;
       }
@@ -82,24 +113,45 @@ export class WorldMap implements Grid {
     this.clearCircle(this.spawn.x, this.spawn.y, 4);
     this.paintCircle(this.spawn.x, this.spawn.y, 2.2, Tile.Dirt);
 
-    // Creep camps spread around the spawn, every one connected by a dirt road.
-    const ringSpots = 7;
-    for (let k = 0; k < ringSpots; k++) {
-      const ang = (k / ringSpots) * Math.PI * 2 + rand() * 0.4;
-      const dist = 14 + rand() * 12;
-      const cx = Math.round(this.spawn.x + Math.cos(ang) * dist);
-      const cy = Math.round(this.spawn.y + Math.sin(ang) * dist);
-      if (cx < 5 || cy < 5 || cx > width - 6 || cy > height - 6) continue;
-      this.clearCircle(cx, cy, 3.5);
-      this.paintCircle(cx, cy, 1.8, Tile.Dirt);
-      this.carveRoad(this.spawn, { x: cx + 0.5, y: cy + 0.5 }, rand);
-      this.camps.push({
-        x: cx + 0.5,
-        y: cy + 0.5,
-        kind: dist > 22 ? 'boars' : 'skeletons',
-        level: 1 + Math.floor((dist - 14) / 4),
-      });
+    this.placeCamps(rand);
+  }
+
+  /**
+   * Scatter camps over the whole map (not too close to the spawn or to each other), then join
+   * them with roads: each camp links to the nearest camp that is closer to the spawn, so the
+   * roads form a tree and every camp is reachable.
+   */
+  private placeCamps(rand: () => number): void {
+    const { width, height } = this;
+    const target = Math.round((width * height) / 380);
+    const spots: Array<{ x: number; y: number; dist: number }> = [];
+    for (let tries = 0; tries < 3000 && spots.length < target; tries++) {
+      const x = 6 + Math.floor(rand() * (width - 12)) + 0.5;
+      const y = 6 + Math.floor(rand() * (height - 12)) + 0.5;
+      const dist = Math.hypot(x - this.spawn.x, y - this.spawn.y);
+      if (dist < 10) continue;
+      if (spots.some((s) => Math.hypot(s.x - x, s.y - y) < 9)) continue;
+      spots.push({ x, y, dist });
     }
+    spots.sort((a, b) => a.dist - b.dist);
+
+    // Rare treasure camps: roughly one in ten, at least two, never right next to the start.
+    const far = spots.map((_, i) => i).filter((i) => spots[i].dist >= 16);
+    const treasure = new Set(far.filter(() => rand() < 0.1));
+    for (let k = 0; treasure.size < Math.min(2, far.length) && k < 50; k++) treasure.add(far[Math.floor(rand() * far.length)]);
+
+    spots.forEach((s, i) => {
+      const isTreasure = treasure.has(i);
+      const { members, levelBonus } = rollGroup(rand, campLevel(s.dist), isTreasure);
+      this.clearCircle(s.x, s.y, members.length >= 4 || isTreasure ? 4.2 : 3.5);
+      this.paintCircle(s.x, s.y, members.length >= 4 ? 2.4 : 1.8, Tile.Dirt);
+      const anchors = [this.spawn, ...spots.slice(0, i)];
+      const nearest = anchors.reduce((a, b) => (Math.hypot(b.x - s.x, b.y - s.y) < Math.hypot(a.x - s.x, a.y - s.y) ? b : a));
+      this.carveRoad(nearest, s, rand);
+      this.camps.push({ x: s.x, y: s.y, level: campLevel(s.dist) + levelBonus, members, treasure: isTreasure });
+    });
+    // Chests go in last so no later road clears them away.
+    for (const c of this.camps) if (c.treasure) this.set(Math.floor(c.x), Math.floor(c.y), Tile.Chest);
   }
 
   get(tx: number, ty: number): Tile {
@@ -115,6 +167,12 @@ export class WorldMap implements Grid {
   isWalkable(tx: number, ty: number): boolean {
     const t = this.get(tx, ty);
     return t === Tile.Grass || t === Tile.Dirt;
+  }
+
+  /** Tiles the hero can walk up to and interact with. */
+  isSearchable(tx: number, ty: number): boolean {
+    const t = this.get(tx, ty);
+    return t === Tile.Rock || t === Tile.Chest;
   }
 
   /** Projectiles fly over water and rocks but not through trees. */
@@ -159,6 +217,7 @@ export class WorldMap implements Grid {
   allCampsReachable(): boolean {
     const sx = Math.floor(this.spawn.x);
     const sy = Math.floor(this.spawn.y);
-    return this.camps.every((c) => findTilePath(this, sx, sy, Math.floor(c.x), Math.floor(c.y)) !== null);
+    // The centre tile of a treasure camp holds the chest, so aim for the tile below it.
+    return this.camps.every((c) => findTilePath(this, sx, sy, Math.floor(c.x), Math.floor(c.y) + (c.treasure ? 1 : 0)) !== null);
   }
 }

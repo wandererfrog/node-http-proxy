@@ -187,6 +187,49 @@ function buildProps(scene: Phaser.Scene): void {
   scene.textures.addCanvas('rock', rc);
 
   // Soft pixel ellipse, 20x6; units scale it to their body radius.
+  // Treasure chest, closed and open.
+  const chestPal = { k: OUTLINE, w: '#9a5f33', W: '#6b3f22', y: '#e8c170', Y: '#b88a3a', d: '#2a1a10', g: '#ffe27a' };
+  const [cc1, cctx1] = makeCanvas(16, 16);
+  drawRows(cctx1, [
+    '................',
+    '................',
+    '................',
+    '..kkkkkkkkkkkk..',
+    '.kwwwwwwwwwwwwk.',
+    '.kwWwwwwwwwwWwk.',
+    '.kyyyyyyyyyyyyk.',
+    '.kYYYYYkkYYYYYk.',
+    '.kwwwwkggkwwwwk.',
+    '.kwWwwkYYkwwWwk.',
+    '.kwWwwwkkwwwWwk.',
+    '.kwWwwwwwwwwWwk.',
+    '.kyyyyyyyyyyyyk.',
+    '.kWWWWWWWWWWWWk.',
+    '..kkkkkkkkkkkk..',
+    '................',
+  ], chestPal);
+  scene.textures.addCanvas('chest', cc1);
+  const [cc2, cctx2] = makeCanvas(16, 16);
+  drawRows(cctx2, [
+    '..kkkkkkkkkkkk..',
+    '.kwwwwwwwwwwwwk.',
+    '.kwWwwwwwwwwWwk.',
+    '.kyyyyyyyyyyyyk.',
+    '.kddddddddddddk.',
+    '.kdddddddddddk..',
+    '.kyyyyyyyyyyyyk.',
+    '.kYYYYYYYYYYYYk.',
+    '.kwwwwwwwwwwwwk.',
+    '.kwWwwwwwwwwWwk.',
+    '.kwWwwwwwwwwWwk.',
+    '.kwWwwwwwwwwWwk.',
+    '.kyyyyyyyyyyyyk.',
+    '.kWWWWWWWWWWWWk.',
+    '..kkkkkkkkkkkk..',
+    '................',
+  ], chestPal);
+  scene.textures.addCanvas('chest_open', cc2);
+
   const [sc, sctx] = makeCanvas(20, 6);
   sctx.fillStyle = 'rgba(0,0,0,0.32)';
   for (let y = 0; y < 6; y++) {

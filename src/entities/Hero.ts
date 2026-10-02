@@ -2,7 +2,7 @@ import { Ability, Channel } from '../abilities/Ability';
 import { SearingArrows, rangerKit } from '../abilities/rangerAbilities';
 import { TILE } from '../world/map';
 import { heroDamage } from './balance';
-import { Inventory, ItemId } from './items';
+import { Inventory, ItemId, TOMES, TomeId } from './items';
 import { Order, Unit, World } from './Unit';
 
 import { MAX_LEVEL, xpForLevel } from './xp';
@@ -18,6 +18,8 @@ export class Hero extends Unit {
 
   readonly inventory = new Inventory();
   kills = 0;
+  /** Permanent bonuses from tomes. */
+  readonly bonus = { hp: 0, mana: 0, damage: 0, speed: 0 };
   private potionCd = 0;
 
   private baseMaxHp = 420;
@@ -50,10 +52,26 @@ export class Hero extends Unit {
   }
 
   get maxHp(): number {
-    return this.baseMaxHp + (this.level - 1) * 45;
+    return this.baseMaxHp + (this.level - 1) * 45 + this.bonus.hp;
   }
   get maxMana(): number {
-    return this.baseMaxMana + (this.level - 1) * 18;
+    return this.baseMaxMana + (this.level - 1) * 18 + this.bonus.mana;
+  }
+  get speed(): number {
+    return this.stats.speed + this.bonus.speed;
+  }
+
+  /** Read a tome: permanent stat boost. Returns the line to show the player. */
+  readTome(id: TomeId): string {
+    if (id === 'vitality') {
+      this.bonus.hp += 60;
+      this.hp += 60;
+    } else if (id === 'insight') {
+      this.bonus.mana += 40;
+      this.mana += 40;
+    } else if (id === 'power') this.bonus.damage += 4;
+    else this.bonus.speed += 3;
+    return `${TOMES[id].name}: ${TOMES[id].effect}`;
   }
   get hpRegen(): number {
     return 1.2 + this.level * 0.25;
@@ -63,7 +81,8 @@ export class Hero extends Unit {
   }
 
   get damageRange(): [number, number] {
-    return heroDamage(this.level);
+    const [a, b] = heroDamage(this.level);
+    return [a + this.bonus.damage, b + this.bonus.damage];
   }
 
   rollDamage(): number {
