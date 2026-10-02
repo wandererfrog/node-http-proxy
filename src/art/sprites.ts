@@ -397,7 +397,6 @@ export function iconDataUrl(name: string, scale = 4): string {
   return c.toDataURL();
 }
 
-/** Hero portrait for the HUD: the head and shoulders of the archer's idle frame. */
 /** Hero portrait for the HUD: head and shoulders cropped from the archer's idle frame. */
 export function portraitDataUrl(scene: Phaser.Scene, scale = 4): string {
   const frame = scene.textures.getFrame('archer', 'down_idle');
@@ -410,15 +409,17 @@ export function portraitDataUrl(scene: Phaser.Scene, scale = 4): string {
   while (top < frame.height - 1 && !Array.from({ length: frame.width }, (_, x) => opaque(x, top)).some(Boolean)) top++;
   let minX = frame.width;
   let maxX = 0;
-  for (let y = top; y < Math.min(frame.height, top + 8); y++)
+  // Atlases authored at 2x (64px cells) get a 2x crop, scaled to the same portrait size.
+  const k = frame.width >= 64 ? 2 : 1;
+  for (let y = top; y < Math.min(frame.height, top + 8 * k); y++)
     for (let x = 0; x < frame.width; x++) if (opaque(x, y)) [minX, maxX] = [Math.min(minX, x), Math.max(maxX, x)];
-  const w = 20;
-  const h = 15;
+  const w = 20 * k;
+  const h = 15 * k;
   const sx = Math.round((minX + maxX + 1) / 2 - w / 2);
-  const [c, ctx] = makeCanvas(w * scale, h * scale);
+  const [c, ctx] = makeCanvas(20 * scale, 15 * scale);
   ctx.fillStyle = '#20301f';
   ctx.fillRect(0, 0, c.width, c.height);
-  ctx.drawImage(probe, sx, top - 1, w, h, 0, 0, w * scale, h * scale);
+  ctx.drawImage(probe, sx, top - k, w, h, 0, 0, c.width, c.height);
   return c.toDataURL();
 }
 

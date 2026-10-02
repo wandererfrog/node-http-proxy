@@ -88,7 +88,7 @@ def background_mask(im):
     return m, d
 
 
-def to_pixel_art(rgb, alpha, scale=SCALE):
+def to_pixel_art(rgb, alpha, scale=SCALE, raw=False):
     """Area-downscale by SCALE, then make alpha binary and pull colours to the opaque pixels only."""
     h, w = alpha.shape
     nw = max(1, int(round(w / scale)))
@@ -100,11 +100,14 @@ def to_pixel_art(rgb, alpha, scale=SCALE):
     pre_small = np.array(pre_img.resize((nw, nh), Image.BOX)).astype(np.float32)
     col = pre_small / np.maximum(a_small[..., None], 1e-3)
     on = a_small >= 0.42
-    # Slight contrast push so downscaled colours don't look washed out.
-    col = np.clip((col - 128) * 1.08 + 128, 0, 255)
+    if not raw:
+        # Slight contrast push so downscaled colours don't look washed out.
+        col = np.clip((col - 128) * 1.08 + 128, 0, 255)
     out = np.zeros((nh, nw, 4), np.uint8)
     out[..., :3] = col.astype(np.uint8)
     out[..., 3] = np.where(on, 255, 0)
+    if raw:
+        return out
     # Dark 1px outline where the sprite meets transparency, like hand-made pixel art.
     edge = on & ~ndimage.binary_erosion(on, border_value=0)
     dark = (out[..., :3].astype(np.float32) * 0.55).astype(np.uint8)
@@ -116,6 +119,8 @@ def to_pixel_art(rgb, alpha, scale=SCALE):
 
 def blobs_in_row(spec, mask, y0, y1):
     """Sprites in one animation row, left to right (same order as the contact sheet indices)."""
+    if spec.get('anchor_min_w'):
+        return pieces_in_row(spec, mask, y0, y1)
     x0, x1 = spec['x']
     band = np.zeros_like(mask)
     band[y0:y1, x0:x1] = mask[y0:y1, x0:x1]
@@ -132,9 +137,52 @@ def blobs_in_row(spec, mask, y0, y1):
     return out
 
 
+def pieces_in_row(spec, mask, y0, y1):
+    """For sheets whose sprites touch: big connected pieces are sprites, small pieces (bow tips,
+    arrows, loose pixels) join the sprite they overlap most horizontally."""
+    band = np.zeros_like(mask)
+    band[y0:y1, :] = mask[y0:y1, :]
+    labels, _ = ndimage.label(band)
+    anchors, extras = [], []
+    for i, sl in enumerate(ndimage.find_objects(labels), start=1):
+        if sl is None or sl[0].stop - sl[0].start < 6:
+            continue
+        w = sl[1].stop - sl[1].start
+        (anchors if w >= spec['anchor_min_w'] and sl[0].stop - sl[0].start > 40 else extras).append((sl, i))
+    anchors.sort(key=lambda t: t[0][1].start)
+    groups = [[a] for a in anchors]
+    for sl, i in extras:
+        cx = (sl[1].start + sl[1].stop) / 2
+        best = min(range(len(anchors)), key=lambda k: abs(cx - (anchors[k][0][1].start + anchors[k][0][1].stop) / 2))
+        groups[best].append((sl, i))
+    out = []
+    for g in groups:
+        ys = slice(min(sl[0].start for sl, _ in g), max(sl[0].stop for sl, _ in g))
+        xs = slice(min(sl[1].start for sl, _ in g), max(sl[1].stop for sl, _ in g))
+        lab = np.isin(labels[ys, xs], [i for _, i in g])
+        out.append((ys, xs, lab))
+    return out
+
+
+_ALPHA = {}
+
+
 def extract(spec, im, mask, row, index, flip):
     rows = {r[0]: (r[1], r[2]) for r in spec['rows']}
     ys, xs, lab = blobs_in_row(spec, mask, *rows[row])[index]
+    if 'src' in spec:
+        # Found with the strict mask; cut out with every opaque pixel near it so the black outlines
+        # (dark, so excluded from the strict mask) come along, while soft shadows stay behind.
+        pad = 4
+        ys = slice(max(0, ys.start - pad), ys.stop + pad)
+        xs = slice(max(0, xs.start - pad), xs.stop + pad)
+        lab = np.pad(lab, pad)[: ys.stop - ys.start, : xs.stop - xs.start]
+        near = ndimage.binary_dilation(lab, iterations=pad)
+        alpha = (_ALPHA[spec['src']][ys, xs] > 200) & near
+        px = to_pixel_art(im[ys, xs], alpha.astype(np.float32), spec.get('scale', SCALE), raw=True)
+        on = np.nonzero(px[..., 3])
+        px = px[on[0].min(): on[0].max() + 1, on[1].min(): on[1].max() + 1]
+        return px[:, ::-1] if flip else px
     px = to_pixel_art(im[ys, xs], (mask[ys, xs] & lab).astype(np.float32), spec.get('scale', SCALE))
     return px[:, ::-1] if flip else px
 
@@ -147,6 +195,17 @@ def anchor_x(px):
     if len(cols) == 0:
         cols = np.nonzero(on.any(axis=0))[0]
     return (cols.min() + cols.max() + 1) / 2
+
+
+def load_source(spec):
+    """(rgb float array, sprite mask) for a sheet's source image."""
+    if 'src' not in spec:
+        im = load()
+        return im, background_mask(im)[0]
+    rgba = np.array(Image.open(os.path.join(ROOT, spec['src'])).convert('RGBA')).astype(np.float32)
+    lum = rgba[..., :3].mean(axis=2)
+    _ALPHA[spec['src']] = rgba[..., 3]
+    return rgba[..., :3], (rgba[..., 3] > 200) & (lum > 22)
 
 
 def pack(name, spec, im, mask):
@@ -196,6 +255,24 @@ def arrow(im, mask):
     print('arrow', px.shape[1], 'x', px.shape[0])
 
 
+# Higher-quality archer art (transparent PNG). Sprites touch each other, hence the piece merging.
+SHEETS['archer'] = {
+    'src': 'art-source/archer-sheet.png',
+    'anchor_min_w': 55,
+    # Sliced at 2x resolution; the game draws it at half size (spriteScale 0.5) to keep the detail.
+    'scale': 2.7,
+    'rows': [('idle', 75, 232), ('walk', 292, 437), ('shoot', 495, 645), ('death', 698, 855)],
+    'cell': (64, 60),
+    'picks': {
+        'down_idle': ('idle', 0, False), 'down_walk1': ('walk', 0, False), 'down_walk2': ('idle', 0, False),
+        'down_attack': ('shoot', 0, False), 'down_shoot': ('shoot', 0, False), 'down_death': ('death', 10, False),
+        'side_idle': ('idle', 6, False), 'side_walk1': ('walk', 9, False), 'side_walk2': ('walk', 10, False),
+        'side_attack': ('shoot', 9, False), 'side_shoot': ('shoot', 11, False), 'side_death': ('death', 2, True),
+        'up_idle': ('idle', 4, False), 'up_walk1': ('walk', 6, False), 'up_walk2': ('walk', 7, False),
+        'up_attack': ('shoot', 8, False), 'up_shoot': ('shoot', 7, False), 'up_death': ('death', 6, False),
+    },
+}
+
 # The camp leader: the same boar sliced at a finer scale, so it is bigger without blurry upscaling.
 SHEETS['boar_alpha'] = {**SHEETS['boar'], 'scale': 1.85, 'cell': (56, 34)}
 
@@ -204,7 +281,10 @@ def main():
     im = load()
     mask, _ = background_mask(im)
     for name, spec in SHEETS.items():
-        pack(name, spec, im, mask)
+        if 'src' in spec:
+            pack(name, spec, *load_source(spec))
+        else:
+            pack(name, spec, im, mask)
     arrow(im, mask)
 
 

@@ -3,7 +3,8 @@
 A top-down pixel-art action RPG: old-school Zelda look, **Warcraft III hero controls**.
 Built with [Phaser 3](https://phaser.io) + TypeScript + Vite. **Mobile first** (touch), and it also plays with mouse and keyboard.
 
-Unit art (the archer, boars, skeletons, arrows) comes from the concept sheet in `art-source/sprite-sheet.png`.
+The archer comes from `art-source/archer-sheet.png` (transparent, higher-quality art). It's sliced at 2x resolution and drawn at half size, so it keeps its detail on phone screens.
+Boars, skeletons and arrows come from the concept sheet in `art-source/sprite-sheet.png`.
 `tools/slice_sheet.py` cuts it into game-ready pixel-art atlases in `src/assets/sprites/`.
 Terrain, props and HUD icons are drawn in code (`src/art/sprites.ts`).
 

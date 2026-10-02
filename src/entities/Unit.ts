@@ -49,6 +49,8 @@ export interface UnitStats {
   scale?: number;
   /** px above the feet where the health bar sits (before scale) */
   barHeight: number;
+  /** Extra draw scale for art authored at a higher resolution (e.g. 0.5 for 2x sprites). */
+  spriteScale?: number;
 }
 
 /** WC3-ish turn rate: about 0.33s for a full 180° turn. Units only walk once roughly facing their heading. */
@@ -108,7 +110,7 @@ export class Unit {
     const scene = world.phaser;
     const s = stats.scale ?? 1;
     this.shadow = scene.add.image(x, y, 'shadow').setOrigin(0.5, 0.5).setScale(Math.max(0.6, (s * stats.radius) / 8));
-    this.sprite = scene.add.sprite(x, y, textureKey, 'down_idle').setOrigin(0.5, 1).setScale(s);
+    this.sprite = scene.add.sprite(x, y, textureKey, 'down_idle').setOrigin(0.5, 1).setScale(s * (stats.spriteScale ?? 1));
   }
 
   get maxHp(): number {
