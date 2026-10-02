@@ -6,15 +6,15 @@ export type CreepKind = 'skeleton' | 'boar' | 'alphaBoar';
 export const CREEP_STATS: Record<CreepKind, UnitStats & { xp: number; texture: string }> = {
   skeleton: {
     texture: 'skeleton', maxHp: 150, speed: 38, radius: 6, attackRange: 7, damage: [10, 14], attackCooldown: 1.5,
-    damagePoint: 0.4, backswing: 0.3, acquireRange: 5 * TILE, ranged: false, barHeight: 24, xp: 30,
+    damagePoint: 0.4, backswing: 0.3, acquireRange: 5 * TILE, ranged: false, barHeight: 25, spriteScale: 0.5, xp: 30,
   },
   boar: {
     texture: 'boar', maxHp: 190, speed: 44, radius: 7, attackRange: 5, damage: [12, 17], attackCooldown: 1.3,
-    damagePoint: 0.3, backswing: 0.3, acquireRange: 5 * TILE, ranged: false, barHeight: 18, xp: 40,
+    damagePoint: 0.3, backswing: 0.3, acquireRange: 5 * TILE, ranged: false, barHeight: 22, spriteScale: 0.5, xp: 40,
   },
   alphaBoar: {
     texture: 'boar_alpha', maxHp: 480, speed: 40, radius: 10, attackRange: 6, damage: [24, 32], attackCooldown: 1.7,
-    damagePoint: 0.45, backswing: 0.4, acquireRange: 5 * TILE, ranged: false, barHeight: 26, xp: 90,
+    damagePoint: 0.45, backswing: 0.4, acquireRange: 5 * TILE, ranged: false, barHeight: 31, spriteScale: 0.5, xp: 90,
   },
 };
 

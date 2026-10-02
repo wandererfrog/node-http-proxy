@@ -7,13 +7,14 @@ import { TILE, Tile, WorldMap } from '../world/map';
  * terrain, props, projectiles and HUD icons. Palette swaps turn the ranger into goblins and ogres.
  */
 
-export type Facing = 'down' | 'up' | 'side';
-export const FACINGS: Facing[] = ['down', 'up', 'side'];
+/** Eight-way facing: five drawn views (front, front 3/4, side, back 3/4, back); the left half is mirrored. */
+export type Facing = 'down' | 'downside' | 'side' | 'upside' | 'up';
+export const FACINGS: Facing[] = ['down', 'downside', 'side', 'upside', 'up'];
 /** Frames every unit atlas provides, named `${facing}_${pose}`. Side frames face right; the game mirrors them. */
 export const POSES = ['idle', 'walk1', 'walk2', 'attack', 'shoot', 'death'] as const;
 export type Pose = (typeof POSES)[number];
 
-/** Unit atlases sliced from art-source/sprite-sheet.png by tools/slice_sheet.py. */
+/** Unit atlases sliced from art-source/units-sheet.png by tools/slice_sheet.py (2x density, drawn at half size). */
 export const UNIT_SHEETS = ['archer', 'boar', 'skeleton', 'boar_alpha'] as const;
 
 export function registerUnitAnims(scene: Phaser.Scene): void {
@@ -409,8 +410,8 @@ export function portraitDataUrl(scene: Phaser.Scene, scale = 4): string {
   while (top < frame.height - 1 && !Array.from({ length: frame.width }, (_, x) => opaque(x, top)).some(Boolean)) top++;
   let minX = frame.width;
   let maxX = 0;
-  // Atlases authored at 2x (64px cells) get a 2x crop, scaled to the same portrait size.
-  const k = frame.width >= 64 ? 2 : 1;
+  // Atlases authored at 2x get a 2x crop, scaled to the same portrait size.
+  const k = frame.width >= 48 ? 2 : 1;
   for (let y = top; y < Math.min(frame.height, top + 8 * k); y++)
     for (let x = 0; x < frame.width; x++) if (opaque(x, y)) [minX, maxX] = [Math.min(minX, x), Math.max(maxX, x)];
   const w = 20 * k;

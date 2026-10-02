@@ -469,11 +469,15 @@ export class Unit {
 
   // --- Presentation -------------------------------------------------------------------------
 
+  /** Eight-way facing from the heading (y grows downwards). Left-facing octants mirror the right ones. */
   get facing(): { facing: Facing; flip: boolean } {
-    const c = Math.cos(this.angle);
-    const s = Math.sin(this.angle);
-    if (Math.abs(c) > Math.abs(s) * 0.85) return { facing: 'side', flip: c < 0 };
-    return { facing: s > 0 ? 'down' : 'up', flip: false };
+    const octant = (Math.round(this.angle / (Math.PI / 4)) % 8 + 8) % 8; // 0 = east, 2 = south
+    const views: Array<[Facing, boolean]> = [
+      ['side', false], ['downside', false], ['down', false], ['downside', true],
+      ['side', true], ['upside', true], ['up', false], ['upside', false],
+    ];
+    const [facing, flip] = views[octant];
+    return { facing, flip };
   }
 
   get attacking(): boolean {

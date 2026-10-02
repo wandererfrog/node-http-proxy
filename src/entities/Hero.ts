@@ -38,7 +38,7 @@ export class Hero extends Unit {
       backswing: 0.35,
       acquireRange: 7 * TILE,
       ranged: true,
-      barHeight: 30,
+      barHeight: 27,
       spriteScale: 0.5,
     }, x, y);
     this.mana = this.maxMana;

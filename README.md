@@ -3,22 +3,23 @@
 A top-down pixel-art action RPG: old-school Zelda look, **Warcraft III hero controls**.
 Built with [Phaser 3](https://phaser.io) + TypeScript + Vite. **Mobile first** (touch), and it also plays with mouse and keyboard.
 
-The archer comes from `art-source/archer-sheet.png` (transparent, higher-quality art). It's sliced at 2x resolution and drawn at half size, so it keeps its detail on phone screens.
-Boars, skeletons and arrows come from the concept sheet in `art-source/sprite-sheet.png`.
-`tools/slice_sheet.py` cuts it into game-ready pixel-art atlases in `src/assets/sprites/`.
+Unit art (archer, boars, skeletons) comes from `art-source/units-sheet.png`.
+`tools/slice_sheet.py` cuts it into pixel-art atlases in `src/assets/sprites/`.
+Units face 8 directions: five drawn views (front, front ¾, side, back ¾, back), with the left half mirrored.
+The atlases are sliced at 2x density and drawn at half size, so the detail survives on phone screens.
+The arrow comes from the older concept sheet, `art-source/sprite-sheet.png`.
 Terrain, props and HUD icons are drawn in code (`src/art/sprites.ts`).
 
 ### Re-slicing the sprite sheet
 
 ```bash
 pip install pillow numpy scipy
-python3 tools/slice_sheet.py
+python3 tools/slice_sheet.py                     # writes src/assets/sprites/
+python3 tools/slice_sheet.py --contact /tmp/out  # labelled contact sheets for choosing frames
 ```
 
-The source sheet is not a regular grid, and some of its frames face a different way from their column label.
-So the slicer finds each sprite automatically, and `picks` in the script chooses which one to use for each frame (`down` / `up` / `side` × `idle`, `walk1`, `walk2`, `attack`, `shoot`, `death`).
-Side frames are stored facing right, and the game mirrors them for left.
-The alpha boar is the same art sliced at a finer scale, so it's bigger without blurry upscaling.
+The sheet's checkerboard background is baked into the pixels, so the slicer removes it by colour.
+Some columns face a different way from their neighbours (e.g. three of the archer's shooting frames aim left), so `picks` in the script maps each game frame to a sheet row/column by hand.
 
 ## Run it
 
