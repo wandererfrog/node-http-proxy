@@ -1,0 +1,260 @@
+import { Ability, Channel } from '../abilities/Ability';
+import { SearingArrows, rangerKit } from '../abilities/rangerAbilities';
+import { TILE } from '../world/map';
+import { Order, Unit, World } from './Unit';
+
+import { MAX_LEVEL, xpForLevel } from './xp';
+
+export { MAX_LEVEL, xpForLevel };
+
+export class Hero extends Unit {
+  level = 1;
+  xp = 0;
+  skillPoints = 1;
+  mana: number;
+  readonly abilities: Ability[] = rangerKit();
+
+  private baseMaxHp = 420;
+  private baseMaxMana = 220;
+  private bonusDamage = 0;
+
+  private castT = 0;
+  private castStarted = false;
+  private channel: { c: Channel; t: number } | null = null;
+  private dash: { fx: number; fy: number; tx: number; ty: number; t: number; dur: number } | null = null;
+  private empowered: { mult: number; t: number } | null = null;
+
+  respawnT = 0;
+
+  constructor(world: World, x: number, y: number) {
+    super(world, 'player', 'ranger', {
+      maxHp: 420,
+      speed: 66,
+      radius: 5,
+      attackRange: 6 * TILE,
+      damage: [20, 26],
+      attackCooldown: 1.25,
+      damagePoint: 0.3,
+      backswing: 0.35,
+      acquireRange: 7 * TILE,
+      ranged: true,
+    }, x, y);
+    this.mana = this.maxMana;
+  }
+
+  get maxHp(): number {
+    return this.baseMaxHp + (this.level - 1) * 45;
+  }
+  get maxMana(): number {
+    return this.baseMaxMana + (this.level - 1) * 18;
+  }
+  get hpRegen(): number {
+    return 1.2 + this.level * 0.25;
+  }
+  get manaRegen(): number {
+    return 1.4 + this.level * 0.2;
+  }
+
+  rollDamage(): number {
+    return super.rollDamage() + this.bonusDamage;
+  }
+
+  get channelling(): boolean {
+    return this.channel !== null;
+  }
+
+  get dashing(): boolean {
+    return this.dash !== null;
+  }
+
+  get solid(): boolean {
+    return !this.dash;
+  }
+
+  // --- Progression --------------------------------------------------------------------------
+
+  gainXp(amount: number): boolean {
+    if (this.level >= MAX_LEVEL) return false;
+    this.xp += amount;
+    let leveled = false;
+    while (this.level < MAX_LEVEL && this.xp >= xpForLevel(this.level + 1)) {
+      this.level++;
+      this.skillPoints++;
+      this.bonusDamage += 3;
+      this.hp = Math.min(this.maxHp, this.hp + 45);
+      this.mana = Math.min(this.maxMana, this.mana + 18);
+      leveled = true;
+    }
+    return leveled;
+  }
+
+  learn(ab: Ability): boolean {
+    if (!ab.canLearn(this)) return false;
+    ab.level++;
+    this.skillPoints--;
+    if (ab instanceof SearingArrows && ab.level === 1) ab.autocast = true;
+    return true;
+  }
+
+  // --- Abilities ----------------------------------------------------------------------------
+
+  /** Returns an error message to show the player, or null if the order went through. */
+  useAbility(ab: Ability, x?: number, y?: number, queued = false): string | null {
+    const why = ab.blocked(this);
+    if (ab.targeting === 'toggle') {
+      if (ab.level === 0) return why;
+      ab.cast(this, this.x, this.y);
+      return null;
+    }
+    if (why) return why;
+    if (x === undefined || y === undefined) return 'Needs a target';
+    this.issue({ type: 'cast', ability: ab, x, y }, queued);
+    return null;
+  }
+
+  dashTo(x: number, y: number, dur: number): void {
+    this.dash = { fx: this.x, fy: this.y, tx: x, ty: y, t: 0, dur };
+    this.angle = Math.atan2(y - this.y, x - this.x);
+  }
+
+  empower(mult: number, seconds: number): void {
+    this.empowered = { mult, t: seconds };
+    this.attackCd = 0;
+  }
+
+  get isEmpowered(): boolean {
+    return this.empowered !== null;
+  }
+
+  protected windupTime(): number {
+    return this.empowered ? 0.05 : super.windupTime();
+  }
+
+  protected releaseAttack(target: Unit): void {
+    let dmg = this.rollDamage();
+    let fire = false;
+    const searing = this.abilities[0] as SearingArrows;
+    if (searing.level > 0 && searing.autocast && this.mana >= searing.manaCost()) {
+      this.mana -= searing.manaCost();
+      dmg += searing.bonus();
+      fire = true;
+    }
+    if (this.empowered) {
+      dmg = Math.round(dmg * this.empowered.mult);
+      this.empowered = null;
+    }
+    this.world.fireArrow(this, target, dmg, fire);
+  }
+
+  protected onOrderInterrupted(): void {
+    if (this.channel) {
+      this.channel.c.end?.();
+      this.channel = null;
+    }
+    this.castStarted = false;
+    this.poseOverride = null;
+  }
+
+  protected runCast(o: Extract<Order, { type: 'cast' }>, dt: number): void {
+    const ab = o.ability;
+    if (this.channel) {
+      this.channel.t += dt;
+      this.channel.c.update(dt);
+      if (this.channel.t >= this.channel.c.duration) {
+        this.channel.c.end?.();
+        this.channel = null;
+        this.poseOverride = null;
+        this.nextOrder();
+      }
+      return;
+    }
+
+    let tx = o.x;
+    let ty = o.y;
+    const d = Math.hypot(tx - this.x, ty - this.y);
+    const range = ab.castRange();
+    if (d > range) {
+      if (ab.clampToRange) {
+        tx = this.x + ((tx - this.x) / d) * range;
+        ty = this.y + ((ty - this.y) / d) * range;
+      } else {
+        // Walk into range first, then cast (WC3 behaviour).
+        this.chase(o.x, o.y, dt);
+        return;
+      }
+    }
+    this.path = [];
+    this.moving = false;
+    const off = this.turnToward(Math.atan2(ty - this.y, tx - this.x), dt);
+    if (!this.castStarted) {
+      if (off > Math.PI / 6) return;
+      this.castStarted = true;
+      this.castT = ab.castPoint;
+    }
+    this.castT -= dt;
+    this.poseOverride = ab.castPoint > 0 ? 'attack' : null;
+    if (this.castT > 0) return;
+
+    this.castStarted = false;
+    this.poseOverride = null;
+    const why = ab.blocked(this);
+    if (why) {
+      this.world.floatText(this.x, this.y - 20, why, '#ffd84a');
+      this.nextOrder();
+      return;
+    }
+    this.mana -= ab.manaCost();
+    ab.cd = ab.cooldown();
+    const ch = ab.cast(this, tx, ty);
+    if (ch) {
+      this.channel = { c: ch, t: 0 };
+      this.poseOverride = 'attack';
+      return;
+    }
+    this.nextOrder();
+  }
+
+  update(dt: number): void {
+    if (this.dead) {
+      this.respawnT -= dt;
+      return;
+    }
+    this.hp = Math.min(this.maxHp, this.hp + this.hpRegen * dt);
+    this.mana = Math.min(this.maxMana, this.mana + this.manaRegen * dt);
+    for (const a of this.abilities) a.tick(dt);
+    if (this.empowered) {
+      this.empowered.t -= dt;
+      if (this.empowered.t <= 0) this.empowered = null;
+    }
+    if (this.dash) {
+      const k = this.dash;
+      k.t += dt;
+      const p = Math.min(1, k.t / k.dur);
+      const e = 1 - (1 - p) * (1 - p);
+      this.x = k.fx + (k.tx - k.fx) * e;
+      this.y = k.fy + (k.ty - k.fy) * e;
+      this.sprite.setY(Math.round(this.y + 3 - Math.sin(p * Math.PI) * 5));
+      if (Math.random() < 0.6) this.world.burst(this.x, this.y, 0x9be08a, 1);
+      if (p >= 1) this.dash = null;
+      this.moving = true;
+      this.syncSprite(dt);
+      if (this.dash) this.sprite.setY(Math.round(this.y + 3 - Math.sin(p * Math.PI) * 5));
+      return;
+    }
+    super.update(dt);
+  }
+
+  die(): void {
+    if (this.channel) this.onOrderInterrupted();
+    this.dash = null;
+    this.empowered = null;
+    super.die();
+    this.respawnT = 6 + this.level * 1.5;
+  }
+
+  revive(x: number, y: number): void {
+    super.revive(x, y);
+    this.hp = this.maxHp;
+    this.mana = this.maxMana;
+  }
+}
