@@ -54,6 +54,10 @@ export class Hero extends Unit {
       spriteScale: 0.5,
     }, x, y);
     this.mana = this.maxMana;
+    // TEST MODE: every ability maxed from the start. Remove when the abilities are signed off.
+    for (const ab of this.abilities) ab.level = ab.maxLevel;
+    (this.abilities[0] as SearingArrows).autocast = true;
+    this.skillPoints = 0;
   }
 
   get maxHp(): number {

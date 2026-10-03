@@ -1,583 +1,583 @@
 {
  "frames": {
-  "beacon_activate_0": {
-   "frame": {
-    "x": 0,
-    "y": 0,
-    "w": 36,
-    "h": 98
-   },
-   "rotated": false,
-   "trimmed": false,
-   "spriteSourceSize": {
-    "x": 0,
-    "y": 0,
-    "w": 36,
-    "h": 98
-   },
-   "sourceSize": {
-    "w": 36,
-    "h": 98
-   }
-  },
-  "beacon_activate_1": {
-   "frame": {
-    "x": 37,
-    "y": 0,
-    "w": 36,
-    "h": 98
-   },
-   "rotated": false,
-   "trimmed": false,
-   "spriteSourceSize": {
-    "x": 0,
-    "y": 0,
-    "w": 36,
-    "h": 98
-   },
-   "sourceSize": {
-    "w": 36,
-    "h": 98
-   }
-  },
-  "beacon_activate_2": {
-   "frame": {
-    "x": 74,
-    "y": 0,
-    "w": 36,
-    "h": 98
-   },
-   "rotated": false,
-   "trimmed": false,
-   "spriteSourceSize": {
-    "x": 0,
-    "y": 0,
-    "w": 36,
-    "h": 98
-   },
-   "sourceSize": {
-    "w": 36,
-    "h": 98
-   }
-  },
-  "beacon_activate_3": {
-   "frame": {
-    "x": 111,
-    "y": 0,
-    "w": 36,
-    "h": 98
-   },
-   "rotated": false,
-   "trimmed": false,
-   "spriteSourceSize": {
-    "x": 0,
-    "y": 0,
-    "w": 36,
-    "h": 98
-   },
-   "sourceSize": {
-    "w": 36,
-    "h": 98
-   }
-  },
-  "beacon_activate_4": {
-   "frame": {
-    "x": 148,
-    "y": 0,
-    "w": 36,
-    "h": 98
-   },
-   "rotated": false,
-   "trimmed": false,
-   "spriteSourceSize": {
-    "x": 0,
-    "y": 0,
-    "w": 36,
-    "h": 98
-   },
-   "sourceSize": {
-    "w": 36,
-    "h": 98
-   }
-  },
-  "beacon_activate_5": {
-   "frame": {
-    "x": 185,
-    "y": 0,
-    "w": 36,
-    "h": 98
-   },
-   "rotated": false,
-   "trimmed": false,
-   "spriteSourceSize": {
-    "x": 0,
-    "y": 0,
-    "w": 36,
-    "h": 98
-   },
-   "sourceSize": {
-    "w": 36,
-    "h": 98
-   }
-  },
-  "beacon_activate_6": {
-   "frame": {
-    "x": 222,
-    "y": 0,
-    "w": 36,
-    "h": 98
-   },
-   "rotated": false,
-   "trimmed": false,
-   "spriteSourceSize": {
-    "x": 0,
-    "y": 0,
-    "w": 36,
-    "h": 98
-   },
-   "sourceSize": {
-    "w": 36,
-    "h": 98
-   }
-  },
-  "beacon_activate_7": {
-   "frame": {
-    "x": 259,
-    "y": 0,
-    "w": 36,
-    "h": 98
-   },
-   "rotated": false,
-   "trimmed": false,
-   "spriteSourceSize": {
-    "x": 0,
-    "y": 0,
-    "w": 36,
-    "h": 98
-   },
-   "sourceSize": {
-    "w": 36,
-    "h": 98
-   }
-  },
-  "beacon_activate_8": {
-   "frame": {
-    "x": 296,
-    "y": 0,
-    "w": 36,
-    "h": 98
-   },
-   "rotated": false,
-   "trimmed": false,
-   "spriteSourceSize": {
-    "x": 0,
-    "y": 0,
-    "w": 36,
-    "h": 98
-   },
-   "sourceSize": {
-    "w": 36,
-    "h": 98
-   }
-  },
-  "beacon_activate_9": {
-   "frame": {
-    "x": 333,
-    "y": 0,
-    "w": 36,
-    "h": 98
-   },
-   "rotated": false,
-   "trimmed": false,
-   "spriteSourceSize": {
-    "x": 0,
-    "y": 0,
-    "w": 36,
-    "h": 98
-   },
-   "sourceSize": {
-    "w": 36,
-    "h": 98
-   }
-  },
-  "beacon_activate_10": {
-   "frame": {
-    "x": 370,
-    "y": 0,
-    "w": 36,
-    "h": 98
-   },
-   "rotated": false,
-   "trimmed": false,
-   "spriteSourceSize": {
-    "x": 0,
-    "y": 0,
-    "w": 36,
-    "h": 98
-   },
-   "sourceSize": {
-    "w": 36,
-    "h": 98
-   }
-  },
-  "beacon_activate_11": {
-   "frame": {
-    "x": 407,
-    "y": 0,
-    "w": 36,
-    "h": 98
-   },
-   "rotated": false,
-   "trimmed": false,
-   "spriteSourceSize": {
-    "x": 0,
-    "y": 0,
-    "w": 36,
-    "h": 98
-   },
-   "sourceSize": {
-    "w": 36,
-    "h": 98
-   }
-  },
-  "beacon_activate_12": {
-   "frame": {
-    "x": 444,
-    "y": 0,
-    "w": 36,
-    "h": 98
-   },
-   "rotated": false,
-   "trimmed": false,
-   "spriteSourceSize": {
-    "x": 0,
-    "y": 0,
-    "w": 36,
-    "h": 98
-   },
-   "sourceSize": {
-    "w": 36,
-    "h": 98
-   }
-  },
-  "beacon_activate_13": {
-   "frame": {
-    "x": 481,
-    "y": 0,
-    "w": 36,
-    "h": 98
-   },
-   "rotated": false,
-   "trimmed": false,
-   "spriteSourceSize": {
-    "x": 0,
-    "y": 0,
-    "w": 36,
-    "h": 98
-   },
-   "sourceSize": {
-    "w": 36,
-    "h": 98
-   }
-  },
-  "beacon_activate_14": {
-   "frame": {
-    "x": 518,
-    "y": 0,
-    "w": 36,
-    "h": 98
-   },
-   "rotated": false,
-   "trimmed": false,
-   "spriteSourceSize": {
-    "x": 0,
-    "y": 0,
-    "w": 36,
-    "h": 98
-   },
-   "sourceSize": {
-    "w": 36,
-    "h": 98
-   }
-  },
   "beacon_idle_0": {
    "frame": {
-    "x": 555,
+    "x": 0,
     "y": 0,
-    "w": 40,
-    "h": 90
+    "w": 48,
+    "h": 96
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 40,
-    "h": 90
+    "w": 48,
+    "h": 96
    },
    "sourceSize": {
-    "w": 40,
-    "h": 90
+    "w": 48,
+    "h": 96
    }
   },
   "beacon_idle_1": {
    "frame": {
-    "x": 596,
+    "x": 49,
     "y": 0,
-    "w": 41,
-    "h": 90
+    "w": 48,
+    "h": 96
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 41,
-    "h": 90
+    "w": 48,
+    "h": 96
    },
    "sourceSize": {
-    "w": 41,
-    "h": 90
+    "w": 48,
+    "h": 96
    }
   },
   "beacon_idle_2": {
    "frame": {
-    "x": 638,
+    "x": 98,
     "y": 0,
-    "w": 41,
-    "h": 90
+    "w": 48,
+    "h": 96
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 41,
-    "h": 90
+    "w": 48,
+    "h": 96
    },
    "sourceSize": {
-    "w": 41,
-    "h": 90
+    "w": 48,
+    "h": 96
    }
   },
   "beacon_idle_3": {
    "frame": {
-    "x": 680,
+    "x": 147,
     "y": 0,
-    "w": 41,
-    "h": 90
+    "w": 48,
+    "h": 96
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 41,
-    "h": 90
+    "w": 48,
+    "h": 96
    },
    "sourceSize": {
-    "w": 41,
-    "h": 90
+    "w": 48,
+    "h": 96
    }
   },
   "beacon_idle_4": {
    "frame": {
-    "x": 722,
+    "x": 196,
     "y": 0,
-    "w": 41,
-    "h": 90
+    "w": 48,
+    "h": 96
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 41,
-    "h": 90
+    "w": 48,
+    "h": 96
    },
    "sourceSize": {
-    "w": 41,
-    "h": 90
+    "w": 48,
+    "h": 96
    }
   },
   "beacon_idle_5": {
    "frame": {
-    "x": 764,
+    "x": 245,
     "y": 0,
-    "w": 41,
-    "h": 90
+    "w": 48,
+    "h": 96
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 41,
-    "h": 90
+    "w": 48,
+    "h": 96
    },
    "sourceSize": {
-    "w": 41,
-    "h": 90
+    "w": 48,
+    "h": 96
    }
   },
   "beacon_idle_6": {
    "frame": {
-    "x": 806,
+    "x": 294,
     "y": 0,
-    "w": 41,
-    "h": 90
+    "w": 48,
+    "h": 96
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 41,
-    "h": 90
+    "w": 48,
+    "h": 96
    },
    "sourceSize": {
-    "w": 41,
-    "h": 90
+    "w": 48,
+    "h": 96
    }
   },
   "beacon_idle_7": {
    "frame": {
-    "x": 848,
+    "x": 343,
     "y": 0,
-    "w": 41,
-    "h": 90
+    "w": 48,
+    "h": 96
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 41,
-    "h": 90
+    "w": 48,
+    "h": 96
    },
    "sourceSize": {
-    "w": 41,
-    "h": 90
+    "w": 48,
+    "h": 96
    }
   },
   "beacon_idle_8": {
    "frame": {
-    "x": 890,
+    "x": 392,
     "y": 0,
-    "w": 41,
-    "h": 90
+    "w": 48,
+    "h": 96
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 41,
-    "h": 90
+    "w": 48,
+    "h": 96
    },
    "sourceSize": {
-    "w": 41,
-    "h": 90
+    "w": 48,
+    "h": 96
    }
   },
   "beacon_idle_9": {
    "frame": {
-    "x": 932,
+    "x": 441,
     "y": 0,
-    "w": 41,
-    "h": 90
+    "w": 48,
+    "h": 96
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 41,
-    "h": 90
+    "w": 48,
+    "h": 96
    },
    "sourceSize": {
-    "w": 41,
-    "h": 90
+    "w": 48,
+    "h": 96
    }
   },
   "beacon_idle_10": {
    "frame": {
-    "x": 974,
+    "x": 490,
     "y": 0,
-    "w": 41,
-    "h": 90
+    "w": 48,
+    "h": 96
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 41,
-    "h": 90
+    "w": 48,
+    "h": 96
    },
    "sourceSize": {
-    "w": 41,
-    "h": 90
+    "w": 48,
+    "h": 96
    }
   },
   "beacon_idle_11": {
    "frame": {
-    "x": 0,
-    "y": 99,
-    "w": 41,
-    "h": 90
+    "x": 539,
+    "y": 0,
+    "w": 48,
+    "h": 96
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 41,
-    "h": 90
+    "w": 48,
+    "h": 96
    },
    "sourceSize": {
-    "w": 41,
-    "h": 90
+    "w": 48,
+    "h": 96
    }
   },
   "beacon_idle_12": {
    "frame": {
-    "x": 42,
-    "y": 99,
-    "w": 41,
-    "h": 90
+    "x": 588,
+    "y": 0,
+    "w": 48,
+    "h": 96
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 41,
-    "h": 90
+    "w": 48,
+    "h": 96
    },
    "sourceSize": {
-    "w": 41,
-    "h": 90
+    "w": 48,
+    "h": 96
+   }
+  },
+  "beacon_activate_0": {
+   "frame": {
+    "x": 637,
+    "y": 0,
+    "w": 48,
+    "h": 96
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 48,
+    "h": 96
+   },
+   "sourceSize": {
+    "w": 48,
+    "h": 96
+   }
+  },
+  "beacon_activate_1": {
+   "frame": {
+    "x": 686,
+    "y": 0,
+    "w": 48,
+    "h": 96
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 48,
+    "h": 96
+   },
+   "sourceSize": {
+    "w": 48,
+    "h": 96
+   }
+  },
+  "beacon_activate_2": {
+   "frame": {
+    "x": 735,
+    "y": 0,
+    "w": 48,
+    "h": 96
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 48,
+    "h": 96
+   },
+   "sourceSize": {
+    "w": 48,
+    "h": 96
+   }
+  },
+  "beacon_activate_3": {
+   "frame": {
+    "x": 784,
+    "y": 0,
+    "w": 48,
+    "h": 96
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 48,
+    "h": 96
+   },
+   "sourceSize": {
+    "w": 48,
+    "h": 96
+   }
+  },
+  "beacon_activate_4": {
+   "frame": {
+    "x": 833,
+    "y": 0,
+    "w": 48,
+    "h": 96
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 48,
+    "h": 96
+   },
+   "sourceSize": {
+    "w": 48,
+    "h": 96
+   }
+  },
+  "beacon_activate_5": {
+   "frame": {
+    "x": 882,
+    "y": 0,
+    "w": 48,
+    "h": 96
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 48,
+    "h": 96
+   },
+   "sourceSize": {
+    "w": 48,
+    "h": 96
+   }
+  },
+  "beacon_activate_6": {
+   "frame": {
+    "x": 931,
+    "y": 0,
+    "w": 48,
+    "h": 96
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 48,
+    "h": 96
+   },
+   "sourceSize": {
+    "w": 48,
+    "h": 96
+   }
+  },
+  "beacon_activate_7": {
+   "frame": {
+    "x": 0,
+    "y": 97,
+    "w": 48,
+    "h": 96
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 48,
+    "h": 96
+   },
+   "sourceSize": {
+    "w": 48,
+    "h": 96
+   }
+  },
+  "beacon_activate_8": {
+   "frame": {
+    "x": 49,
+    "y": 97,
+    "w": 48,
+    "h": 96
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 48,
+    "h": 96
+   },
+   "sourceSize": {
+    "w": 48,
+    "h": 96
+   }
+  },
+  "beacon_activate_9": {
+   "frame": {
+    "x": 98,
+    "y": 97,
+    "w": 48,
+    "h": 96
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 48,
+    "h": 96
+   },
+   "sourceSize": {
+    "w": 48,
+    "h": 96
+   }
+  },
+  "beacon_activate_10": {
+   "frame": {
+    "x": 147,
+    "y": 97,
+    "w": 48,
+    "h": 96
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 48,
+    "h": 96
+   },
+   "sourceSize": {
+    "w": 48,
+    "h": 96
+   }
+  },
+  "beacon_activate_11": {
+   "frame": {
+    "x": 196,
+    "y": 97,
+    "w": 48,
+    "h": 96
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 48,
+    "h": 96
+   },
+   "sourceSize": {
+    "w": 48,
+    "h": 96
+   }
+  },
+  "beacon_activate_12": {
+   "frame": {
+    "x": 245,
+    "y": 97,
+    "w": 48,
+    "h": 96
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 48,
+    "h": 96
+   },
+   "sourceSize": {
+    "w": 48,
+    "h": 96
+   }
+  },
+  "beacon_activate_13": {
+   "frame": {
+    "x": 294,
+    "y": 97,
+    "w": 48,
+    "h": 96
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 48,
+    "h": 96
+   },
+   "sourceSize": {
+    "w": 48,
+    "h": 96
+   }
+  },
+  "beacon_activate_14": {
+   "frame": {
+    "x": 343,
+    "y": 97,
+    "w": 48,
+    "h": 96
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 48,
+    "h": 96
+   },
+   "sourceSize": {
+    "w": 48,
+    "h": 96
    }
   },
   "beacon_saved_0": {
    "frame": {
-    "x": 84,
-    "y": 99,
-    "w": 44,
-    "h": 74
+    "x": 392,
+    "y": 97,
+    "w": 48,
+    "h": 96
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 44,
-    "h": 74
+    "w": 48,
+    "h": 96
    },
    "sourceSize": {
-    "w": 44,
-    "h": 74
+    "w": 48,
+    "h": 96
    }
   }
  },
@@ -585,7 +585,7 @@
   "image": "beacon.png",
   "size": {
    "w": 1024,
-   "h": 189
+   "h": 193
   },
   "scale": "1"
  }

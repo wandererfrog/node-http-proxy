@@ -792,7 +792,25 @@ def slice_beacon():
             px = np.zeros((nh, nw, 4), np.uint8)
             px[..., :3] = col.astype(np.uint8)
             px[..., 3] = (a_small * 255).astype(np.uint8)
-            images[f'{name}_{i}'] = px
+            # The sheet's frames aren't evenly spaced, so the pillar lands at a different x in each
+            # column. Re-centre every frame on its pedestal (opaque pixels in the bottom 30%) in a
+            # fixed cell, feet at the bottom, so the animation doesn't wobble in game.
+            CELL_W, CELL_H = 48, 96
+            foot = px[int(nh * 0.7):, :, 3] > 200
+            fys, fxs = np.nonzero(foot)
+            cx = (fxs.min() + fxs.max() + 1) / 2 if len(fxs) else nw / 2
+            bottom = int(nh * 0.7) + fys.max() + 1 if len(fys) else nh
+            cell = np.zeros((CELL_H, CELL_W, 4), np.uint8)
+            ox = int(round(CELL_W / 2 - cx))
+            oy = CELL_H - 2 - bottom
+            for yy in range(nh):
+                ty = oy + yy
+                if not 0 <= ty < CELL_H:
+                    continue
+                x0c, x1c = max(0, -ox), min(nw, CELL_W - ox)
+                if x1c > x0c:
+                    cell[ty, ox + x0c: ox + x1c] = px[yy, x0c:x1c]
+            images[f'{name}_{i}'] = cell
     pack_atlas(images, 'beacon', width=1024)
 
 
