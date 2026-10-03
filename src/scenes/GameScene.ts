@@ -149,7 +149,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.applyZoom();
     cam.centerOn(this.hero.x, this.hero.y);
 
-    this.hud = new Hud(document.getElementById('ui')!, this.hero, this.map, portraitDataUrl(this), (frame) => this.itemIcon(frame), {
+    this.hud = new Hud(document.getElementById('ui')!, this.hero, this.map, portraitDataUrl(this), frameDataUrl(this, 'archer', 'down_idle', 4), (frame) => this.itemIcon(frame), {
       abilityTap: (i) => this.onAbilityTap(i),
       abilityAim: (i, dx, dy) => this.onAbilityAim(i, dx, dy),
       abilityAimEnd: (i, cast) => this.onAbilityAimEnd(i, cast),

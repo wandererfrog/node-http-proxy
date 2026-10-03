@@ -298,6 +298,49 @@ const ICONS: Record<string, { rows: string[]; pal: Palette; bg: string }> = {
   },
 };
 
+/** Small stat icons for the character sheet (10x10, transparent). */
+const STAT_ICONS: Record<string, { rows: string[]; pal: Palette }> = {
+  health: {
+    pal: { r: '#e0302a', R: '#ff7a6a', k: '#5a1010' },
+    rows: ['..........', '.kk...kk..', 'kRRk.kRrk.', 'kRrrkrrrk.', 'krrrrrrrk.', '.krrrrrk..', '..krrrk...', '...krk....', '....k.....', '..........'],
+  },
+  mana: {
+    pal: { b: '#3a7bff', B: '#9fd0ff', k: '#14245a', w: '#ffffff' },
+    rows: ['....k.....', '...kBk....', '..kBwbk...', '.kBBbbbk..', 'kBbbbbbbk.', '.kbbbbbk..', '..kbbbk...', '...kbk....', '....k.....', '..........'],
+  },
+  damage: {
+    pal: { s: '#d8dce8', S: '#ffffff', g: '#ffd84a', b: '#7a4a22', k: '#2a2a34' },
+    rows: ['........kS', '.......kSk', '......kSk.', '.....kSk..', '..k.kSk...', '..kgSk....', '...kgk....', '..bkkgk...', '.bk...k...', 'bk........'],
+  },
+  armor: {
+    pal: { s: '#a8b0c0', S: '#e8ecf4', d: '#6a7080', k: '#2a2a34' },
+    rows: ['.kkkkkkkk.', 'kSSSsssddk', 'kSsssssddk', 'kSsssssddk', 'ksssssddk.', '.kssssddk.', '.kssssdk..', '..kssdk...', '...kdk....', '....k.....'],
+  },
+  speed: {
+    pal: { b: '#b07838', B: '#e0a858', d: '#6a4018', k: '#2a1a10' },
+    rows: ['...kkkk...', '...kBbk...', '...kBbk...', '...kBbk...', '...kBbk...', '...kBbbk..', '..kBbbbbk.', 'kkBbbbbbbk', 'kddddddddk', 'kkkkkkkkkk'],
+  },
+  attackSpeed: {
+    pal: { y: '#ffd84a', Y: '#fff2a8', k: '#5a4010' },
+    rows: ['.....kk...', '....kYk...', '...kYk....', '..kYyk....', '.kYyyyyk..', '....kyk...', '...kyk....', '..kyk.....', '..kk......', '..........'],
+  },
+  range: {
+    pal: { g: '#e8d8a0', G: '#ffffff', k: '#3a3020' },
+    rows: ['....kk....', '..kkggkk..', '.kg.gg.gk.', '.k..gg..k.', 'kggggGgggk', 'kggggGgggk', '.k..gg..k.', '.kg.gg.gk.', '..kkggkk..', '....kk....'],
+  },
+};
+
+/** A stat icon as a data URL (transparent background, hard pixels). */
+export function statIconUrl(name: string, scale = 3): string {
+  const icon = STAT_ICONS[name];
+  const [c, ctx] = makeCanvas(10 * scale, 10 * scale);
+  ctx.save();
+  ctx.scale(scale, scale);
+  drawRows(ctx, icon.rows, icon.pal);
+  ctx.restore();
+  return c.toDataURL();
+}
+
 /** Icons are data URLs so the DOM HUD can use them directly. */
 export function iconDataUrl(name: string, scale = 4): string {
   const icon = ICONS[name];

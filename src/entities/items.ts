@@ -57,14 +57,17 @@ export interface GearStats {
 
 export const EMPTY_STATS: GearStats = { damage: 0, hp: 0, mana: 0, armor: 0, speed: 0, attackSpeed: 0, hpRegen: 0, manaRegen: 0 };
 
-/** The six quality tiers. Colours are the rarity colour used in the UI (border, name). */
+/**
+ * The six quality tiers. Colours are the rarity colour used in the UI (border, name); `rarity` is the
+ * word the item card shows under the name.
+ */
 export const TIERS = [
-  { name: 'Worn', color: '#a97548' },
-  { name: 'Woodland', color: '#6cc24a' },
-  { name: 'Iron', color: '#c3c8d4' },
-  { name: 'Moonsteel', color: '#5a9bff' },
-  { name: 'Gilded', color: '#f2c84b' },
-  { name: 'Fey', color: '#c47cff' },
+  { name: 'Worn', rarity: 'Common', color: '#a97548' },
+  { name: 'Woodland', rarity: 'Uncommon', color: '#6cc24a' },
+  { name: 'Iron', rarity: 'Fine', color: '#c3c8d4' },
+  { name: 'Moonsteel', rarity: 'Rare', color: '#5a9bff' },
+  { name: 'Gilded', rarity: 'Epic', color: '#f2c84b' },
+  { name: 'Fey', rarity: 'Legendary', color: '#c47cff' },
 ] as const;
 
 /**

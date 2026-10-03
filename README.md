@@ -81,7 +81,7 @@ All tuning lives in `src/entities/balance.ts`:
 
 ## No saving
 
-Each visit starts a fresh adventure in a new random world. **New game** (in the character page, tap twice) starts over at any time. Dying brings the hero back at the sanctuary.
+Each visit starts a fresh adventure in a new random world. **New game** (in the character page's ⋯ menu, tap twice) starts over at any time. Dying brings the hero back at the sanctuary.
 
 ## Items
 
@@ -109,7 +109,7 @@ Nine slots: bow, quiver, helmet, armour, gloves, boots, cloak, ring, amulet. Eac
 
 Armour takes a flat amount off every hit (a hit always does at least 1). Attack speed shortens the time between arrows.
 
-**Drops:** creeps drop gear 12% of the time, scaled to their level; alpha boars always drop something a tier up; treasure chests give a Moonsteel-or-better piece. Open the bag (portrait, bag button or C) and tap gear to wear it; tap a worn piece to take it off. Belts, daggers, food and materials are sliced but not used yet.
+**Drops:** creeps drop gear 12% of the time, scaled to their level; alpha boars always drop something a tier up; treasure chests give a Moonsteel-or-better piece. Open the character page (portrait, bag button or C). It follows the HUD mockup: the paper doll (four slots down each side of the hero, the bow under them; empty slots show a faint silhouette), stats with icons, the six-slot bag, and an item card. Tap any item to see its card: name and quality in the rarity colour (Common, Uncommon, Fine, Rare, Epic, Legendary), its bonuses, how it compares with what you wear (green better, red worse), and the action: **Wear**, **Take off** or **Drink**. With a mouse, hovering previews the card. The card sits beside the panel when there's room, over the stats on narrow landscape screens, and at the bottom on portrait phones. Belts, daggers, food and materials are sliced but not used yet.
 
 ## The Ranger's kit
 

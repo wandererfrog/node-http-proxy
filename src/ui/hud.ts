@@ -76,6 +76,7 @@ export class Hud {
     private readonly hero: Hero,
     private readonly map: WorldMap,
     portraitUrl: string,
+    dollUrl: string,
     private readonly icons: (frame: string) => string,
     private readonly cb: HudCallbacks,
   ) {
@@ -167,7 +168,7 @@ export class Hud {
     });
     this.tooltip = el('div', 'tooltip hidden', this.root);
     this.respawn = el('div', 'respawn hidden', this.root);
-    this.charPage = new CharacterPage(this.root, hero, portraitUrl, this.icons, {
+    this.charPage = new CharacterPage(this.root, hero, portraitUrl, dollUrl, this.icons, {
       use: (id) => this.cb.usePotion(id),
       equip: (i) => this.cb.equip(i),
       unequip: (slot) => this.cb.unequip(slot),
