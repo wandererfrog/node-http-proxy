@@ -5,7 +5,9 @@
  * - kind 'block' blocks movement only (stones, ruins, logs, elven structures, village props).
  * - kind 'rock'  blocks movement and can be searched for potions (rocks and crystals).
  * - w/h is the footprint in tiles, anchored at the bottom-left tile and growing right and up.
- *   `solid` lists which footprint columns block, for props you can walk under (the arch gate).
+ *   Trees block only their trunk tile; the canopy overhangs. Wide stones and structures block
+ *   their visible width. `solid` lists which footprint columns block, for props you can walk
+ *   under (arches).
  *
  * Decor (flowers, reeds) never blocks and is baked into the ground.
  */
@@ -23,26 +25,26 @@ export interface PropDef {
 
 const tree = (w = 1, h = 1): PropDef => ({ kind: 'tree', w, h });
 const block = (w = 1, h = 1): PropDef => ({ kind: 'block', w, h });
-const rock = (): PropDef => ({ kind: 'rock', w: 1, h: 1 });
+const rock = (w = 1): PropDef => ({ kind: 'rock', w, h: 1 });
 
 export const PROPS: Record<string, PropDef> = {
   oak_0: tree(), oak_1: tree(), oak_2: tree(), oak_3: tree(), autumn_0: tree(),
   pine_0: tree(), pine_1: tree(), violet_0: tree(), violet_1: tree(), violet_2: tree(),
-  violet_giant: tree(3, 2),
+  violet_giant: tree(5, 2),
   bush_0: tree(), bush_1: tree(), bush_2: tree(), bush_3: tree(), bush_4: tree(), bush_5: tree(), bush_6: tree(),
   bush_flower: tree(), bush_violet: tree(), bush_autumn_0: tree(), bush_autumn_1: tree(),
-  stump_0: tree(), mushrooms: block(), stump_moss: block(2, 1), log_0: block(2, 1), log_1: block(2, 1),
-  runestone_0: block(), runestone_1: block(), runestone_2: block(), runestone_3: block(), rune_slab: block(),
-  rock_2: block(), rubble: block(2, 1),
-  rock_0: rock(), rock_1: rock(), crystal_0: rock(), crystal_1: rock(), crystal_2: rock(),
-  ruin_pillar: block(), ruin_block: block(), ruin_wall: block(2, 1), ruin_arch: block(2, 1),
+  stump_0: tree(), mushrooms: block(2), stump_moss: block(3), log_0: block(3), log_1: block(3),
+  runestone_0: block(2), runestone_1: block(2), runestone_2: block(2), runestone_3: block(2), rune_slab: block(),
+  rock_2: block(2), rubble: block(3),
+  rock_0: rock(2), rock_1: rock(2), crystal_0: rock(2), crystal_1: rock(), crystal_2: rock(),
+  ruin_pillar: block(), ruin_block: block(), ruin_wall: block(2), ruin_arch: { kind: 'block', w: 3, h: 1, solid: [0, 2] },
   elf_pillar_0: block(), elf_pillar_1: block(),
-  shrine: block(5, 2), statue: block(2, 1), moonwell: block(3, 2), arch_gate: { kind: 'block', w: 4, h: 1, solid: [0, 3] },
+  shrine: block(7, 2), statue: block(2), moonwell: block(4, 2), arch_gate: { kind: 'block', w: 6, h: 1, solid: [0, 5] },
   spire_lamp: block(), crystal_pillar: block(), banner_pole: block(), banner_pole_1: block(), banner_small: block(),
   lamp_post: block(), lantern_post: block(), pedestal_0: block(), pedestal_1: block(), pedestal_orb: block(),
-  altar: block(), bench: block(), market_stall: block(2, 1), cart: block(2, 1), well: block(2, 1),
-  signpost: block(), crates: block(), crate: block(), barrel: block(), sack: block(), sacks: block(), pot: block(),
-  fence_0: block(), fence_1: block(), fence_2: block(), fence_3: block(),
+  altar: block(2), bench: block(2), market_stall: block(3), cart: block(3), well: block(2),
+  signpost: block(), crates: block(), crate: block(), barrel: block(), sack: block(), sacks: block(2), pot: block(),
+  fence_0: block(2), fence_1: block(2), fence_2: block(2), fence_3: block(2),
 };
 
 export const GROUPS = {

@@ -273,6 +273,7 @@ ELVEN_PROPS = {
     # water decor
     'reeds': (444, 704, 502, 772),
 }
+ELVEN_DECOR_NAMES = {'reeds'}
 # Pieces of neighbours that fall inside a prop's box.
 ELVEN_EXCLUDE = {'arch_gate': [(1186, 416, 1274, 506)]}
 # Small flowers / sprouts in this region become decor automatically (flower_N).
@@ -289,13 +290,14 @@ ELVEN_FX = {
 }
 
 
-def elven_mask(rgb):
+def elven_mask(rgb, strict=False):
     bg = np.array([32.0, 36.0, 41.0])
     d = np.sqrt(((rgb - bg) ** 2).sum(axis=2))
     lum = rgb.mean(axis=2)
     # Glow halos are dim, blue-tinted and close to the background: treat them as background.
+    # Glowing props (crystals) get a stricter cut: only clearly bright or saturated pixels stay.
     halo = (lum < 70) & (rgb[..., 2] > rgb[..., 0] + 14) & (d < 60)
-    m = (d > 16) & ~halo
+    m = ((d > 75) | (lum > 110)) if strict else ((d > 16) & ~halo)
     m = ndimage.binary_opening(m, iterations=1)
     holes = ndimage.binary_fill_holes(m) & ~m
     lab, n = ndimage.label(holes)
@@ -346,10 +348,27 @@ def pack_atlas(images, name, width=1024):
     print(name, len(frames), 'frames', f'{width}x{sheet.shape[0]}')
 
 
+# World scale of the environment: the hero is ~27px tall, so a tree should be 2-3x that.
+# Props are sliced finer than units (fewer source px per texel) to come out bigger in game.
+ELVEN_SCALE = 1.25
+# Buildings and the landmark tree are bigger again.
+ELVEN_BIG = {'shrine', 'statue', 'arch_gate', 'moonwell', 'market_stall', 'cart', 'violet_giant', 'well'}
+ELVEN_BIG_SCALE = 1.6
+# Ground detail stays small.
+ELVEN_DECOR_SCALE = 2.2
+
+
 def slice_elven():
     rgb = np.array(Image.open(ELVEN_SRC).convert('RGB')).astype(np.float32)
     m = elven_mask(rgb)
-    images = {name: cut(rgb, m, box, SCALE, ELVEN_EXCLUDE.get(name, ())) for name, box in ELVEN_PROPS.items()}
+    m_strict = elven_mask(rgb, strict=True)
+    glowing = {'crystal_0', 'crystal_1', 'crystal_2'}
+    images = {
+        name: cut(rgb, m_strict if name in glowing else m, box,
+                  ELVEN_BIG_SCALE if name in ELVEN_BIG else ELVEN_DECOR_SCALE if name in ELVEN_DECOR_NAMES else ELVEN_SCALE,
+                  ELVEN_EXCLUDE.get(name, ()))
+        for name, box in ELVEN_PROPS.items()
+    }
     # Auto decor: every small blob in the flower field.
     x0, y0, x1, y1 = ELVEN_DECOR_REGION
     sub = m[y0:y1, x0:x1]
@@ -362,7 +381,7 @@ def slice_elven():
         if not (18 <= h <= 60 and 16 <= w <= 60):
             continue
         box = (x0 + sl[1].start, y0 + sl[0].start, x0 + sl[1].stop, y0 + sl[0].stop)
-        images[f'flower_{k}'] = cut(rgb, m, box, SCALE)
+        images[f'flower_{k}'] = cut(rgb, m, box, ELVEN_DECOR_SCALE)
         k += 1
     for name, (gx0, gy0, gx1, gy1) in ELVEN_GROUND.items():
         crop = Image.fromarray(rgb[gy0:gy1, gx0:gx1].astype(np.uint8))
@@ -381,6 +400,9 @@ def slice_elven():
         images[name] = arr
     pack_atlas(images, 'elven')
     print('  decor flowers:', k)
+    # Sizes in world px (drawn at half the texel density) help choose footprints in src/world/props.ts.
+    sizes = {n: (round(im.shape[1] / 2), round(im.shape[0] / 2)) for n, im in images.items() if not n.startswith(('flower', 'ground', 'fx'))}
+    print('  world px:', ' '.join(f'{n}={w}x{h}' for n, (w, h) in sorted(sizes.items())))
 
 
 def main():

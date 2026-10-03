@@ -1,6 +1,7 @@
 import { Ability, Channel } from '../abilities/Ability';
 import { SearingArrows, rangerKit } from '../abilities/rangerAbilities';
 import { TILE } from '../world/map';
+import { PROPS } from '../world/props';
 import { heroDamage } from './balance';
 import { Inventory, ItemId, TOMES, TomeId } from './items';
 import { Order, Unit, World } from './Unit';
@@ -215,15 +216,19 @@ export class Hero extends Unit {
 
   /** Walk next to the rock, rummage for a moment, then break it. */
   private runSearch(o: Extract<Order, { type: 'search' }>, dt: number): void {
-    const cx = (o.tx + 0.5) * TILE;
+    // Aim for the middle of the prop (rocks can be two tiles wide) and stop within reach of it.
+    const prop = this.world.map.props.get(o.ty * this.world.map.width + o.tx);
+    const w = prop ? PROPS[prop.key].w : 1;
+    const cx = (o.tx + w / 2) * TILE;
     const cy = (o.ty + 0.5) * TILE;
     const d = Math.hypot(cx - this.x, cy - this.y);
-    if (d > TILE * 1.5) {
+    const reach = TILE * (1.5 + (w - 1) / 2);
+    if (d > reach) {
       this.searchT = 0;
       this.poseOverride = null;
       this.chase(cx, cy, dt);
       // Path exhausted but still not there: the rock can't be reached.
-      if (this.path.length === 0 && !this.moving && d > TILE * 1.6) {
+      if (this.path.length === 0 && !this.moving && d > reach + TILE * 0.5) {
         this.world.floatText(this.x, this.y - 30, "Can't reach that", '#ffd84a');
         this.nextOrder();
       }

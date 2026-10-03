@@ -161,7 +161,8 @@ export class WorldMap implements Grid {
         const b = this.biome[i];
         const edge = Math.min(x, y, width - 1 - x, height - 1 - y);
         if (edge < 2) {
-          this.placeProp(x, y, this.treeFor(b, rand), true);
+          if ((x + y) % 2 === 0) this.placeProp(x, y, this.treeFor(b, rand), true);
+          else this.blockTile(x, y);
           continue;
         }
         if (lakes(x / 9 + 100, y / 9 + 100) > 0.78) {
@@ -169,20 +170,25 @@ export class WorldMap implements Grid {
           continue;
         }
         const r = rand();
-        if (b.forest > 1.0) this.placeProp(x, y, this.treeFor(b, rand));
-        else if (b.forest > 0.9 && r < 0.4) this.placeProp(x, y, rand() < 0.75 ? pickFrom(rand, GROUPS.bush) : this.treeFor(b, rand));
-        else if (b.rocky > 0.68 && r < 0.16) {
+        if (b.forest > 1.0) {
+          // Forest interior: every tile blocks, but canopies are ~3 tiles wide, so a tree sprite
+          // on every other tile (always on the forest edge) already reads as solid woodland.
+          const edgeOfWood = [this.biome[i - 1], this.biome[i + 1], this.biome[i - width], this.biome[i + width]].some((n) => n && n.forest <= 1.0);
+          if (edgeOfWood || (x + y) % 2 === 0) this.placeProp(x, y, this.treeFor(b, rand));
+          else this.blockTile(x, y);
+        } else if (b.forest > 0.9 && r < 0.14) this.placeProp(x, y, rand() < 0.7 ? pickFrom(rand, GROUPS.bush) : this.treeFor(b, rand));
+        else if (b.rocky > 0.7 && r < 0.07) {
           this.placeProp(x, y, rand() < 0.55 ? pickFrom(rand, GROUPS.stone) : pickFrom(rand, GROUPS.rock));
-        } else if (r < 0.012) this.placeProp(x, y, pickFrom(rand, GROUPS.rock));
-        else if (r < 0.022) this.placeProp(x, y, this.treeFor(b, rand, true));
-        else if (r < 0.032) this.placeProp(x, y, pickFrom(rand, GROUPS.bush));
-        else if (r < 0.036) this.placeProp(x, y, pickFrom(rand, [...GROUPS.stump, ...GROUPS.wood]));
+        } else if (r < 0.005) this.placeProp(x, y, pickFrom(rand, GROUPS.rock));
+        else if (r < 0.011) this.placeProp(x, y, this.treeFor(b, rand, true));
+        else if (r < 0.015) this.placeProp(x, y, pickFrom(rand, GROUPS.bush));
+        else if (r < 0.017) this.placeProp(x, y, pickFrom(rand, [...GROUPS.stump, ...GROUPS.wood]));
       }
     }
 
     this.spawn = { x: Math.floor(width / 2) + 0.5, y: Math.floor(height / 2) + 0.5 };
-    this.clearCircle(this.spawn.x, this.spawn.y, SANCTUARY_R + 0.5);
-    this.paintCircle(this.spawn.x, this.spawn.y, 3.6, Tile.Paved);
+    this.clearCircle(this.spawn.x, this.spawn.y, SANCTUARY_R + 2);
+    this.paintCircle(this.spawn.x, this.spawn.y, 4.6, Tile.Paved);
 
     this.placeCamps(rand);
     this.buildSanctuary();
@@ -209,20 +215,21 @@ export class WorldMap implements Grid {
     const sx = Math.floor(this.spawn.x);
     const sy = Math.floor(this.spawn.y);
     const core: Array<[string, number, number]> = [
-      ['moonwell', sx - 1, sy - 2],
-      ['shrine', sx - 2, sy - 6],
+      ['moonwell', sx - 2, sy - 2],
+      ['shrine', sx - 3, sy - 5],
     ];
     for (const [key, x, y] of core) {
       const a = this.placeProp(x, y, key, false, true);
-      if (key === 'moonwell' && a >= 0) this.moonwell = { x: sx + 0.5, y: sy - 2 };
+      // The healing circle sits just in front of the well, where the hero starts.
+      if (key === 'moonwell' && a >= 0) this.moonwell = { x: sx + 0.5, y: sy - 1 };
     }
     const dressing: Array<[string, number, number]> = [
-      ['banner_pole', sx - 3, sy - 1], ['banner_pole_1', sx + 3, sy - 1],
-      ['spire_lamp', sx - 3, sy + 2], ['lamp_post', sx + 3, sy + 2],
+      ['banner_pole', sx - 4, sy - 1], ['banner_pole_1', sx + 3, sy - 1],
+      ['spire_lamp', sx - 4, sy + 3], ['lamp_post', sx + 3, sy + 3],
       ['statue', sx + 4, sy - 4], ['crystal_pillar', sx - 5, sy - 4],
-      ['arch_gate', sx - 2, sy + 5],
-      ['market_stall', sx - 7, sy + 1], ['crates', sx - 5, sy + 1], ['barrel', sx - 7, sy + 2],
-      ['cart', sx + 5, sy + 2], ['sacks', sx + 5, sy + 3], ['bench', sx - 1, sy + 3],
+      ['arch_gate', sx - 3, sy + 6],
+      ['market_stall', sx - 8, sy + 1], ['barrel', sx - 8, sy + 2],
+      ['cart', sx + 5, sy + 1], ['sacks', sx + 5, sy + 3], ['bench', sx - 1, sy + 4],
     ];
     for (const [key, x, y] of dressing) {
       const a = this.placeProp(x, y, key, false, true);
@@ -239,8 +246,8 @@ export class WorldMap implements Grid {
       if (Math.hypot(x - this.spawn.x, y - this.spawn.y) < 16) continue;
       if (this.camps.some((c) => Math.hypot(c.x - x, c.y - y) < 8)) continue;
       if (this.get(x, y) === Tile.Water) continue;
-      this.clearCircle(x + 0.5, y, 3.2);
-      if (this.placeProp(x - 1, y, 'violet_giant') >= 0) placed++;
+      this.clearCircle(x + 0.5, y, 4.5);
+      if (this.placeProp(x - 2, y, 'violet_giant') >= 0) placed++;
     }
   }
 
@@ -271,6 +278,12 @@ export class WorldMap implements Grid {
     return anchor;
   }
 
+  /** Block a tile with no sprite of its own (forest interior under neighbouring canopies). */
+  private blockTile(tx: number, ty: number): void {
+    const i = ty * this.width + tx;
+    if (this.owner[i] === -1 && this.tiles[i] === Tile.Grass) this.tiles[i] = Tile.Tree;
+  }
+
   /** Remove a whole prop (all footprint tiles become grass). */
   removeProp(anchor: number): void {
     const p = this.props.get(anchor);
@@ -298,7 +311,7 @@ export class WorldMap implements Grid {
       : skeletons * 2 >= c.members.length
         ? [...GROUPS.ruins, ...GROUPS.stone]
         : [...GROUPS.wood, ...GROUPS.stump, ...GROUPS.bush];
-    const count = 2 + Math.floor(rand() * 3);
+    const count = 1 + Math.floor(rand() * 3);
     let placed = 0;
     for (let tries = 0; tries < 30 && placed < count; tries++) {
       const a = rand() * Math.PI * 2;
@@ -338,8 +351,8 @@ export class WorldMap implements Grid {
         const b = this.biome[y * width + x];
         const r = rand();
         if (t === Tile.Grass) {
-          const meadow = b.forest < 0.6 ? 0.1 : 0;
-          if (r < 0.05 + meadow || (r < 0.12 && nearTree(x, y))) add(pickFrom(rand, GROUPS.flower), x, y);
+          const meadow = b.forest < 0.6 ? 0.04 : 0;
+          if (r < 0.02 + meadow || (r < 0.06 && nearTree(x, y))) add(pickFrom(rand, GROUPS.flower), x, y);
         } else if (t === Tile.Water) {
           const shore = [this.get(x - 1, y), this.get(x + 1, y), this.get(x, y - 1), this.get(x, y + 1)].some((n) => n !== Tile.Water);
           if (shore && r < 0.2) add(pickFrom(rand, GROUPS.reeds), x, y);

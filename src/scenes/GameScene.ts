@@ -246,8 +246,9 @@ export class GameScene extends Phaser.Scene implements World {
     if (!img || this.map.get(tx, ty) !== Tile.Rock) return;
     this.rocks.delete(key);
     this.props = this.props.filter((p) => p !== img);
+    const def = PROPS[this.map.props.get(key)!.key];
     this.map.set(tx, ty, Tile.Grass);
-    this.hud.clearMinimapTile(tx, ty);
+    for (let dx = 0; dx < def.w; dx++) this.hud.clearMinimapTile(tx + dx, ty);
     const x = (tx + 0.5) * TILE;
     const y = (ty + 0.5) * TILE;
     this.burst(x, y, 0x9aa0ac, 12);
@@ -530,8 +531,11 @@ export class GameScene extends Phaser.Scene implements World {
     for (const py of [y, y + 5]) {
       const tx = Math.floor(x / TILE);
       const ty = Math.floor(py / TILE);
+      // Wide rocks: any footprint tile maps back to the prop's anchor.
+      const anchor = this.map.propAt(tx, ty);
       const key = ty * this.map.width + tx;
-      if (this.rocks.has(key) || (this.chests.has(key) && !this.chests.get(key)!.opened)) return { tx, ty };
+      if (this.rocks.has(anchor)) return { tx: anchor % this.map.width, ty: Math.floor(anchor / this.map.width) };
+      if (this.chests.has(key) && !this.chests.get(key)!.opened) return { tx, ty };
     }
     return null;
   }
@@ -712,8 +716,9 @@ export class GameScene extends Phaser.Scene implements World {
     const last = this.lastCull;
     if (Math.abs(v.x - last.x) < TILE && Math.abs(v.y - last.y) < TILE && cam.zoom === last.zoom) return;
     this.lastCull = { x: v.x, y: v.y, zoom: cam.zoom };
-    const m = TILE * 3; // margin so nothing pops in at the edges
-    for (const p of this.props) p.setVisible(p.x > v.x - m && p.x < v.right + m && p.y > v.y - m && p.y < v.bottom + m + TILE * 2);
+    // Sprites are anchored at their feet and can be ~110px wide and ~120px tall.
+    const m = TILE * 4;
+    for (const p of this.props) p.setVisible(p.x > v.x - m && p.x < v.right + m && p.y > v.y - TILE && p.y < v.bottom + TILE * 8);
   }
 
   private updateCamera(dt: number): void {

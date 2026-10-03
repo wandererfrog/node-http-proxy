@@ -104,10 +104,14 @@ Every game builds a new random map (`src/world/map.ts`, seeded, so a seed always
 
 Roads leave from the sanctuary's edge to every camp.
 
+**Scale:** the hero is about 27px tall; trees are 40–60px, the shrine 110px. The slicer cuts the environment finer than the units (`ELVEN_SCALE`, `ELVEN_BIG_SCALE`) to get there.
+
 **Props** (`src/world/props.ts`) have footprints:
-- Trees block arrows.
-- Stones, ruins and structures only block movement.
+- Trees block arrows, but only their trunk tile; the canopy overhangs.
+- Stones, ruins and structures block their visible width (arches can be walked under).
 - Rocks and crystals can be searched for potions.
+
+Forests block every tile but only draw a tree on every other one, since the canopies are about three tiles wide; the forest edge always gets a tree.
 
 **Camps are dressed to match their occupants.** Skeletons live among ruins and rune stones, boars among logs and mushrooms, and treasure camps have a ruined arch, altars, pedestals and crystals.
 
