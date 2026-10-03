@@ -5,6 +5,7 @@ import { PROPS } from '../world/props';
 import { heroDamage } from './balance';
 import { EMPTY_STATS, Gear, GearSlot, GearStats, Inventory, ItemId, TOMES, TomeId, addStats } from './items';
 import { Order, Unit, World } from './Unit';
+import { TALENT_VALUES as TV, Talents } from './talents';
 
 import { MAX_LEVEL, xpForLevel } from './xp';
 
@@ -18,6 +19,8 @@ export class Hero extends Unit {
   readonly abilities: Ability[] = rangerKit();
 
   readonly inventory = new Inventory();
+  /** Talent tree: a point per level from 2, spent in the character page's Talents tab. */
+  readonly talents = new Talents();
   readonly equipment: Partial<Record<GearSlot, Gear>> = {};
   /** Sum of worn gear stats, recomputed on equip. */
   gear: GearStats = { ...EMPTY_STATS };
@@ -57,22 +60,28 @@ export class Hero extends Unit {
     for (const ab of this.abilities) ab.level = ab.maxLevel;
     (this.abilities[0] as SearingArrows).autocast = true;
     this.skillPoints = 0;
+    // TEST MODE: all nine talent points (one per level up to 10) to try the tree. Remove with the above.
+    this.talents.points = 9;
   }
 
   get maxHp(): number {
-    return this.baseMaxHp + (this.level - 1) * 45 + this.bonus.hp + this.gear.hp;
+    return this.baseMaxHp + (this.level - 1) * 45 + this.bonus.hp + this.gear.hp + this.talents.rank('hardiness') * TV.hardinessHp;
   }
   get maxMana(): number {
     return this.baseMaxMana + (this.level - 1) * 18 + this.bonus.mana + this.gear.mana;
   }
   get speed(): number {
-    return this.stats.speed + this.bonus.speed + this.gear.speed;
+    return this.stats.speed + this.bonus.speed + this.gear.speed + this.talents.rank('swiftFeet') * TV.swiftFeetSpeed;
   }
   get armor(): number {
     return this.gear.armor;
   }
   get attackCooldown(): number {
-    return this.stats.attackCooldown / (1 + this.gear.attackSpeed / 100);
+    const pct = this.gear.attackSpeed + this.talents.rank('quickDraw') * TV.quickDrawAttackSpeed;
+    return this.stats.attackCooldown / (1 + pct / 100);
+  }
+  get attackRange(): number {
+    return this.stats.attackRange + this.talents.rank('longShot') * TV.longShotRange;
   }
 
   private recomputeGear(): void {
@@ -121,12 +130,13 @@ export class Hero extends Unit {
     return 1.2 + this.level * 0.25 + this.gear.hpRegen;
   }
   get manaRegen(): number {
-    return 1.4 + this.level * 0.2 + this.gear.manaRegen;
+    return 1.4 + this.level * 0.2 + this.gear.manaRegen + this.talents.rank('meditation') * TV.meditationMana;
   }
 
   get damageRange(): [number, number] {
     const [a, b] = heroDamage(this.level);
-    return [a + this.bonus.damage + this.gear.damage, b + this.bonus.damage + this.gear.damage];
+    const flat = this.bonus.damage + this.gear.damage + this.talents.rank('sharpshooter') * TV.sharpshooterDamage;
+    return [a + flat, b + flat];
   }
 
   rollDamage(): number {
@@ -175,6 +185,7 @@ export class Hero extends Unit {
     while (this.level < MAX_LEVEL && this.xp >= xpForLevel(this.level + 1)) {
       this.level++;
       this.skillPoints++;
+      this.talents.points++;
       this.hp = Math.min(this.maxHp, this.hp + 45);
       this.mana = Math.min(this.maxMana, this.mana + 18);
       leveled = true;
@@ -224,10 +235,21 @@ export class Hero extends Unit {
     return this.empowered ? 0.05 : super.windupTime();
   }
 
+  /** Mana per Searing arrow, after the Searing Mastery talent. */
+  get searingCost(): number {
+    const searing = this.abilities[0] as SearingArrows;
+    return Math.max(0, searing.manaCost() - this.talents.rank('searingMastery') * TV.searingCost);
+  }
+
   /** Will the next attack be a Searing (magic) shot? */
   private get searingReady(): boolean {
     const searing = this.abilities[0] as SearingArrows;
-    return searing.level > 0 && searing.autocast && this.mana >= searing.manaCost();
+    return searing.level > 0 && searing.autocast && this.mana >= this.searingCost;
+  }
+
+  /** The Trueshot Aura talent is learned (the game shows its aura around the hero). */
+  get hasTrueshotAura(): boolean {
+    return this.talents.rank('trueshotAura') > 0;
   }
 
   protected releaseAttack(target: Unit): void {
@@ -235,16 +257,20 @@ export class Hero extends Unit {
     let fire = false;
     const searing = this.abilities[0] as SearingArrows;
     if (this.searingReady) {
-      this.mana -= searing.manaCost();
-      dmg += searing.bonus();
+      this.mana -= this.searingCost;
+      dmg += searing.bonus() + this.talents.rank('searingMastery') * TV.searingDamage;
       fire = true;
     }
     if (this.empowered) {
       dmg = Math.round(dmg * this.empowered.mult);
       this.empowered = null;
     }
-    if (fire) this.world.fireMagicBolt(this, target, dmg);
-    else this.world.fireArrow(this, target, dmg, false);
+    if (this.hasTrueshotAura) dmg = Math.round(dmg * (1 + TV.trueshotDamage));
+    // Deadeye: a chance to hit a weak spot for double damage (shown big, in gold).
+    const crit = this.talents.rank('deadeye') > 0 && Math.random() < TV.deadeyeChance;
+    if (crit) dmg *= 2;
+    if (fire) this.world.fireMagicBolt(this, target, dmg, crit);
+    else this.world.fireArrow(this, target, dmg, false, crit);
   }
 
   protected onOrderInterrupted(): void {

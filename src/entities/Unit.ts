@@ -28,9 +28,9 @@ export interface World {
   readonly phaser: Phaser.Scene;
   damage(target: Unit, amount: number, source: Unit | null, opts?: DamageOpts): void;
   /** Homing auto-attack arrow. */
-  fireArrow(from: Unit, target: Unit, damage: number, fire: boolean): void;
+  fireArrow(from: Unit, target: Unit, damage: number, fire: boolean, crit?: boolean): void;
   /** Searing Arrows: the homing fire arrow, with a burst of flame where it hits. */
-  fireMagicBolt(from: Unit, target: Unit, damage: number): void;
+  fireMagicBolt(from: Unit, target: Unit, damage: number, crit?: boolean): void;
   /** Straight skillshot arrow that hits the first enemy in its way. */
   fireVolleyArrow(from: Unit, angle: number, range: number, damage: number): void;
   enemiesInRadius(of: Unit, x: number, y: number, r: number): Unit[];

@@ -2,6 +2,7 @@ import { Hero, MAX_LEVEL, xpForLevel } from '../entities/Hero';
 import { EMPTY_STATS, Gear, GearSlot, GearStats, INVENTORY_SIZE, SLOT_NAMES, TIERS, describeStats, gearIcon } from '../entities/items';
 import { statIconUrl } from '../art/sprites';
 import { applyUiArt } from './pixelFrame';
+import { TALENTS, TALENT_BY_ID, TIER_POINTS, TalentId } from '../entities/talents';
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, parent?: HTMLElement): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -17,6 +18,10 @@ export interface CharacterCallbacks {
   unequip(slot: GearSlot, toIndex?: number): void;
   /** Rearrange the bag: swap two slots. */
   moveBag(from: number, to: number): void;
+  /** Spend a talent point. */
+  learnTalent(id: TalentId): void;
+  /** Refund every talent point. */
+  resetTalents(): void;
   close(): void;
   /** Start over in a new world (asks once). */
   newGame(): void;
@@ -26,6 +31,7 @@ export interface CharacterCallbacks {
 const EQUIP_ORDER: GearSlot[] = ['helmet', 'amulet', 'cloak', 'chest', 'gloves', 'ring', 'boots', 'bow', 'quiver'];
 
 type Selection = { kind: 'worn'; slot: GearSlot } | { kind: 'bag'; index: number };
+export type CharacterTab = 'character' | 'talents';
 
 /** Pointer travel (px) before a press on an item becomes a drag. */
 const DRAG_START = 6;
@@ -67,6 +73,15 @@ export class CharacterPage {
   private readonly card: HTMLDivElement;
   private readonly menu: HTMLDivElement;
   private selected: Selection | null = null;
+  private tab: CharacterTab = 'character';
+  private readonly tabButtons = new Map<CharacterTab, HTMLButtonElement>();
+  private readonly tabBadge: HTMLSpanElement;
+  private readonly charContent: HTMLDivElement;
+  private readonly talentContent: HTMLDivElement;
+  private readonly talentButtons = new Map<TalentId, HTMLButtonElement>();
+  private readonly talentPoints: HTMLSpanElement;
+  private talentSel: TalentId | null = null;
+  private talentHover: TalentId | null = null;
   /** Hover preview (mouse); the selection wins when both exist. */
   private hovered: Selection | null = null;
   private cardKey = '';
@@ -105,6 +120,16 @@ export class CharacterPage {
     const xp = el('div', 'char-xp', titles);
     this.xpFill = el('div', 'fill', xp);
 
+    // Tabs, WoW style: Character and Talents (with a badge while points are unspent).
+    const tabs = el('div', 'char-tabs', head);
+    for (const [id, label] of [['character', 'Character'], ['talents', 'Talents']] as Array<[CharacterTab, string]>) {
+      const t = el('button', 'char-tab', tabs);
+      t.textContent = label;
+      t.addEventListener('click', () => this.setTab(id));
+      this.tabButtons.set(id, t);
+    }
+    this.tabBadge = el('span', 'tab-badge', this.tabButtons.get('talents')!);
+
     const more = el('button', 'char-more', head);
     more.textContent = '⋯';
     more.setAttribute('aria-label', 'More');
@@ -133,6 +158,7 @@ export class CharacterPage {
     close.addEventListener('click', () => this.cb.close());
 
     const content = el('div', 'char-content', panel);
+    this.charContent = content;
     const top = el('div', 'char-top', content);
 
     // --- Stats (left).
@@ -172,6 +198,62 @@ export class CharacterPage {
       this.bagSlots.push(b);
     }
     el('div', 'char-hint', bagSec).textContent = 'Drag gear onto Equipped to wear it · tap an item for details';
+
+    // --- Talents tab: the tree as a grid, tier by tier, with the prerequisite arrow.
+    this.talentContent = el('div', 'char-content talents hidden', panel);
+    const tree = el('section', 'char-sec tal-sec', this.talentContent);
+    const tHead = el('div', 'sec-title', tree);
+    el('span', '', tHead).textContent = 'Marksmanship';
+    this.talentPoints = el('span', 'sec-count', tHead);
+    const tGrid = el('div', 'tal-grid', tree);
+    for (const t of TALENTS) {
+      const b = el('button', 'inv-slot tal', tGrid);
+      b.style.gridColumn = `${t.col + 1}`;
+      b.style.gridRow = `${t.tier + 1}`;
+      b.dataset.talent = t.id;
+      b.setAttribute('aria-label', t.name);
+      const img = el('img', 'item', b);
+      img.src = this.icon(t.icon);
+      img.alt = '';
+      img.draggable = false;
+      el('span', 'rank', b);
+      if (t.requires) b.classList.add('req');
+      b.addEventListener('click', () => {
+        this.talentSel = this.talentSel === t.id ? null : t.id;
+        this.renderCard(true);
+      });
+      b.addEventListener('pointerenter', (e) => {
+        if (e.pointerType !== 'mouse') return;
+        this.talentHover = t.id;
+        this.renderCard(true);
+      });
+      b.addEventListener('pointerleave', (e) => {
+        if (e.pointerType !== 'mouse') return;
+        this.talentHover = null;
+        this.renderCard(true);
+      });
+      this.talentButtons.set(t.id, b);
+    }
+    const tFoot = el('div', 'tal-foot', tree);
+    el('span', 'char-hint', tFoot).textContent = 'Tap a talent, then Learn. Tiers open as you spend points.';
+    const talReset = el('button', 'tal-reset', tFoot);
+    talReset.textContent = 'Reset';
+    let resetArmed = false;
+    talReset.addEventListener('click', () => {
+      if (!resetArmed) {
+        resetArmed = true;
+        talReset.textContent = 'Sure?';
+        setTimeout(() => {
+          resetArmed = false;
+          talReset.textContent = 'Reset';
+        }, 2500);
+        return;
+      }
+      resetArmed = false;
+      talReset.textContent = 'Reset';
+      this.cb.resetTalents();
+      this.renderCard(true);
+    });
 
     // --- Item card: beside the panel when there is room, over the stats column otherwise.
     this.card = el('div', 'char-card off', wrap);
@@ -330,9 +412,24 @@ export class CharacterPage {
     return !this.root.classList.contains('hidden');
   }
 
-  setOpen(open: boolean): void {
+  /** Switch between the Character and Talents tabs. */
+  setTab(tab: CharacterTab): void {
+    this.tab = tab;
+    this.endDrag();
+    this.charContent.classList.toggle('hidden', tab !== 'character');
+    this.talentContent.classList.toggle('hidden', tab !== 'talents');
+    for (const [id, b] of this.tabButtons) b.classList.toggle('on', id === tab);
+    this.selected = null;
+    this.hovered = null;
+    this.talentSel = null;
+    this.talentHover = null;
+    this.renderCard(true);
+  }
+
+  setOpen(open: boolean, tab?: CharacterTab): void {
     this.endDrag();
     this.root.classList.toggle('hidden', !open);
+    if (open) this.setTab(tab ?? this.tab);
     this.selected = null;
     this.hovered = null;
     this.menu.classList.add('hidden');
@@ -377,7 +474,60 @@ export class CharacterPage {
 
   // --- Rendering ------------------------------------------------------------------------------
 
+  /** The talent tooltip: rank, what it does now and at the next rank, what's missing, and Learn. */
+  private renderTalentCard(force: boolean): void {
+    const id = this.talentSel ?? this.talentHover;
+    for (const [tid, b] of this.talentButtons) b.classList.toggle('selected', tid === this.talentSel);
+    const t = this.hero.talents;
+    const key = id ? JSON.stringify([id, t.rank(id), t.points, t.spent, !!this.talentSel]) : '';
+    if (!force && key === this.cardKey) return;
+    this.cardKey = key;
+    const c = this.card;
+    c.innerHTML = '';
+    if (!id) {
+      c.classList.add('off');
+      return;
+    }
+    c.classList.remove('off');
+    const def = TALENT_BY_ID[id];
+    const rank = t.rank(id);
+    const head = el('div', 'card-head', c);
+    const box = el('div', 'card-icon', head);
+    const ic = el('img', '', box);
+    ic.src = this.icon(def.icon);
+    const titles = el('div', 'card-titles', head);
+    el('div', 'card-name tal-name', titles).textContent = def.name;
+    el('div', 'card-rarity', titles).textContent = `Rank ${rank}/${def.maxRank}${def.aura ? ' · Aura' : ''}`;
+    const x = el('button', 'card-x', head);
+    x.textContent = '✕';
+    x.setAttribute('aria-label', 'Close talent');
+    x.addEventListener('click', () => {
+      this.talentSel = null;
+      this.talentHover = null;
+      this.renderCard(true);
+    });
+    if (rank > 0) el('div', 'tal-desc', c).textContent = def.describe(rank);
+    if (rank < def.maxRank) {
+      if (rank > 0) el('div', 'tal-next', c).textContent = 'Next rank:';
+      el('div', 'tal-desc', c).textContent = def.describe(rank + 1);
+    }
+    const why = t.blocked(id);
+    if (why && why !== 'Maximum rank') el('div', 'tal-req', c).textContent = why;
+    if (!this.talentSel) return;
+    const act = el('button', 'card-action', c);
+    act.textContent = rank >= def.maxRank ? 'Mastered' : 'Learn';
+    act.disabled = !!why;
+    act.addEventListener('click', () => {
+      this.cb.learnTalent(id);
+      this.renderCard(true);
+    });
+  }
+
   private renderCard(force = false): void {
+    if (this.tab === 'talents') {
+      this.renderTalentCard(force);
+      return;
+    }
     // A selection whose slot has emptied (gear moved away) is dropped.
     if (this.selected && !this.gearAt(this.selected)) this.selected = null;
     const sel = this.selected ?? this.hovered;
@@ -505,6 +655,27 @@ export class CharacterPage {
     h.inventory.slots.forEach((s, i) => this.renderSlot(this.bagSlots[i], s?.gear ?? null));
     const used = `${h.inventory.slots.filter(Boolean).length} / ${h.inventory.slots.length}`;
     if (this.bagCount.textContent !== used) this.bagCount.textContent = used;
+    // Talents: ranks, which can take a point, and the points left (also on the tab badge).
+    const tal = h.talents;
+    const badge = tal.points > 0 ? `${tal.points}` : '';
+    if (this.tabBadge.textContent !== badge) this.tabBadge.textContent = badge;
+    this.tabBadge.classList.toggle('hidden', !badge);
+    if (this.tab === 'talents') {
+      const pts = `${tal.points} point${tal.points === 1 ? '' : 's'} · ${tal.spent} spent`;
+      if (this.talentPoints.textContent !== pts) this.talentPoints.textContent = pts;
+      for (const def of TALENTS) {
+        const b = this.talentButtons.get(def.id)!;
+        const r = tal.rank(def.id);
+        const open = tal.spent >= TIER_POINTS[def.tier] && (!def.requires || tal.rank(def.requires) >= TALENT_BY_ID[def.requires].maxRank);
+        const label = `${r}/${def.maxRank}`;
+        const rankEl = b.querySelector('.rank')!;
+        if (rankEl.textContent !== label) rankEl.textContent = label;
+        b.classList.toggle('locked', !open && r === 0);
+        b.classList.toggle('learned', r > 0 && r < def.maxRank);
+        b.classList.toggle('maxed', r >= def.maxRank);
+        b.classList.toggle('can', !tal.blocked(def.id));
+      }
+    }
     this.renderCard();
   }
 }

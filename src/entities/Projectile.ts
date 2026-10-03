@@ -20,9 +20,9 @@ export class Arrow {
     private readonly source: Unit,
     private readonly damage: number,
     private readonly mode:
-      | { kind: 'homing'; target: Unit; fire: boolean }
+      | { kind: 'homing'; target: Unit; fire: boolean; crit?: boolean }
       | { kind: 'linear'; angle: number; range: number }
-      | { kind: 'bolt'; target: Unit },
+      | { kind: 'bolt'; target: Unit; crit?: boolean },
   ) {
     this.x = source.x + Math.cos(source.angle) * 4;
     this.y = source.y - CHEST;
@@ -52,11 +52,11 @@ export class Arrow {
         this.finish();
         if (!m.target.dead) {
           if (m.kind === 'bolt') {
-            this.world.damage(m.target, this.damage, this.source, { color: '#ff9a3a' });
+            this.world.damage(m.target, this.damage, this.source, m.crit ? { color: '#ffd84a', big: true } : { color: '#ff9a3a' });
             this.world.burst(tx, ty, 0xff7a1f, 6);
             this.world.hitSpark(tx, ty);
           } else {
-            this.world.damage(m.target, this.damage, this.source, m.fire ? { color: '#ff9a3a' } : {});
+            this.world.damage(m.target, this.damage, this.source, m.crit ? { color: '#ffd84a', big: true } : m.fire ? { color: '#ff9a3a' } : {});
             if (m.fire) this.world.burst(tx, ty, 0xff7a1f, 5);
             this.world.hitSpark(tx, ty);
           }

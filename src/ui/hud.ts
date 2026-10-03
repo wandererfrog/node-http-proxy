@@ -4,7 +4,8 @@ import type { Unit } from '../entities/Unit';
 import { SearingArrows } from '../abilities/rangerAbilities';
 import { Tile, WorldMap } from '../world/map';
 import { GearSlot, ITEMS, ItemId } from '../entities/items';
-import { CharacterPage } from './characterPage';
+import { CharacterPage, CharacterTab } from './characterPage';
+import type { TalentId } from '../entities/talents';
 
 export type Command = 'attack' | 'stop' | 'hold';
 
@@ -23,6 +24,8 @@ export interface HudCallbacks {
   equip(bagIndex: number): void;
   unequip(slot: GearSlot, toIndex?: number): void;
   moveBag(from: number, to: number): void;
+  learnTalent(id: TalentId): void;
+  resetTalents(): void;
   newGame(): void;
 }
 
@@ -64,6 +67,7 @@ export class Hud {
   private readonly banner: HTMLDivElement;
   private readonly bannerText: HTMLSpanElement;
   private readonly tooltip: HTMLDivElement;
+  private readonly talentBadge: HTMLSpanElement;
   private readonly respawn: HTMLDivElement;
   private readonly lockBtn: HTMLButtonElement;
   private readonly minimap: HTMLCanvasElement;
@@ -108,6 +112,8 @@ export class Hud {
     bag.title = 'Character & inventory (C)';
     bag.setAttribute('aria-label', 'Character and inventory');
     bag.addEventListener('click', () => this.toggleCharacter());
+    // Unspent talent points: a gold badge on the bag button (the Talents tab shows the same count).
+    this.talentBadge = el('span', 'talent-badge hidden', bag);
 
     // Minimap (top-right)
     const mmWrap = el('div', 'minimap-wrap', this.root);
@@ -130,7 +136,8 @@ export class Hud {
     const mkCmd = (c: Command, icon: string, key: string, title: string) => {
       const b = el('button', 'cmd', cmds);
       b.innerHTML = `<img src="${iconDataUrl(icon, 3)}" alt=""><span class="hk">${key}</span>`;
-      b.title = title;
+      // No hover tooltip: the label is for screen readers only.
+      b.setAttribute('aria-label', title);
       b.addEventListener('click', (e) => {
         e.stopPropagation();
         this.cb.command(c);
@@ -172,6 +179,8 @@ export class Hud {
       equip: (i) => this.cb.equip(i),
       unequip: (slot, to) => this.cb.unequip(slot, to),
       moveBag: (from, to) => this.cb.moveBag(from, to),
+      learnTalent: (id) => this.cb.learnTalent(id),
+      resetTalents: () => this.cb.resetTalents(),
       close: () => this.toggleCharacter(false),
       newGame: () => this.cb.newGame(),
     });
@@ -321,8 +330,13 @@ export class Hud {
     return this.charPage.open;
   }
 
-  toggleCharacter(open = !this.charPage.open): void {
-    this.charPage.setOpen(open);
+  toggleCharacter(open = !this.charPage.open, tab?: CharacterTab): void {
+    this.charPage.setOpen(open, tab);
+  }
+
+  /** Open the character page on the Talents tab (or close it if that's what's showing). */
+  toggleTalents(): void {
+    this.charPage.setOpen(!this.charPage.open, 'talents');
   }
 
   /** A rock was broken: paint its minimap pixel as grass. */
@@ -340,6 +354,11 @@ export class Hud {
       p.root.classList.toggle('empty', n === 0);
     }
     this.charPage.refresh();
+    const tp = h.talents.points > 0 ? `${h.talents.points}` : '';
+    if (this.talentBadge.textContent !== tp) {
+      this.talentBadge.textContent = tp;
+      this.talentBadge.classList.toggle('hidden', !tp);
+    }
     const hpP = Math.max(0, h.hp / h.maxHp);
     this.hpFill.style.width = `${hpP * 100}%`;
     this.hpFill.style.background = hpP > 0.5 ? '#3fbf4a' : hpP > 0.25 ? '#e0c030' : '#d0301a';

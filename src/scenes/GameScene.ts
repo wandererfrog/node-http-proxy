@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { AuraName, buildAllTextures, frameDataUrl, portraitDataUrl } from '../art/sprites';
+import { AuraName, buildAllTextures, frameDataUrl, iconDataUrl, portraitDataUrl } from '../art/sprites';
 import { DENSITY, buildGround } from '../art/ground';
 import { ENV_ATLAS, PROPS } from '../world/props';
 import { ATLASES, IMAGES } from '../assets';
@@ -8,6 +8,7 @@ import { Camp, Creep } from '../entities/Creep';
 import { CREEP_GEAR_DROP, CREEP_POTION_DROP } from '../entities/balance';
 import { Gear, GearSlot, ITEMS, ItemId, TIERS, TOMES, TOME_IDS, rollGear } from '../entities/items';
 import { Hero } from '../entities/Hero';
+import { TALENT_BY_ID } from '../entities/talents';
 import { Arrow } from '../entities/Projectile';
 import { DamageOpts, Unit, World } from '../entities/Unit';
 import { Command, Hud } from '../ui/hud';
@@ -85,6 +86,8 @@ export class GameScene extends Phaser.Scene implements World {
   private aimCircle!: Phaser.GameObjects.Image;
   /** Nature aura under the hero while the moonwell heals. */
   private wellAura!: Phaser.GameObjects.Sprite;
+  /** The Trueshot Aura talent: the golden precision aura, always around the hero once learned. */
+  private trueshotAura!: Phaser.GameObjects.Sprite;
 
   private targeting: Targeting | null = null;
   /** Current aim point in world space while targeting (mouse hover, finger, or button-drag). */
@@ -136,6 +139,8 @@ export class GameScene extends Phaser.Scene implements World {
     this.aimCircle = aimImg('ground_aoe', 0.5, 0.5);
     this.wellAura = this.add.sprite(0, 0, AURA_ATLAS, 'aura_nature_ground_0').setScale(FX_SCALE).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0).setDepth(DEPTH_GROUND_FX + 2);
     this.wellAura.play('aura_nature');
+    this.trueshotAura = this.add.sprite(0, 0, AURA_ATLAS, 'aura_precision_combined_0').setScale(FX_SCALE).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.8).setDepth(DEPTH_GROUND_FX + 2).setVisible(false);
+    this.trueshotAura.play('aura_precision');
 
     this.hero = new Hero(this, this.map.spawn.x * TILE, this.map.spawn.y * TILE);
     this.units.push(this.hero);
@@ -175,6 +180,18 @@ export class GameScene extends Phaser.Scene implements World {
         if (err) this.hud.toast(err, 'warn');
       },
       moveBag: (from, to) => this.hero.inventory.move(from, to),
+      learnTalent: (id) => {
+        const def = TALENT_BY_ID[id];
+        if (!this.hero.talents.learn(id)) return;
+        this.hud.toast(`${def.name} — rank ${this.hero.talents.rank(id)}`, 'good');
+        this.fxOnce('ground_buff', this.hero.x, this.hero.y + 1, { life: 0.8, scale: FX_SCALE * 0.6, grow: 0.7, follow: this.hero });
+        if (def.aura && this.hero.talents.rank(id) === 1) this.auraOnce('precision', this.hero, 1.2);
+      },
+      resetTalents: () => {
+        this.hero.talents.reset();
+        this.hero.hp = Math.min(this.hero.hp, this.hero.maxHp);
+        this.hud.toast('Talents reset: points refunded', 'info');
+      },
       newGame: () => {
         this.scene.restart();
         document.querySelectorAll('#ui .hud').forEach((e) => e.remove());
@@ -328,11 +345,15 @@ export class GameScene extends Phaser.Scene implements World {
 
   private readonly iconCache = new Map<string, string>();
 
-  /** Item icon (a frame of the items atlas) as a data URL for the DOM HUD. */
+  /**
+   * An icon as a data URL for the DOM HUD: a frame of the items atlas by default, `atlas:frame` for
+   * another atlas, or `ability:name` for an ability icon (talents use all three).
+   */
   private itemIcon(frame: string): string {
     let url = this.iconCache.get(frame);
     if (!url) {
-      url = frameDataUrl(this, 'items', frame, 2);
+      const [atlas, name] = frame.includes(':') ? frame.split(':') : ['items', frame];
+      url = atlas === 'ability' ? iconDataUrl(name, 3) : frameDataUrl(this, atlas, name, 2);
       this.iconCache.set(frame, url);
     }
     return url;
@@ -374,12 +395,12 @@ export class GameScene extends Phaser.Scene implements World {
     this.tweens.add({ targets: img, alpha: 0, delay: Math.max(0, duration * 1000 - 400), duration: 400, onComplete: () => img.destroy() });
   }
 
-  fireArrow(from: Unit, target: Unit, damage: number, fire: boolean): void {
-    this.arrows.push(new Arrow(this, from, damage, { kind: 'homing', target, fire }));
+  fireArrow(from: Unit, target: Unit, damage: number, fire: boolean, crit = false): void {
+    this.arrows.push(new Arrow(this, from, damage, { kind: 'homing', target, fire, crit }));
   }
 
-  fireMagicBolt(from: Unit, target: Unit, damage: number): void {
-    this.arrows.push(new Arrow(this, from, damage, { kind: 'bolt', target }));
+  fireMagicBolt(from: Unit, target: Unit, damage: number, crit = false): void {
+    this.arrows.push(new Arrow(this, from, damage, { kind: 'bolt', target, crit }));
   }
 
   fireVolleyArrow(from: Unit, angle: number, range: number, damage: number): void {
@@ -416,7 +437,7 @@ export class GameScene extends Phaser.Scene implements World {
       this.tweens.add({
         targets: prog,
         t: 1,
-        duration: 380,
+        duration: 240,
         ease: 'Quad.easeIn',
         onUpdate: () => {
           // Arrows aimed at an enemy land where the enemy is when they land (they track a little).
@@ -437,11 +458,11 @@ export class GameScene extends Phaser.Scene implements World {
   }
 
   skyVolley(x: number, y: number, radius: number, targets: Unit[], extra: number, onLand: (u: Unit) => void): void {
-    for (const u of targets) this.skyArrow(u.x, u.y, Math.random() * 120, u, () => onLand(u));
+    for (const u of targets) this.skyArrow(u.x, u.y, Math.random() * 90, u, () => onLand(u));
     for (let i = 0; i < extra; i++) {
       const a = Math.random() * Math.PI * 2;
       const r = Math.sqrt(Math.random()) * radius * 0.85;
-      this.skyArrow(x + Math.cos(a) * r, y + Math.sin(a) * r, Math.random() * 150);
+      this.skyArrow(x + Math.cos(a) * r, y + Math.sin(a) * r, Math.random() * 120);
     }
   }
 
@@ -516,6 +537,7 @@ export class GameScene extends Phaser.Scene implements World {
         if (this.hud.characterOpen) this.hud.toggleCharacter(false);
         else this.setTargeting(null);
       } else if (k === 'c' || k === 'i') this.hud.toggleCharacter();
+      else if (k === 'n') this.hud.toggleTalents();
       else if (k === '1') this.drink('hp_potion');
       else if (k === '2') this.drink('mp_potion');
       else if (k === ' ' || k === 'f1') {
@@ -886,6 +908,7 @@ export class GameScene extends Phaser.Scene implements World {
       if (Math.random() < dt * 6) this.burst(h.x + (Math.random() - 0.5) * 10, h.y - 4, 0x8fc8ff, 1);
     }
     this.wellAura.setPosition(h.x, h.y + 1);
+    this.trueshotAura.setVisible(h.hasTrueshotAura && !h.dead).setPosition(h.x, h.y + 1);
     this.wellAura.setAlpha(this.wellAura.alpha + ((near ? 1 : 0) - this.wellAura.alpha) * Math.min(1, dt * 5));
     const target = near ? 0.45 : 0.2 + Math.sin(this.time.now / 600) * 0.06;
     this.wellGlow.setAlpha(this.wellGlow.alpha + (target - this.wellGlow.alpha) * Math.min(1, dt * 4));

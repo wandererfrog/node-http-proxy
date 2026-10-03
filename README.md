@@ -54,7 +54,7 @@ npm run build      # static build in dist/ (relative paths, so it works from any
 | Ability | tap the button, then tap the map, **or drag from the button to aim** (release on the button to cancel) | Q W E R, then click (right-click or Esc cancels) |
 | Ability info | long-press the button | hover |
 | Learn ability | the yellow **+** on the button | **+**, or Ctrl+Q/W/E/R |
-| Attack-move | big A button, bottom-left (left thumb) | A |
+| Attack-move | A button, bottom-left (left thumb) | A |
 | Drink potion | potion slots next to the A button | 1 / 2 |
 | Search a rock for potions | tap the rock | click the rock |
 | Character & inventory | tap the portrait or the bag | C or I |
@@ -118,9 +118,28 @@ Armour takes a flat amount off every hit (a hit always does at least 1). Attack 
 | Q | **Searing Arrows** | Autocast toggle. Attacks become fire arrows (the concept sheet's fire infusion) that burst into flame on hit. +12/22/32 damage for 8 mana each. |
 | W | **Volley** | A cone of 5/7/9 arrows. Each one hits the first enemy in its path, so point-blank shots do huge burst damage. |
 | E | **Tumble** | A short dash that stops at obstacles. Your next attack within 4s fires instantly for 150/175/200% damage. |
-| R | **Rain of Arrows** (ultimate, hero level 4/8) | Mark an area with the rune circle (0.45s), then 6 waves of sky arrows: each wave drops one arrow onto every enemy inside the circle, and the damage lands with the arrow. The circle's rim is drawn exactly at the hit radius (18px), so what you see is what gets hit. The hero channels in the focus aura. Any new order cancels it. |
+| R | **Rain of Arrows** (ultimate, hero level 4/8) | Mark a wide area with the rune circle (0.35s), then 6 quick waves of sky arrows (one every 0.3s, each falling in 0.24s): each wave drops one arrow onto every enemy inside the circle, and the damage lands with the arrow. The circle's rim is drawn exactly at the hit radius (40px, 2.5 tiles), so what you see is what gets hit. The hero channels in the focus aura. Any new order cancels it. |
 
 Abilities level up WC3-style: a skill point per hero level, and basic abilities need hero level 1/3/5.
+
+## Talents
+
+Buffs come from a WoW-style talent tree, **Marksmanship** (`src/entities/talents.ts`): ten talents in four tiers. You get a talent point every level from 2 (9 by level 10, against 21 ranks, so you choose). A tier opens once enough points are spent in the tree (0 / 3 / 6 / 8), and Deadeye also needs Trueshot Aura (the gold arrow). Open it from the character page's **Talents** tab (or N); unspent points show as a gold badge on the tab and the bag button. Tap a talent for its card (current and next rank, what's missing) and **Learn**; **Reset** refunds every point.
+
+| Tier | Talent | Ranks | Effect per rank |
+|---|---|---|---|
+| 1 | Sharpshooter | 3 | +2 attack damage |
+| 1 | Hardiness | 3 | +40 maximum health |
+| 1 | Swift Feet | 2 | +3 move speed |
+| 2 | Quick Draw | 3 | +6% attack speed |
+| 2 | Long Shot | 2 | +1 tile attack range |
+| 2 | Meditation | 2 | +0.5 mana regeneration |
+| 3 | Searing Mastery | 2 | Searing Arrows +6 fire damage, 2 less mana |
+| 3 | **Trueshot Aura** (aura) | 1 | +15% damage on every attack; the golden precision aura stays around the hero |
+| 3 | Rain Storm | 2 | Rain of Arrows +1 wave |
+| 4 | Deadeye | 1 | 15% chance for double damage (big gold numbers); needs Trueshot Aura |
+
+**Test mode:** the hero currently starts with all 9 talent points (as well as every ability maxed), so the whole tree can be tried at level 1.
 
 ## World generation
 
