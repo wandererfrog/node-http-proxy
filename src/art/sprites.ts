@@ -37,7 +37,8 @@ export function registerSkyAnims(scene: Phaser.Scene): void {
 /** Save beacon animations from art-source/beacon-sheet.png. */
 export function registerBeaconAnims(scene: Phaser.Scene): void {
   const frames = (name: string, n: number) => Array.from({ length: n }, (_, i) => ({ key: 'beacon', frame: `${name}_${i}` }));
-  scene.anims.create({ key: 'beacon_idle', frames: frames('beacon_idle', 13), frameRate: 8, repeat: -1 });
+  // The idle strip has motion baked into the art, so the beacon at rest is one still frame with a
+  // pulsing glow on top; only the activation rise is a frame animation.
   scene.anims.create({ key: 'beacon_activate', frames: frames('beacon_activate', 15), frameRate: 14, repeat: 0 });
 }
 

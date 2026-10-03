@@ -43,6 +43,8 @@ const DEPTH_GROUND_FX = -100000;
 const DEPTH_OVERLAY = 1e7;
 /** px around the moonwell's healing circle */
 const MOONWELL_RADIUS = TILE * 2.2;
+/** The beacon at rest: the clearest idle frame, used as a still. */
+const BEACON_STILL = 'beacon_idle_0';
 /** The sky arrow's shaft sits right of centre in its frame (x 25-43 of 53px). */
 const ARROW_SHAFT_X = 34 / 53;
 /** Drawn size of the healing circle glyph (px across). */
@@ -66,8 +68,10 @@ export class GameScene extends Phaser.Scene implements World {
     for (const b of this.map.beacons) {
       const x = (b.tx + 0.5) * TILE;
       const bottom = (b.ty + 1) * TILE;
-      const spr = this.add.sprite(x, bottom + 1, 'beacon', 'beacon_idle_0').setOrigin(0.5, 1).setScale(0.5).setDepth(bottom - 3);
-      spr.play('beacon_idle');
+      // Still pillar; the glow is a soft additive light that breathes, so nothing can drift.
+      const spr = this.add.sprite(x, bottom + 1, 'beacon', BEACON_STILL).setOrigin(0.5, 1).setScale(0.5).setDepth(bottom - 3);
+      const glow = this.add.image(x, bottom - 26, 'sky', 'skyhit_3').setScale(0.35).setAlpha(0.25).setBlendMode(Phaser.BlendModes.ADD).setDepth(bottom - 2);
+      this.tweens.add({ targets: glow, alpha: 0.55, scale: 0.42, duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
       this.beaconSprites.set(b.ty * this.map.width + b.tx, spr);
     }
   }
@@ -85,7 +89,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.hero.mana = this.hero.maxMana;
     this.glyph('fx_runes', spr.x, spr.y - 2, 22, 1.4);
     spr.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
-      spr.play('beacon_idle');
+      spr.setFrame(BEACON_STILL);
       spr.setTint(0xbfe8ff);
       this.saving = false;
       this.checkpoint = { tx, ty };
