@@ -1,0 +1,262 @@
+/**
+ * Items the hero can carry: stackable consumables (potions) and equipment.
+ * Icons are frames of the 'items' atlas sliced from art-source/items-sheet.png.
+ */
+
+// --- Consumables ------------------------------------------------------------------------------
+
+export type ItemId = 'hp_potion' | 'mp_potion';
+
+export interface ItemDef {
+  id: ItemId;
+  name: string;
+  icon: string;
+  description: string;
+  maxStack: number;
+}
+
+export const ITEMS: Record<ItemId, ItemDef> = {
+  hp_potion: { id: 'hp_potion', name: 'Healing Potion', icon: 'potion_0', description: 'Restores 220 health.', maxStack: 9 },
+  mp_potion: { id: 'mp_potion', name: 'Mana Potion', icon: 'potion_1', description: 'Restores 120 mana.', maxStack: 9 },
+};
+
+/** WC3-style tomes: read on pickup, permanently raise a stat. Found in treasure chests. */
+export type TomeId = 'vitality' | 'insight' | 'power' | 'swiftness';
+
+export const TOMES: Record<TomeId, { name: string; effect: string }> = {
+  vitality: { name: 'Tome of Vitality', effect: '+60 max health' },
+  insight: { name: 'Tome of Insight', effect: '+40 max mana' },
+  power: { name: 'Tome of Power', effect: '+4 damage' },
+  swiftness: { name: 'Tome of Swiftness', effect: '+3 move speed' },
+};
+
+export const TOME_IDS = Object.keys(TOMES) as TomeId[];
+
+// --- Equipment --------------------------------------------------------------------------------
+
+export type GearSlot = 'bow' | 'quiver' | 'helmet' | 'chest' | 'gloves' | 'boots' | 'cloak' | 'ring' | 'amulet';
+export const GEAR_SLOTS: GearSlot[] = ['bow', 'quiver', 'helmet', 'chest', 'gloves', 'boots', 'cloak', 'ring', 'amulet'];
+
+export const SLOT_NAMES: Record<GearSlot, string> = {
+  bow: 'Bow', quiver: 'Quiver', helmet: 'Helmet', chest: 'Armour', gloves: 'Gloves',
+  boots: 'Boots', cloak: 'Cloak', ring: 'Ring', amulet: 'Amulet',
+};
+
+export interface GearStats {
+  damage: number;
+  hp: number;
+  mana: number;
+  /** flat damage taken off every hit (a hit always does at least 1) */
+  armor: number;
+  speed: number;
+  /** percent faster attacks */
+  attackSpeed: number;
+  hpRegen: number;
+  manaRegen: number;
+}
+
+export const EMPTY_STATS: GearStats = { damage: 0, hp: 0, mana: 0, armor: 0, speed: 0, attackSpeed: 0, hpRegen: 0, manaRegen: 0 };
+
+/**
+ * The six quality tiers. Colours are the rarity colour used in the UI (border, name); `rarity` is the
+ * word the item card shows under the name.
+ */
+export const TIERS = [
+  { name: 'Worn', rarity: 'Common', color: '#a97548' },
+  { name: 'Woodland', rarity: 'Uncommon', color: '#6cc24a' },
+  { name: 'Iron', rarity: 'Fine', color: '#c3c8d4' },
+  { name: 'Moonsteel', rarity: 'Rare', color: '#5a9bff' },
+  { name: 'Gilded', rarity: 'Epic', color: '#f2c84b' },
+  { name: 'Fey', rarity: 'Legendary', color: '#c47cff' },
+] as const;
+
+/**
+ * Display names per slot and tier, matching what the icon actually shows (the sheet's rows
+ * don't all follow the same colour order: quivers go red then blue, rings go copper then jade).
+ */
+const TIER_NAMES: Record<GearSlot, readonly string[]> = {
+  bow: ['Hunting', 'Woodland', 'Carved', 'Moonsteel', 'Fey', 'Verdant'],
+  quiver: ['Plain', 'Crimson', 'Azure', 'Woodland', 'Gilded', 'Fey'],
+  helmet: ['Hooded', 'Leather', 'Studded', 'Iron', 'Gilded', 'Fey'],
+  chest: ['Leather', 'Woodland', 'Iron', 'Moonsteel', 'Gilded', 'Fey'],
+  gloves: ['Leather', 'Worn', 'Woodland', 'Iron', 'Gilded', 'Fey'],
+  boots: ['Leather', 'Iron', 'Woodland', 'Steel', 'Gilded', 'Fey'],
+  cloak: ['Woodland', 'Traveller', 'Azure', 'Crimson', 'Stag', 'Fey'],
+  ring: ['Silver', 'Copper', 'Jade', 'Sapphire', 'Ruby', 'Amethyst'],
+  amulet: ['Silver', 'Leaf', 'Sapphire', 'Ruby', 'Sun', 'Fey'],
+};
+
+export const MAX_TIER = TIERS.length - 1;
+
+/** Level-1, tier-0 stats per slot. Everything scales from these. */
+const SLOT_BASE: Record<GearSlot, Partial<GearStats>> = {
+  bow: { damage: 4 },
+  quiver: { damage: 2, attackSpeed: 4 },
+  helmet: { hp: 30, armor: 1 },
+  chest: { hp: 50, armor: 2 },
+  gloves: { attackSpeed: 6, damage: 1 },
+  boots: { speed: 3, hp: 15 },
+  cloak: { hpRegen: 1, speed: 1 },
+  ring: { mana: 25, manaRegen: 0.6 },
+  amulet: { mana: 20, hp: 20 },
+};
+
+/**
+ * Icon frame per slot and tier. Most rows on the sheet step through the six tier colours in
+ * order. The amulet row has seven (silver, leaf, blue, red, gold, stag, violet): the stag one
+ * is skipped so the violet amulet is the Fey tier like every other slot.
+ */
+/**
+ * The weapon and off-hand slots are a bow and a quiver for the Ranger, an orb and a tome for the
+ * Mage, a sword and a shield for the Knight. The class is set once per run, before any gear rolls.
+ */
+const GEAR_THEMES = {
+  ranger: { weapon: 'Bow', offhand: 'Quiver', weaponIcons: null, offhandIcons: null },
+  mage: { weapon: 'Orb', offhand: 'Tome', weaponIcons: ['rare_6', 'rare_1', 'rare_2', 'rare_3', 'rare_7', 'rare_5'], offhandIcons: ['quest_7'] },
+  knight: { weapon: 'Sword', offhand: 'Shield', weaponIcons: ['dagger_0', 'dagger_2', 'dagger_3', 'dagger_1', 'dagger_5', 'dagger_4'], offhandIcons: ['quest_3'] },
+} as const;
+let gearTheme: (typeof GEAR_THEMES)[keyof typeof GEAR_THEMES] = GEAR_THEMES.ranger;
+
+export function setGearTheme(cls: keyof typeof GEAR_THEMES): void {
+  gearTheme = GEAR_THEMES[cls];
+  SLOT_NAMES.bow = gearTheme.weapon;
+  SLOT_NAMES.quiver = gearTheme.offhand;
+}
+
+export function gearIcon(slot: GearSlot, tier: number): string {
+  if (slot === 'amulet') return `amulet_${[0, 1, 2, 3, 4, 6][tier]}`;
+  if (slot === 'bow' && gearTheme.weaponIcons) return gearTheme.weaponIcons[tier];
+  if (slot === 'quiver' && gearTheme.offhandIcons) return gearTheme.offhandIcons[Math.min(tier, gearTheme.offhandIcons.length - 1)];
+  return `${slot}_${tier}`;
+}
+
+export interface Gear {
+  slot: GearSlot;
+  tier: number;
+  level: number;
+  name: string;
+  icon: string;
+  stats: GearStats;
+}
+
+/** Stat multiplier: +40% per tier, +10% per item level. */
+export function gearScale(tier: number, level: number): number {
+  return (1 + 0.4 * tier) * (1 + 0.1 * (level - 1));
+}
+
+export function makeGear(slot: GearSlot, tier: number, level: number): Gear {
+  const k = gearScale(tier, level);
+  const stats = { ...EMPTY_STATS };
+  for (const [key, v] of Object.entries(SLOT_BASE[slot]) as Array<[keyof GearStats, number]>) {
+    const scaled = v * k;
+    stats[key] = key === 'hpRegen' || key === 'manaRegen' ? Math.round(scaled * 10) / 10 : Math.round(scaled);
+  }
+  return { slot, tier, level, name: `${TIER_NAMES[slot][tier]} ${SLOT_NAMES[slot]}`, icon: gearIcon(slot, tier), stats };
+}
+
+/** Hero level needed to wear a piece: one below its item level (never below 1). */
+export function requiredLevel(g: Gear): number {
+  return Math.max(1, g.level - 1);
+}
+
+/** What the vendor pays for a piece (gold); buying from the vendor costs four times this. */
+export function gearValue(g: Gear): number {
+  return Math.round((4 + g.level * 2) * [1, 1.6, 2.6, 4, 6, 9][g.tier]);
+}
+
+export function addStats(a: GearStats, b: GearStats): GearStats {
+  const out = { ...a };
+  for (const k of Object.keys(b) as Array<keyof GearStats>) out[k] = Math.round((a[k] + b[k]) * 10) / 10;
+  return out;
+}
+
+/** Human lines for a stat block, e.g. "+6 damage". Zero stats are left out. */
+export function describeStats(s: GearStats): string[] {
+  const lines: string[] = [];
+  if (s.damage) lines.push(`+${s.damage} damage`);
+  if (s.attackSpeed) lines.push(`+${s.attackSpeed}% attack speed`);
+  if (s.hp) lines.push(`+${s.hp} health`);
+  if (s.armor) lines.push(`+${s.armor} armour`);
+  if (s.mana) lines.push(`+${s.mana} mana`);
+  if (s.speed) lines.push(`+${s.speed} move speed`);
+  if (s.hpRegen) lines.push(`+${s.hpRegen} health/s`);
+  if (s.manaRegen) lines.push(`+${s.manaRegen} mana/s`);
+  return lines;
+}
+
+/** Base odds of each quality, WoW style: most drops are Common, a Legendary is a rare event. */
+export const RARITY_WEIGHTS = [60, 26, 9, 3.5, 1.2, 0.3];
+
+/**
+ * Random gear for a drop from something of `level`. Quality follows RARITY_WEIGHTS; higher levels
+ * tilt the odds slightly up (+4% per level per tier step), `bias` tilts them more (chests, alpha
+ * boars), `minTier` sets a floor, and `slots` limits the kind (a vendor sells only their own wares).
+ */
+export function rollGear(level: number, rand: () => number = Math.random, minTier = 0, bias = 0, slots: readonly GearSlot[] = GEAR_SLOTS): Gear {
+  const slot = slots[Math.floor(rand() * slots.length)];
+  const tilt = (1 + 0.04 * (level - 1)) * (1 + bias);
+  const weights = TIERS.map((_, t) => (t < minTier ? 0 : RARITY_WEIGHTS[t] * tilt ** t));
+  const total = weights.reduce((a, b) => a + b, 0);
+  let r = rand() * total;
+  let tier = minTier;
+  for (let t = 0; t < weights.length; t++) {
+    r -= weights[t];
+    if (r <= 0) {
+      tier = t;
+      break;
+    }
+  }
+  return makeGear(slot, Math.min(MAX_TIER, tier), level);
+}
+
+// --- Inventory --------------------------------------------------------------------------------
+
+/** A backpack slot holds one piece of gear. Potions don't go in the bag: they live on the potion belt. */
+export type InvEntry = { kind: 'gear'; gear: Gear };
+
+export const INVENTORY_SIZE = 24;
+
+/**
+ * A 24-slot backpack for gear, plus the potion belt behind the 1 / 2 buttons. Each potion kind holds
+ * up to its `maxStack`.
+ */
+export class Inventory {
+  readonly slots: (InvEntry | null)[] = Array(INVENTORY_SIZE).fill(null);
+  readonly potions: Record<ItemId, number> = { hp_potion: 0, mp_potion: 0 };
+
+  /** Puts potions on the belt. Returns false when they don't all fit (the ones that fit are kept). */
+  add(id: ItemId, count = 1): boolean {
+    const room = ITEMS[id].maxStack - this.potions[id];
+    this.potions[id] += Math.min(room, count);
+    return count <= room;
+  }
+
+  /** Puts a piece of gear in the first free slot. Returns false when the bag is full. */
+  addGear(gear: Gear): boolean {
+    const i = this.firstFree();
+    if (i < 0) return false;
+    this.slots[i] = { kind: 'gear', gear };
+    return true;
+  }
+
+  firstFree(): number {
+    return this.slots.findIndex((s) => s === null);
+  }
+
+  count(id: ItemId): number {
+    return this.potions[id];
+  }
+
+  /** Uses up one potion. Returns false if there was none. */
+  takeOne(id: ItemId): boolean {
+    if (this.potions[id] <= 0) return false;
+    this.potions[id]--;
+    return true;
+  }
+
+  /** Swap two bag slots (moving into an empty one). */
+  move(from: number, to: number): void {
+    if (from === to || !this.slots[from]) return;
+    [this.slots[from], this.slots[to]] = [this.slots[to], this.slots[from]];
+  }
+}
