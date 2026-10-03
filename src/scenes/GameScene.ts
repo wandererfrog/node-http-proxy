@@ -12,7 +12,6 @@ import { Arrow } from '../entities/Projectile';
 import { DamageOpts, Unit, World } from '../entities/Unit';
 import { Command, Hud } from '../ui/hud';
 import { CampSpec, TILE, Tile, WorldMap } from '../world/map';
-import { SaveGame, clearSave, writeSave } from '../save';
 
 interface Chest {
   img: Phaser.GameObjects.Image;
@@ -43,8 +42,6 @@ const DEPTH_GROUND_FX = -100000;
 const DEPTH_OVERLAY = 1e7;
 /** px around the moonwell's healing circle */
 const MOONWELL_RADIUS = TILE * 2.2;
-/** The beacon at rest: the clearest idle frame, used as a still. */
-const BEACON_STILL = 'beacon_idle_0';
 /** The sky arrow's shaft sits right of centre in its frame (x 25-43 of 53px). */
 const ARROW_SHAFT_X = 34 / 53;
 /** Drawn size of the healing circle glyph (px across). */
@@ -57,48 +54,6 @@ export class GameScene extends Phaser.Scene implements World {
   units: Unit[] = [];
   hero!: Hero;
   private camps: Camp[] = [];
-  private seed = 0;
-  /** Save beacons by tile index, and the one the hero last activated (respawn point). */
-  private beaconSprites = new Map<number, Phaser.GameObjects.Sprite>();
-  private checkpoint: { tx: number; ty: number } | null = null;
-  private saving = false;
-
-  /** One animated beacon sprite per beacon tile. */
-  private placeBeacons(): void {
-    for (const b of this.map.beacons) {
-      const x = (b.tx + 0.5) * TILE;
-      const bottom = (b.ty + 1) * TILE;
-      // Still pillar; the glow is a soft additive light that breathes, so nothing can drift.
-      const spr = this.add.sprite(x, bottom + 1, 'beacon', BEACON_STILL).setOrigin(0.5, 1).setScale(0.5).setDepth(bottom - 3);
-      const glow = this.add.image(x, bottom - 26, 'sky', 'skyhit_3').setScale(0.35).setAlpha(0.25).setBlendMode(Phaser.BlendModes.ADD).setDepth(bottom - 2);
-      this.tweens.add({ targets: glow, alpha: 0.55, scale: 0.42, duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-      this.beaconSprites.set(b.ty * this.map.width + b.tx, spr);
-    }
-  }
-
-  /** Activate a beacon: play the rise, write the save, mark it as the respawn point. */
-  private activateBeacon(tx: number, ty: number): void {
-    if (this.saving || this.hero.dead) return;
-    const key = ty * this.map.width + tx;
-    const spr = this.beaconSprites.get(key);
-    if (!spr) return;
-    this.saving = true;
-    for (const s of this.beaconSprites.values()) s.clearTint();
-    spr.play('beacon_activate');
-    this.hero.hp = this.hero.maxHp;
-    this.hero.mana = this.hero.maxMana;
-    this.glyph('fx_runes', spr.x, spr.y - 2, 22, 1.4);
-    spr.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
-      spr.setFrame(BEACON_STILL);
-      spr.setTint(0xbfe8ff);
-      this.saving = false;
-      this.checkpoint = { tx, ty };
-      const ok = writeSave({ version: 1, savedAt: Date.now(), seed: this.seed, beacon: { tx, ty }, hero: this.hero.serialize() });
-      this.hud.toast(ok ? 'Progress saved' : 'Could not save: storage is unavailable in this browser', ok ? 'good' : 'warn');
-      this.burst(spr.x, spr.y - 20, 0x9fd8ff, 14);
-    });
-  }
-
   /** Searchable rocks by tile index. */
   private rocks = new Map<number, Phaser.GameObjects.Image>();
   /** Trees, culled to the camera view so the renderer skips the thousands off-screen. */
@@ -145,10 +100,7 @@ export class GameScene extends Phaser.Scene implements World {
 
   create(): void {
     this.dpr = (this.game.registry.get('dpr') as number) ?? 1;
-    // A saved game brings back its world; otherwise a fresh seed.
-    const save = (this.registry.get('resumeSave') as SaveGame | null) ?? null;
-    this.seed = save ? save.seed : (Math.random() * 1e9) | 0;
-    this.map = new WorldMap(96, 96, this.seed);
+    this.map = new WorldMap(96, 96, (Math.random() * 1e9) | 0);
     buildAllTextures(this);
 
     const worldW = this.map.width * TILE;
@@ -162,17 +114,6 @@ export class GameScene extends Phaser.Scene implements World {
 
     this.hero = new Hero(this, this.map.spawn.x * TILE, this.map.spawn.y * TILE);
     this.units.push(this.hero);
-    this.placeBeacons();
-    if (save) {
-      this.hero.restore(save.hero);
-      const b = this.map.beacons.find((x) => x.tx === save.beacon.tx && x.ty === save.beacon.ty) ?? this.map.beacons[0];
-      if (b) {
-        this.checkpoint = b;
-        this.hero.x = (b.tx + 0.5) * TILE;
-        this.hero.y = (b.ty + 1.6) * TILE;
-        this.beaconSprites.get(b.ty * this.map.width + b.tx)?.setTint(0xbfe8ff);
-      }
-    }
     for (const spec of this.map.camps) this.spawnCamp(spec);
 
     const cam = this.cameras.main;
@@ -209,8 +150,6 @@ export class GameScene extends Phaser.Scene implements World {
         if (err) this.hud.toast(err, 'warn');
       },
       newGame: () => {
-        clearSave();
-        this.registry.set('resumeSave', null);
         this.scene.restart();
         document.querySelectorAll('#ui .hud').forEach((e) => e.remove());
       },
@@ -229,8 +168,6 @@ export class GameScene extends Phaser.Scene implements World {
 
     this.setupInput();
     this.scale.on('resize', () => this.applyZoom());
-    if (save) this.hud.toast('Welcome back. Progress restored from your last beacon.', 'good');
-    else if (this.map.beacons.length) this.hud.toast('Tap the glowing beacon on the plaza to save your progress', 'info');
     this.hud.toast('Tap to move · tap enemies to attack · tap rocks to search them for potions', 'info');
   }
 
@@ -321,10 +258,6 @@ export class GameScene extends Phaser.Scene implements World {
 
   searchRock(tx: number, ty: number): void {
     const key = ty * this.map.width + tx;
-    if (this.beaconSprites.has(key)) {
-      this.activateBeacon(tx, ty);
-      return;
-    }
     const chest = this.chests.get(key);
     if (chest) {
       this.openChest(chest);
@@ -722,7 +655,6 @@ export class GameScene extends Phaser.Scene implements World {
       const key = ty * this.map.width + tx;
       if (this.rocks.has(anchor)) return { tx: anchor % this.map.width, ty: Math.floor(anchor / this.map.width) };
       if (this.chests.has(key) && !this.chests.get(key)!.opened) return { tx, ty };
-      if (this.beaconSprites.has(key)) return { tx, ty };
     }
     return null;
   }
@@ -879,10 +811,8 @@ export class GameScene extends Phaser.Scene implements World {
   private updateRespawns(dt: number): void {
     const h = this.hero;
     if (h.dead && h.respawnT <= 0) {
-      // Come back at the last activated beacon, else the sanctuary.
-      const cp = this.checkpoint;
-      if (cp) h.revive((cp.tx + 0.5) * TILE, (cp.ty + 1.6) * TILE);
-      else h.revive(this.map.spawn.x * TILE, this.map.spawn.y * TILE);
+      // Come back at the sanctuary.
+      h.revive(this.map.spawn.x * TILE, this.map.spawn.y * TILE);
       this.cameraLocked = true;
       this.burst(h.x, h.y - 8, 0x7dff6a, 14);
       this.hud.toast('Sylva returns!', 'good');

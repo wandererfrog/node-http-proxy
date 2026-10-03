@@ -3,7 +3,6 @@ import { SearingArrows, rangerKit } from '../abilities/rangerAbilities';
 import { TILE } from '../world/map';
 import { PROPS } from '../world/props';
 import { heroDamage } from './balance';
-import type { HeroSave } from '../save';
 import { EMPTY_STATS, Gear, GearSlot, GearStats, Inventory, ItemId, TOMES, TomeId, addStats } from './items';
 import { Order, Unit, World } from './Unit';
 
@@ -238,20 +237,11 @@ export class Hero extends Unit {
     return `skycast_${i}`;
   }
 
-  /** Magic-shot cast frames follow the swing: frames 0-2 over the windup, 3 on release. */
-  private castFrame(): string | null {
-    if (!this.swing || !this.searingReady) return null;
-    const { facing } = this.facing;
-    if (this.swing.phase === 'backswing') return `cast_${facing}_3`;
-    const windup = this.windupTime();
-    const p = windup > 0 ? 1 - this.swing.t / windup : 1;
-    return `cast_${facing}_${Math.min(2, Math.floor(p * 3))}`;
-  }
-
   protected syncSprite(dt: number): void {
+    // Searing shots use the archer's own draw/release frames (the magic sheet's hunter poses are a
+    // different scale and style, so swapping to them made the hero jump); the magic is in the bolt.
     const chan = this.channelFrame();
-    const cast = chan ? null : this.castFrame();
-    this.frameOverride = chan ? { atlas: 'sky', frame: chan } : cast ? { atlas: 'magic', frame: cast } : null;
+    this.frameOverride = chan ? { atlas: 'sky', frame: chan } : null;
     super.syncSprite(dt);
   }
 
@@ -259,7 +249,7 @@ export class Hero extends Unit {
     let dmg = this.rollDamage();
     let fire = false;
     const searing = this.abilities[0] as SearingArrows;
-    if (searing.level > 0 && searing.autocast && this.mana >= searing.manaCost()) {
+    if (this.searingReady) {
       this.mana -= searing.manaCost();
       dmg += searing.bonus();
       fire = true;
@@ -422,41 +412,6 @@ export class Hero extends Unit {
 
   revive(x: number, y: number): void {
     super.revive(x, y);
-    this.hp = this.maxHp;
-    this.mana = this.maxMana;
-  }
-
-  /** Everything a checkpoint needs to bring this hero back. */
-  serialize(): HeroSave {
-    return {
-      level: this.level,
-      xp: this.xp,
-      skillPoints: this.skillPoints,
-      abilities: this.abilities.map((a) => ({ level: a.level, autocast: a instanceof SearingArrows ? a.autocast : undefined })),
-      bonus: { ...this.bonus },
-      kills: this.kills,
-      equipment: JSON.parse(JSON.stringify(this.equipment)),
-      bag: JSON.parse(JSON.stringify(this.inventory.slots)),
-    };
-  }
-
-  /** Restore from a checkpoint (full health and mana, as after a rest at the beacon). */
-  restore(s: HeroSave): void {
-    this.level = s.level;
-    this.xp = s.xp;
-    this.skillPoints = s.skillPoints;
-    s.abilities.forEach((a, i) => {
-      const ab = this.abilities[i];
-      if (!ab) return;
-      ab.level = a.level;
-      if (ab instanceof SearingArrows && a.autocast !== undefined) ab.autocast = a.autocast;
-    });
-    Object.assign(this.bonus, s.bonus);
-    this.kills = s.kills;
-    for (const k of Object.keys(this.equipment) as GearSlot[]) delete this.equipment[k];
-    Object.assign(this.equipment, s.equipment);
-    s.bag.forEach((e, i) => (this.inventory.slots[i] = e));
-    this.recomputeGear();
     this.hp = this.maxHp;
     this.mana = this.maxMana;
   }

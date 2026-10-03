@@ -68,8 +68,8 @@ export interface UnitStats {
   spriteScale?: number;
 }
 
-/** WC3-ish turn rate: about 0.33s for a full 180° turn. Units only walk once roughly facing their heading. */
-const TURN_RATE = Math.PI * 3;
+/** Turn rate: a full 180° turn takes 0.25s, so a tap to reverse starts walking in about 0.17s. Units only walk once roughly facing their heading. */
+const TURN_RATE = Math.PI * 4;
 const WALK_FACING_TOLERANCE = Math.PI / 3;
 const ATTACK_FACING_TOLERANCE = Math.PI / 8;
 const REPATH_INTERVAL = 0.3;

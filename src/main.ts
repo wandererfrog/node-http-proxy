@@ -1,6 +1,5 @@
 import Phaser from 'phaser';
 import { GameScene } from './scenes/GameScene';
-import { loadSave } from './save';
 import './style.css';
 
 // Render at device resolution (capped for performance) so pixel art and text stay crisp on phones.
@@ -8,9 +7,12 @@ const dpr = Math.min(window.devicePixelRatio || 1, 2);
 const size = () => ({ w: Math.round(window.innerWidth * dpr), h: Math.round(window.innerHeight * dpr) });
 const { w, h } = size();
 
-// A saved checkpoint resumes automatically; "New game" lives in the character page.
-// (No confirm() dialog: it is blocked in some embedded viewers and would read as "no".)
-const resumeSave = loadSave();
+// Saving was removed; clear any checkpoint left over from earlier versions.
+try {
+  localStorage.removeItem('ranger-quest.save.v1');
+} catch {
+  // storage unavailable: nothing to clear
+}
 
 const game = new Phaser.Game({
   type: Phaser.AUTO,
@@ -26,7 +28,6 @@ const game = new Phaser.Game({
   callbacks: {
     preBoot: (g) => {
       g.registry.set('dpr', dpr);
-      g.registry.set('resumeSave', resumeSave);
     },
   },
   scene: [GameScene],

@@ -54,7 +54,7 @@ npm run build      # static build in dist/ (relative paths, so it works from any
 
 - **Pathfinding** (`src/world/pathfinding.ts`): 8-directional A* that never cuts past blocked corners, then *string-pulling*, so the hero walks straight lines across open ground instead of zig-zagging from tile to tile. Clicking on a tree or water sends you to the nearest walkable spot.
 - **Camera**: follows the hero. Dragging pans away, and any order you give brings it back.
-- **Speed and turn rate**: like WC3, the hero walks about half its attack range per second (46 px/s with a 96 px range). Units turn in place before walking off, about 0.33s for a full 180°.
+- **Speed and turn rate**: like WC3, the hero walks about half its attack range per second (46 px/s with a 96 px range). Units turn in place before walking off, about 0.25s for a full 180°.
 - **Attack timing**: each attack has a *damage point* (when the arrow leaves the bow) and a *backswing*. Issuing a move during the windup cancels the attack with no cooldown spent. Moving during the backswing cancels it, so the classic orb-walk / attack-cancel tricks work.
 - **Auto-acquire**: an idle hero shoots enemies that come into range and fights back when hit. Attack-move fights everything on the way, Hold position only shoots what is already in range.
 - **Casting out of range** walks into range first and then casts. Blink-style abilities (Tumble) clamp to max range instead.
@@ -68,15 +68,9 @@ All tuning lives in `src/entities/balance.ts`:
 - **Kiting:** a melee creep charging from max range eats 2–3 arrows before it reaches you. Creeps move at 30–34 px/s, the archer fires every 1.1s from 96px.
 - **Creep levels:** camps get tougher the further they are from the start. The level shows next to each creep's health bar: green = lower than you, yellow = same, orange/red = higher.
 
-## Saving: beacons
+## No saving
 
-Progress is saved at **save beacons** (`art-source/beacon-sheet.png`): one stands on the sanctuary plaza, and one waits beside every treasure camp as a deep-map checkpoint.
-- Tap a beacon: the hero walks over, the activation rise plays, health and mana are refilled, and "Progress saved" appears. The activated beacon glows brighter.
-- Saved to the browser's local storage: level, XP, skill points, abilities, gear, bag, tomes, kills, the beacon, and the **map seed**, so the same world comes back.
-- Dying returns you to the last activated beacon (the sanctuary if none).
-- Reopening the game resumes from the save automatically. **New game** (in the character page, tap twice) erases it.
-
-The save lives only in that browser; clearing site data removes it.
+Each visit starts a fresh adventure in a new random world. **New game** (in the character page, tap twice) starts over at any time. Dying brings the hero back at the sanctuary.
 
 ## Items
 
@@ -110,7 +104,7 @@ Armour takes a flat amount off every hit (a hit always does at least 1). Attack 
 
 | Key | Ability | |
 |---|---|---|
-| Q | **Searing Arrows** | Autocast toggle. Attacks become magic shots: the hero plays the 4-frame cast from `art-source/magic-shot-sheet.png`, fires the animated bolt with its trail, and the hit plays the impact burst. +12/22/32 damage for 8 mana each. |
+| Q | **Searing Arrows** | Autocast toggle. Attacks become magic shots: the hero draws with its normal attack pose and fires the animated bolt from `art-source/magic-shot-sheet.png` with its trail, and the hit plays the impact burst. +12/22/32 damage for 8 mana each. |
 | W | **Volley** | A cone of 5/7/9 arrows. Each one hits the first enemy in its path, so point-blank shots do huge burst damage. |
 | E | **Tumble** | A short dash that stops at obstacles. Your next attack within 4s fires instantly for 150/175/200% damage. |
 | R | **Rain of Arrows** (ultimate, hero level 4/8) | Mark an area with the leafy sigil ring (0.45s), then 6 waves of sky arrows: each wave drops one arrow onto every enemy inside the ring, and the damage lands with the arrow. The ring is drawn at hero scale (never stretched) and the hit radius (18px) is sized to it, so what you see is what gets hit. Art from `art-source/sky-arrow-sheet.png`. Any new order cancels it. |
