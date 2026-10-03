@@ -956,12 +956,13 @@ def slice_town():
 
 # --- Hero classes: the Mage and the Knight (art-source/mage-sheet.png, knight-sheet.png) ------------
 # Black background, 8 rows of directions (S, SW, W, NW, N, NE, E, SE) and four 6-frame groups (idle,
-# walk, cast/attack, death). The game draws five facings and mirrors the left half, so it takes the
-# S, SE, E, NE and N rows. Every frame of every group is kept (`<facing>_<group>_<i>`), plus the
+# walk, cast/attack, death). The game draws five facings and mirrors the left half. On both sheets
+# the rows labelled E, SE and NE actually face left like their W twins (the face shows on NE), so
+# the right-facing frames are the W, SW and NW rows mirrored: (row, mirror) per facing. Every frame of every group is kept (`<facing>_<group>_<i>`), plus the
 # classic single-frame names the engine uses (`<facing>_idle`, `_walk1`, `_walk2`, `_attack`,
 # `_shoot`, `_death`) as aliases onto those frames.
 CLASS_ROWS = [(44, 118), (123, 198), (201, 275), (278, 352), (354, 431), (431, 507), (508, 585), (586, 664)]
-CLASS_FACING_ROW = {'down': 0, 'downside': 7, 'side': 6, 'upside': 5, 'up': 4}
+CLASS_FACING_ROW = {'down': (0, False), 'downside': (1, True), 'side': (2, True), 'upside': (3, True), 'up': (4, False)}
 CLASS_GROUPS = {'idle': (119, 486), 'walk': (521, 902), 'cast': (921, 1356), 'death': (1344, 1764)}
 CLASS_SHEETS = {
     # The mage's cast group is five poses and then the bolt itself.
@@ -1004,6 +1005,68 @@ def class_frame(rgb, lum, y0, y1, cx, half):
 
 CLASS_SCALE = [1.42]
 
+# Columns of the editable idle/walk sheet; its rows are the facings in CLASS_FACING_ROW order.
+EDIT_COLS = [('idle', i) for i in range(6)] + [('walk', i) for i in range(6)]
+EDIT_LABELS = {'down': 'S (down)', 'downside': 'SE', 'side': 'E (side)', 'upside': 'NE', 'up': 'N (up)'}
+
+
+def export_class_edit(name):
+    """
+    Write the hero's idle and walk frames, exactly as the game draws them, for hand correction:
+      art-source/edit/<name>-idle-walk.png        the sheet to edit (80x60 cells, 1 px = 1 game texel)
+      art-source/edit/<name>-idle-walk-guide.png  4x with labels, cell borders, feet line and centre line
+      art-source/edit/<name>-idle-walk-preview.gif the loops playing, 4x
+    Rows: S, SE, E, NE, N (all facing right; the game mirrors them for the left). Columns: idle 0-5,
+    walk 0-5. Keep the feet on the bottom row of pixels and the body centred on column 40.
+    Re-run the slicer afterwards to use the edits; delete the file to go back to the sliced frames.
+    """
+    from PIL import ImageFont
+    cw, ch = CLASS_CELL
+    frames = json.load(open(os.path.join(OUT, f'{name}.json')))['frames']
+    atlas = Image.open(os.path.join(OUT, f'{name}.png')).convert('RGBA')
+    facings = list(CLASS_FACING_ROW)
+    sheet = Image.new('RGBA', (cw * len(EDIT_COLS), ch * len(facings)), (0, 0, 0, 0))
+    for r, f in enumerate(facings):
+        for c, (g, i) in enumerate(EDIT_COLS):
+            fr = frames[f'{f}_{g}_{i}']['frame']
+            sheet.paste(atlas.crop((fr['x'], fr['y'], fr['x'] + cw, fr['y'] + ch)), (c * cw, r * ch))
+    out = os.path.join(ROOT, 'art-source', 'edit')
+    os.makedirs(out, exist_ok=True)
+    sheet.save(os.path.join(out, f'{name}-idle-walk.png'))
+    S, L, T = 4, 96, 30
+    g = Image.new('RGBA', (L + sheet.width * S, T + sheet.height * S), (34, 36, 44, 255))
+    d = ImageDraw.Draw(g)
+    try:
+        font = ImageFont.load_default(size=20)
+    except TypeError:
+        font = ImageFont.load_default()
+    for r in range(len(facings)):
+        for c in range(len(EDIT_COLS)):
+            x0, y0 = L + c * cw * S, T + r * ch * S
+            d.rectangle([x0, y0, x0 + cw * S - 1, y0 + ch * S - 1], fill=(58, 92, 48, 255) if (r + c) % 2 == 0 else (50, 82, 42, 255))
+    g.alpha_composite(sheet.resize((sheet.width * S, sheet.height * S), Image.NEAREST), (L, T))
+    for c, (gr, i) in enumerate(EDIT_COLS):
+        d.text((L + c * cw * S + 8, 4), f'{gr} {i}', fill=(255, 220, 80, 255), font=font)
+    for r, f in enumerate(facings):
+        d.text((6, T + r * ch * S + ch * S // 2 - 10), EDIT_LABELS[f], fill=(255, 220, 80, 255), font=font)
+        for c in range(len(EDIT_COLS)):
+            x0, y0 = L + c * cw * S, T + r * ch * S
+            d.line([x0, y0 + (ch - 1) * S, x0 + cw * S, y0 + (ch - 1) * S], fill=(255, 80, 80, 220), width=2)
+            d.line([x0 + cw * S // 2, y0, x0 + cw * S // 2, y0 + ch * S], fill=(80, 200, 255, 140), width=1)
+            d.rectangle([x0, y0, x0 + cw * S - 1, y0 + ch * S - 1], outline=(0, 0, 0, 255))
+    d.line([L + 6 * cw * S - 1, 0, L + 6 * cw * S - 1, g.height], fill=(255, 220, 80, 255), width=3)
+    g.save(os.path.join(out, f'{name}-idle-walk-guide.png'))
+    gif = []
+    for k in range(6):
+        fr = Image.new('RGBA', (cw * S * 2 + 16, ch * S * len(facings)), (58, 92, 48, 255))
+        for r in range(len(facings)):
+            for gi, col0 in enumerate((0, 6)):
+                c = col0 + k
+                fr.alpha_composite(sheet.crop((c * cw, r * ch, c * cw + cw, r * ch + ch)).resize((cw * S, ch * S), Image.NEAREST), (gi * (cw * S + 16), r * ch * S))
+        gif.append(fr.convert('RGB').convert('P', palette=Image.ADAPTIVE))
+    gif[0].save(os.path.join(out, f'{name}-idle-walk-preview.gif'), save_all=True, append_images=gif[1:], duration=140, loop=0)
+    print(f'exported {name} idle/walk frames to art-source/edit/')
+
 
 def slice_classes():
     cw, ch = CLASS_CELL
@@ -1012,7 +1075,7 @@ def slice_classes():
         rgb = np.array(Image.open(os.path.join(ROOT, 'art-source', spec['src'])).convert('RGB')).astype(np.float32)
         lum = rgb.max(axis=2)
         images = {}
-        for facing, row in CLASS_FACING_ROW.items():
+        for facing, (row, mirror) in CLASS_FACING_ROW.items():
             y0, y1 = CLASS_ROWS[row]
             for group, (gx0, gx1) in CLASS_GROUPS.items():
                 gx0, gx1, count = spec.get('groups', {}).get(group, (gx0, gx1, 6))
@@ -1026,7 +1089,8 @@ def slice_classes():
                         if len(cols):
                             w = win.sum(axis=0)[cols]
                             cx = int(cx - step * 0.45) + float((cols * w).sum() / w.sum())
-                    images[f'{facing}_{group}_{i}'] = class_frame(rgb, lum, y0, y1, cx, step * 0.62)
+                    px = class_frame(rgb, lum, y0, y1, cx, step * 0.62)
+                    images[f'{facing}_{group}_{i}'] = px[:, ::-1] if mirror else px
         # Pack fixed cells, feet at the bottom centre, like the other unit atlases.
         names = list(images)
         cols = 12
@@ -1053,6 +1117,16 @@ def slice_classes():
                 'frame': {'x': cx0, 'y': cy0, 'w': cw, 'h': ch}, 'rotated': False, 'trimmed': False,
                 'spriteSourceSize': {'x': 0, 'y': 0, 'w': cw, 'h': ch}, 'sourceSize': {'w': cw, 'h': ch},
             }
+        # Hand-corrected frames (art-source/edit/<name>-idle-walk.png, from --export-edit) replace the
+        # sliced idle and walk frames verbatim: no re-centring, so the artist's alignment is kept.
+        edit = os.path.join(ROOT, 'art-source', 'edit', f'{name}-idle-walk.png')
+        if os.path.exists(edit):
+            ed = np.array(Image.open(edit).convert('RGBA'))
+            for r, facing in enumerate(CLASS_FACING_ROW):
+                for c, (group, i) in enumerate(EDIT_COLS):
+                    f = frames[f'{facing}_{group}_{i}']['frame']
+                    sheet[f['y']: f['y'] + ch, f['x']: f['x'] + cw] = ed[r * ch: (r + 1) * ch, c * cw: (c + 1) * cw]
+            print(f'  {name}: idle and walk frames from {os.path.relpath(edit, ROOT)}')
         alias = {'idle': ('idle', 0), 'walk1': ('walk', 1), 'walk2': ('walk', 4), 'death': ('death', 5), **spec['alias']}
         for facing in CLASS_FACING_ROW:
             for pose, (group, i) in alias.items():
@@ -1170,6 +1244,9 @@ def slice_class_fx():
 
 def main():
     rgb, mask = load()
+    if '--export-edit' in sys.argv:
+        export_class_edit(sys.argv[sys.argv.index('--export-edit') + 1])
+        return
     if '--only' in sys.argv:
         globals()[f"slice_{sys.argv[sys.argv.index('--only') + 1]}"]()
         return
