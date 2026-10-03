@@ -615,6 +615,62 @@ def slice_items():
     pack_atlas(images, 'items', width=512)
 
 
+# --- Hunter magic shot sheet (cast animation + projectile + impact + trail) --------------------
+MAGIC_SRC = os.path.join(ROOT, 'art-source', 'magic-shot-sheet.png')
+# Hunter cast cells: 8 rows (facings in sheet order) x 4 frames. Cell grid measured from the sheet.
+# Game facings per sheet row, by what the art shows (the sheet's labels are off for several rows;
+# the game mirrors right-facing frames for the left side): rows 1,2 aim right-down, 3 right, 4 up-right.
+MAGIC_HUNTER_ROWS = ['down', 'downside', 'side', 'upside', 'up', 'alt_upside', 'alt_side', 'alt_downside']
+MAGIC_HUNTER_GRID = (96, 44, 92, 60, 72, 56)  # x0, y0, dx, dy, cell w, cell h
+# FX strips: 8 cells each, (x0, y0, dx, w, h)
+MAGIC_FX = {
+    'bolt': (474, 92, 104, 96, 80),
+    'impact': (474, 250, 104, 96, 90),
+    'trail': (474, 412, 104, 96, 90),
+}
+MAGIC_SCALE = 1.0  # hunter art is ~55px tall on the sheet; kept 1:1 so it matches the archer atlas (2x density)
+MAGIC_FX_SCALE = 2.0
+
+
+def slice_magic():
+    rgb = np.array(Image.open(MAGIC_SRC).convert('RGB')).astype(np.float32)
+    lum = rgb.mean(axis=2)
+    sat = rgb.max(axis=2) - rgb.min(axis=2)
+    sprite = (lum > 75) | (sat > 45)
+    holes = ndimage.binary_fill_holes(sprite) & ~sprite
+    lab, n = ndimage.label(holes)
+    if n:
+        sizes = ndimage.sum(holes, lab, range(1, n + 1))
+        sprite |= np.isin(lab, np.nonzero(sizes < 60)[0] + 1)
+    images = {}
+    x0, y0, dx, dy, cw, ch = MAGIC_HUNTER_GRID
+    for r, facing in enumerate(MAGIC_HUNTER_ROWS):
+        for c in range(4):
+            bx0, by0 = x0 + c * dx, y0 + r * dy
+            box = (bx0, by0, bx0 + cw, by0 + ch)
+            sub = sprite[by0: by0 + ch, bx0: bx0 + cw]
+            px = to_pixel_art(rgb[by0: by0 + ch, bx0: bx0 + cw], sub.astype(np.float32), MAGIC_SCALE)
+            on = np.nonzero(px[..., 3])
+            images[f'cast_{facing}_{c}'] = px[on[0].min(): on[0].max() + 1, on[1].min(): on[1].max() + 1]
+    # FX frames: keep the glow, so no hole filling / fragment dropping; take every bright pixel in the cell
+    # and keep colour premultiplied by a soft alpha (brightness) for additive blending.
+    for name, (fx0, fy0, fdx, fw, fh) in MAGIC_FX.items():
+        for c in range(8):
+            bx0, by0 = fx0 + c * fdx, fy0
+            sub = rgb[by0: by0 + fh, bx0: bx0 + fw]
+            sl = sub.mean(axis=2)
+            ss = sub.max(axis=2) - sub.min(axis=2)
+            a = np.clip((np.maximum(sl - 50, 0) / 120) + (ss / 160), 0, 1)
+            a[a < 0.12] = 0
+            nw, nh = round(fw / MAGIC_FX_SCALE), round(fh / MAGIC_FX_SCALE)
+            pre = Image.fromarray(np.clip(sub * a[..., None], 0, 255).astype(np.uint8)).resize((nw, nh), Image.BOX)
+            arr = np.zeros((nh, nw, 4), np.uint8)
+            arr[..., :3] = np.array(pre)
+            arr[..., 3] = 255
+            images[f'{name}_{c}'] = arr
+    pack_atlas(images, 'magic', width=512)
+
+
 def main():
     rgb, mask = load()
     if '--contact' in sys.argv:
@@ -625,6 +681,7 @@ def main():
     arrow()
     slice_elven()
     slice_items()
+    slice_magic()
 
 
 if __name__ == '__main__':

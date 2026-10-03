@@ -16,7 +16,16 @@ export type Pose = (typeof POSES)[number];
 /** Unit atlases sliced from art-source/units-sheet.png by tools/slice_sheet.py (2x density, drawn at half size). */
 export const UNIT_SHEETS = ['archer', 'boar', 'skeleton', 'boar_alpha'] as const;
 
+/** Magic-shot animations from art-source/magic-shot-sheet.png: the bolt, its trail and the impact. */
+export function registerMagicAnims(scene: Phaser.Scene): void {
+  const frames = (name: string, n: number) => Array.from({ length: n }, (_, i) => ({ key: 'magic', frame: `${name}_${i}` }));
+  scene.anims.create({ key: 'magic_bolt', frames: frames('bolt', 8), frameRate: 20, repeat: -1 });
+  scene.anims.create({ key: 'magic_trail', frames: frames('trail', 8), frameRate: 16, repeat: -1 });
+  scene.anims.create({ key: 'magic_impact', frames: frames('impact', 8), frameRate: 18, repeat: 0 });
+}
+
 export function registerUnitAnims(scene: Phaser.Scene): void {
+  registerMagicAnims(scene);
   for (const key of UNIT_SHEETS) {
     for (const f of FACINGS) {
       scene.anims.create({

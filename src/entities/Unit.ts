@@ -29,6 +29,8 @@ export interface World {
   damage(target: Unit, amount: number, source: Unit | null, opts?: DamageOpts): void;
   /** Homing auto-attack arrow. */
   fireArrow(from: Unit, target: Unit, damage: number, fire: boolean): void;
+  /** Homing magic bolt (Searing Arrows): animated projectile with a trail and an impact burst. */
+  fireMagicBolt(from: Unit, target: Unit, damage: number): void;
   /** Straight skillshot arrow that hits the first enemy in its way. */
   fireVolleyArrow(from: Unit, angle: number, range: number, damage: number): void;
   enemiesInRadius(of: Unit, x: number, y: number, r: number): Unit[];
@@ -502,7 +504,15 @@ export class Unit {
     sp.setFlipX(flip);
     sp.setDepth(this.y);
     this.shadow.setPosition(Math.round(this.x), Math.round(this.y + 2)).setDepth(this.y - 1000);
-    if (this.swing?.phase === 'backswing') {
+    if (this.frameOverride) {
+      sp.anims.stop();
+      sp.setTexture(this.frameOverride.atlas, this.frameOverride.frame);
+    } else if (sp.texture.key !== this.textureKey) {
+      sp.setTexture(this.textureKey, `${facing}_idle`);
+    }
+    if (this.frameOverride) {
+      // handled above
+    } else if (this.swing?.phase === 'backswing') {
       sp.anims.stop();
       sp.setFrame(`${facing}_shoot`);
     } else if (this.attacking || this.poseOverride === 'attack') {
@@ -525,6 +535,8 @@ export class Unit {
 
   /** Lets subclasses force a pose (e.g. while channelling). */
   protected poseOverride: 'attack' | null = null;
+  /** A frame from another atlas to show instead of the unit's own (the hero's magic cast). */
+  protected frameOverride: { atlas: string; frame: string } | null = null;
 
   die(): void {
     this.dead = true;

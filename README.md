@@ -100,7 +100,7 @@ Armour takes a flat amount off every hit (a hit always does at least 1). Attack 
 
 | Key | Ability | |
 |---|---|---|
-| Q | **Searing Arrows** | Autocast toggle. Attacks deal bonus fire damage for 8 mana each. |
+| Q | **Searing Arrows** | Autocast toggle. Attacks become magic shots: the hero plays the 4-frame cast from `art-source/magic-shot-sheet.png`, fires the animated bolt with its trail, and the hit plays the impact burst. +12/22/32 damage for 8 mana each. |
 | W | **Volley** | A cone of 5/7/9 arrows. Each one hits the first enemy in its path, so point-blank shots do huge burst damage. |
 | E | **Tumble** | A short dash that stops at obstacles. Your next attack within 4s fires instantly for 150/175/200% damage. |
 | R | **Rain of Arrows** (ultimate, hero level 4/8) | Channel for 3s: 6 waves of arrows hit an area. Any new order cancels it. |

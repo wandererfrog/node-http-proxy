@@ -346,6 +346,10 @@ export class GameScene extends Phaser.Scene implements World {
     this.arrows.push(new Arrow(this, from, damage, { kind: 'homing', target, fire }));
   }
 
+  fireMagicBolt(from: Unit, target: Unit, damage: number): void {
+    this.arrows.push(new Arrow(this, from, damage, { kind: 'bolt', target }));
+  }
+
   fireVolleyArrow(from: Unit, angle: number, range: number, damage: number): void {
     this.arrows.push(new Arrow(this, from, damage, { kind: 'linear', angle, range }));
   }

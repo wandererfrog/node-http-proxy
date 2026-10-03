@@ -219,6 +219,28 @@ export class Hero extends Unit {
     return this.empowered ? 0.05 : super.windupTime();
   }
 
+  /** Will the next attack be a Searing (magic) shot? */
+  private get searingReady(): boolean {
+    const searing = this.abilities[0] as SearingArrows;
+    return searing.level > 0 && searing.autocast && this.mana >= searing.manaCost();
+  }
+
+  /** Magic-shot cast frames follow the swing: frames 0-2 over the windup, 3 on release. */
+  private castFrame(): string | null {
+    if (!this.swing || !this.searingReady) return null;
+    const { facing } = this.facing;
+    if (this.swing.phase === 'backswing') return `cast_${facing}_3`;
+    const windup = this.windupTime();
+    const p = windup > 0 ? 1 - this.swing.t / windup : 1;
+    return `cast_${facing}_${Math.min(2, Math.floor(p * 3))}`;
+  }
+
+  protected syncSprite(dt: number): void {
+    const cast = this.castFrame();
+    this.frameOverride = cast ? { atlas: 'magic', frame: cast } : null;
+    super.syncSprite(dt);
+  }
+
   protected releaseAttack(target: Unit): void {
     let dmg = this.rollDamage();
     let fire = false;
@@ -232,7 +254,8 @@ export class Hero extends Unit {
       dmg = Math.round(dmg * this.empowered.mult);
       this.empowered = null;
     }
-    this.world.fireArrow(this, target, dmg, fire);
+    if (fire) this.world.fireMagicBolt(this, target, dmg);
+    else this.world.fireArrow(this, target, dmg, false);
   }
 
   protected onOrderInterrupted(): void {
