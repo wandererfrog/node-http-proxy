@@ -2,7 +2,7 @@ import { Hero, MAX_LEVEL, xpForLevel } from '../entities/Hero';
 import { EMPTY_STATS, Gear, GearSlot, GearStats, INVENTORY_SIZE, SLOT_NAMES, TIERS, describeStats, gearIcon, gearValue, requiredLevel } from '../entities/items';
 import { statIconUrl } from '../art/sprites';
 import { applyUiArt } from './pixelFrame';
-import { TALENTS, TALENT_BY_ID, TIER_POINTS, TalentId } from '../entities/talents';
+import { TALENT_BY_ID, TIER_POINTS, TalentId } from '../entities/talents';
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, parent?: HTMLElement): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -115,7 +115,7 @@ export class CharacterPage {
     img.alt = '';
     this.levelBadge = el('div', 'char-lvl', ring);
     const titles = el('div', 'char-titles', head);
-    el('div', 'char-name', titles).textContent = 'Sylva';
+    el('div', 'char-name', titles).textContent = this.hero.cls.hero;
     this.sub = el('div', 'char-sub', titles);
     const xp = el('div', 'char-xp', titles);
     this.xpFill = el('div', 'fill', xp);
@@ -203,10 +203,10 @@ export class CharacterPage {
     this.talentContent = el('div', 'char-content talents hidden', panel);
     const tree = el('section', 'char-sec tal-sec', this.talentContent);
     const tHead = el('div', 'sec-title', tree);
-    el('span', '', tHead).textContent = 'Marksmanship';
+    el('span', '', tHead).textContent = this.hero.talents.treeName;
     this.talentPoints = el('span', 'sec-count', tHead);
     const tGrid = el('div', 'tal-grid', tree);
-    for (const t of TALENTS) {
+    for (const t of this.hero.talents.tree) {
       const b = el('button', 'inv-slot tal', tGrid);
       b.style.gridColumn = `${t.col + 1}`;
       b.style.gridRow = `${t.tier + 1}`;
@@ -633,7 +633,7 @@ export class CharacterPage {
     const lo = xpForLevel(h.level);
     const hi = xpForLevel(h.level + 1);
     const maxed = h.level >= MAX_LEVEL;
-    const sub = `Level ${h.level} Ranger${maxed ? '' : ` · ${h.xp - lo} / ${hi - lo} XP`}`;
+    const sub = `Level ${h.level} ${h.cls.name}${maxed ? '' : ` · ${h.xp - lo} / ${hi - lo} XP`}`;
     if (this.sub.textContent !== sub) this.sub.textContent = sub;
     if (this.levelBadge.textContent !== `${h.level}`) this.levelBadge.textContent = `${h.level}`;
     this.xpFill.style.width = `${maxed ? 100 : Math.min(100, ((h.xp - lo) / (hi - lo)) * 100)}%`;
@@ -666,7 +666,7 @@ export class CharacterPage {
     if (this.tab === 'talents') {
       const pts = `${tal.points} point${tal.points === 1 ? '' : 's'} · ${tal.spent} spent`;
       if (this.talentPoints.textContent !== pts) this.talentPoints.textContent = pts;
-      for (const def of TALENTS) {
+      for (const def of tal.tree) {
         const b = this.talentButtons.get(def.id)!;
         const r = tal.rank(def.id);
         const open = tal.spent >= TIER_POINTS[def.tier] && (!def.requires || tal.rank(def.requires) >= TALENT_BY_ID[def.requires].maxRank);

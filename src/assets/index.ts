@@ -8,6 +8,12 @@ import boarAlphaPng from './sprites/boar_alpha.png';
 import boarAlphaJson from './sprites/boar_alpha.json';
 import elvenPng from './sprites/elven.png';
 import elvenJson from './sprites/elven.json';
+import magePng from './sprites/mage.png';
+import mageJson from './sprites/mage.json';
+import knightPng from './sprites/knight.png';
+import knightJson from './sprites/knight.json';
+import classFxPng from './sprites/classfx.png';
+import classFxJson from './sprites/classfx.json';
 import townPng from './sprites/town.png';
 import townJson from './sprites/town.json';
 import itemsPng from './sprites/items.png';
@@ -24,6 +30,9 @@ export const ATLASES = [
   { key: 'skeleton', png: skeletonPng, json: skeletonJson },
   { key: 'boar_alpha', png: boarAlphaPng, json: boarAlphaJson },
   { key: 'elven', png: elvenPng, json: elvenJson },
+  { key: 'mage', png: magePng, json: mageJson },
+  { key: 'knight', png: knightPng, json: knightJson },
+  { key: 'classfx', png: classFxPng, json: classFxJson },
   { key: 'town', png: townPng, json: townJson },
   { key: 'items', png: itemsPng, json: itemsJson },
   { key: 'rangerfx', png: rangerFxPng, json: rangerFxJson },

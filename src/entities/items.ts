@@ -106,8 +106,27 @@ const SLOT_BASE: Record<GearSlot, Partial<GearStats>> = {
  * order. The amulet row has seven (silver, leaf, blue, red, gold, stag, violet): the stag one
  * is skipped so the violet amulet is the Fey tier like every other slot.
  */
+/**
+ * The weapon and off-hand slots are a bow and a quiver for the Ranger, an orb and a tome for the
+ * Mage, a sword and a shield for the Knight. The class is set once per run, before any gear rolls.
+ */
+const GEAR_THEMES = {
+  ranger: { weapon: 'Bow', offhand: 'Quiver', weaponIcons: null, offhandIcons: null },
+  mage: { weapon: 'Orb', offhand: 'Tome', weaponIcons: ['rare_6', 'rare_1', 'rare_2', 'rare_3', 'rare_7', 'rare_5'], offhandIcons: ['quest_7'] },
+  knight: { weapon: 'Sword', offhand: 'Shield', weaponIcons: ['dagger_0', 'dagger_2', 'dagger_3', 'dagger_1', 'dagger_5', 'dagger_4'], offhandIcons: ['quest_3'] },
+} as const;
+let gearTheme: (typeof GEAR_THEMES)[keyof typeof GEAR_THEMES] = GEAR_THEMES.ranger;
+
+export function setGearTheme(cls: keyof typeof GEAR_THEMES): void {
+  gearTheme = GEAR_THEMES[cls];
+  SLOT_NAMES.bow = gearTheme.weapon;
+  SLOT_NAMES.quiver = gearTheme.offhand;
+}
+
 export function gearIcon(slot: GearSlot, tier: number): string {
   if (slot === 'amulet') return `amulet_${[0, 1, 2, 3, 4, 6][tier]}`;
+  if (slot === 'bow' && gearTheme.weaponIcons) return gearTheme.weaponIcons[tier];
+  if (slot === 'quiver' && gearTheme.offhandIcons) return gearTheme.offhandIcons[Math.min(tier, gearTheme.offhandIcons.length - 1)];
   return `${slot}_${tier}`;
 }
 

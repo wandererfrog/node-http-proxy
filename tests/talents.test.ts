@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TALENTS, TIER_POINTS, Talents } from '../src/entities/talents';
+import { TALENTS, TALENT_VALUES, TIER_POINTS, TREES, Talents } from '../src/entities/talents';
 
 describe('talent tree', () => {
   it('has at most 10 talents, exactly one aura, and every grid cell used once', () => {
@@ -41,5 +41,41 @@ describe('talent tree', () => {
     t.reset();
     expect(t.points).toBe(4);
     expect(t.spent).toBe(0);
+  });
+});
+
+describe('class trees', () => {
+  it.each(['ranger', 'mage', 'knight'] as const)('%s: ten talents, one aura, a capstone that needs it, every cell used once', (cls) => {
+    const tree = TREES[cls].talents;
+    expect(tree).toHaveLength(10);
+    const auras = tree.filter((t) => t.aura);
+    expect(auras).toHaveLength(1);
+    const cells = new Set(tree.map((t) => `${t.tier},${t.col}`));
+    expect(cells.size).toBe(tree.length);
+    const capstone = tree.find((t) => t.tier === 3)!;
+    expect(capstone.requires).toBe(auras[0].id);
+    // 21 ranks against 10 points: you have to choose.
+    expect(tree.reduce((n, t) => n + t.maxRank, 0)).toBe(21);
+  });
+
+  it('talent ids are unique across all trees', () => {
+    const ids = Object.values(TREES).flatMap((t) => t.talents.map((d) => d.id));
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("a class can only learn its own tree's talents, and stats add up", () => {
+    const k = new Talents('knight');
+    k.points = 10;
+    expect(k.learn('sharpshooter')).toBe(false);
+    expect(k.blocked('sharpshooter')).toBe('Not in your tree');
+    for (const id of ['toughness', 'toughness', 'plateMastery', 'plateMastery', 'might', 'battleRhythm', 'devotionAura']) expect(k.learn(id)).toBe(true);
+    const s = k.stats();
+    expect(s.hp).toBe(100);
+    expect(s.armor).toBe(2 + TALENT_VALUES.devotionArmor);
+    expect(s.damage).toBe(2);
+    expect(s.attackSpeed).toBe(6);
+    expect(s.damagePct).toBeCloseTo(TALENT_VALUES.devotionDamage);
+    expect(k.aura).toBe('precision');
+    expect(new Talents('mage').rank('frostbite')).toBe(0);
   });
 });

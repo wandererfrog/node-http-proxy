@@ -112,7 +112,40 @@ Armour takes a flat amount off every hit (a hit always does at least 1). Attack 
 
 **Drops and rarity:** creeps drop gear 7% of the time (alpha boars always), potions 12% and gold 60%. Quality follows WoW-style odds: Common 60%, Uncommon 26%, Fine 9%, Rare 3.5%, Epic 1.2%, Legendary 0.3%; higher-level creeps tilt the odds a little (+4% per level per quality step), alpha boars and treasure chests a lot (chests are Fine or better). Every piece **requires a level** (its item level − 1), so loot from a deep dungeon has to wait, and has a **sell price** for the village vendor. Open the character page (portrait, bag button or C). It's a pixel-art take on the World of Warcraft character frame: gold bevelled frames, inset stone slots and buttons drawn as pixel art at boot (`src/ui/pixelFrame.ts`), the bundled Pixelify Sans font, the round portrait with the level badge, **Attributes** on the left, the nine **Equipped** slots on the right (empty ones show a faint silhouette), and a **24-slot Backpack** below. Gear moves by **drag and drop**: drag a piece from the backpack onto Equipped (anywhere on it; it goes to its own slot) to wear it, drag a worn piece into the backpack to take it off (onto a piece of the same kind to swap them), and drag between backpack slots to rearrange. Valid places glow while you drag. The backpack holds gear only: **potions go on the belt** (the 1 / 2 buttons), up to 9 of each. Tap any item for its WoW-style tooltip card: name and quality in the rarity colour (Common, Uncommon, Fine, Rare, Epic, Legendary), its bonuses, how it compares with what you wear (green better, red worse), and **Wear** / **Take off**. With a mouse, hovering previews the card. The card sits beside the panel when there's room and at the bottom on portrait phones. Belts, daggers, food and materials are sliced but not used yet.
 
-## The Ranger's kit
+## Heroes: Ranger, Mage, Knight
+
+A new game opens on **Choose your hero**: three cards with each hero's portrait, role, stat bars and abilities (`src/ui/classPick.ts`). Tap a card, then **Begin**. New Game from the character page's menu comes back here. The class is fixed for the run: it decides the sprite, stats, basic attack, the four abilities, the talent tree, and what the weapon and off-hand slots are (`src/entities/classes.ts`).
+
+| | Ranger (Sylva) | Mage (Elowen) | Knight (Roderic) |
+|---|---|---|---|
+| Health / mana | 420 / 220 (+45 / +18 per level) | 340 / 320 (+36 / +26) | 580 / 160 (+62 / +12), 3 armour |
+| Attack | Arrows, 6 tiles | Homing arcane bolt, 5.5 tiles | Sword, melee (15% more damage) |
+| Weapon / off-hand | Bow / Quiver | Orb / Tome | Sword / Shield |
+| Talent tree | Marksmanship | Arcane | Protection |
+
+The Mage and the Knight come from `art-source/mage-sheet.png` and `art-source/knight-sheet.png` (black background, 8 directions × idle / walk / cast / death, 6 frames each, plus spell effects). `slice_classes` takes the S, SE, E, NE and N rows (the game mirrors the left half like the other units), keeps all six frames of every animation (`<facing>_walk_0..5` etc., played as 10 fps walk and 6 fps breathing idle loops, and a falling death) and adds the engine's usual single-frame names as aliases. `slice_class_fx` cuts the effects row into the `classfx` atlas as additive light (alpha = brightness). The Knight's effects are drawn with the knight in them, so he's cut out (an ellipse around where he stands, and only coloured light near him) and each frame is pinned at his feet: in game the light plays over the hero's own sprite, which spins through its facings for Whirlwind and holds its swing pose for Shield Bash and Leap Strike.
+
+### The Mage's kit
+
+| Key | Ability | |
+|---|---|---|
+| Q | **Arcane Orb** | A slow orb that flies 8 tiles in a line and passes through enemies, 45/70/95 damage to each. |
+| W | **Frost Nova** | Ice erupts around you (3 tiles): 40/60/85 damage and enemies are frozen for 1.5/2/2.5s (they tint icy blue). |
+| E | **Teleport** | Blink 5/6/7 tiles, over obstacles, to the furthest walkable spot. Light columns where you leave and arrive. |
+| R | **Arcane Shield** (ultimate, 6/12) | A bubble that absorbs up to 260/460 damage for 12s; absorbed hits show as (numbers) in blue. |
+
+### The Knight's kit
+
+| Key | Ability | |
+|---|---|---|
+| Q | **Shield Bash** | Bash enemies just in front of you: 35/55/75 + your attack damage, stunned for 1/1.5/2s (gold tint). |
+| W | **Whirlwind** | Spin for 1.5s: five hits of 16/24/32 damage on everything within 2.2 tiles. Channelled. |
+| E | **Leap Strike** | Leap 5/6/7 tiles and crash down: 40/60/80 damage around the landing spot and enemies are slowed by half for 2s. |
+| R | **Defender** (ultimate, 6/12) | Taunt every enemy within 6 tiles to attack you and take 50/65% less damage for 8s (blue aura). |
+
+Frost Nova, Whirlwind, Arcane Shield and Defender are cast on the spot: tap and they go off around the hero, no aiming.
+
+### The Ranger's kit
 
 | Key | Ability | |
 |---|---|---|
@@ -125,7 +158,7 @@ Abilities level up WC3-style: a skill point per hero level; basic abilities open
 
 ## Talents
 
-Buffs come from a WoW-style talent tree, **Marksmanship** (`src/entities/talents.ts`): ten talents in four tiers. You get a talent point **every second level** (levels 2, 4, … 20: ten points against 21 ranks, so you choose). A tier opens once enough points are spent in the tree (0 / 2 / 4 / 6), and Deadeye also needs Trueshot Aura (the gold arrow). Open it from the character page's **Talents** tab (or N); unspent points show as a gold badge on the tab and the bag button. Tap a talent for its card (current and next rank, what's missing) and **Learn**; **Reset** refunds every point.
+Buffs come from a WoW-style talent tree, one per class (`src/entities/talents.ts`): ten talents in four tiers, 21 ranks, one aura in tier 3 and a tier-4 capstone that needs it. Most talents are stat bonuses; a few improve an ability. The Ranger's tree is **Marksmanship**: You get a talent point **every second level** (levels 2, 4, … 20: ten points against 21 ranks, so you choose). A tier opens once enough points are spent in the tree (0 / 2 / 4 / 6), and Deadeye also needs Trueshot Aura (the gold arrow). Open it from the character page's **Talents** tab (or N); unspent points show as a gold badge on the tab and the bag button. Tap a talent for its card (current and next rank, what's missing) and **Learn**; **Reset** refunds every point.
 
 | Tier | Talent | Ranks | Effect per rank |
 |---|---|---|---|
@@ -139,6 +172,10 @@ Buffs come from a WoW-style talent tree, **Marksmanship** (`src/entities/talents
 | 3 | **Trueshot Aura** (aura) | 1 | +15% damage on every attack; the golden precision aura stays around the hero |
 | 3 | Rain Storm | 2 | Rain of Arrows +1 wave |
 | 4 | Deadeye | 1 | 15% chance for double damage (big gold numbers); needs Trueshot Aura |
+
+**Arcane** (Mage): Arcane Power (+2 damage ×3), Arcane Mind (+40 mana ×3), Fortitude (+35 health ×2) · Quick Casting (+6% attack speed ×3), Focused Mind (+0.6 mana regen ×2), Far Sight (+1 tile range ×2) · Frostbite (Frost Nova freezes +0.5s ×2), **Brilliance Aura** (blue: +2 mana regen, +10% damage), Orb Mastery (Arcane Orb +15 ×2) · Critical Mass (15% double damage; needs Brilliance).
+
+**Protection** (Knight): Might (+2 damage ×3), Toughness (+50 health ×3), Plate Mastery (+1 armour ×2) · Battle Rhythm (+6% attack speed ×3), Vigor (+1.5 health regen ×2), Charger (+3 speed ×2) · Concussion (Shield Bash stuns +0.5s ×2), **Devotion Aura** (gold: +3 armour, +10% damage), Cyclone (Whirlwind +8 per spin ×2) · Crushing Blow (15% double damage; needs Devotion).
 
 The test mode (every ability maxed, all talent points from the start) is gone: abilities and talents are earned.
 
@@ -250,6 +287,9 @@ src/
   assets/sprites/         unit atlases generated from art-source/ by tools/slice_sheet.py
   ui/hud.ts               DOM HUD: hero frame, minimap, command card, potion slots, tooltips
   ui/characterPage.ts     WoW-style character page: stats, equipment, 24-slot backpack, talents
+  ui/classPick.ts         Choose your hero: the three class cards at a new game
+  entities/classes.ts     Ranger / Mage / Knight: stats, attack, kit, slot names
+  abilities/mageAbilities.ts, knightAbilities.ts   the Mage's and the Knight's kits
   ui/npcDialog.ts         villager dialog: quests (accept / complete) and the merchant's buy / sell
   entities/quests.ts      villagers (and what they sell), the intro quest line and side quests, the quest log
   entities/balance.ts     combat tuning (damage, creep hp per level, xp, drops)

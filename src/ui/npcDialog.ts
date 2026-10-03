@@ -85,6 +85,11 @@ export class NpcDialog {
     if (this.isOpen) this.render(false);
   }
 
+  /** Villagers call the hero by their class: "Ranger", "Mage" or "Knight". */
+  private say(text: string): string {
+    return text.replace(/\bRanger\b/g, this.hero.cls.name);
+  }
+
   private go(view: View): void {
     this.view = view;
     this.render(true);
@@ -122,7 +127,7 @@ export class NpcDialog {
   }
 
   private renderHome(body: HTMLElement, npc: NpcDef): void {
-    el('p', 'npc-text', body).textContent = npc.greeting;
+    el('p', 'npc-text', body).textContent = this.say(npc.greeting);
     const list = el('div', 'npc-options', body);
     const option = (mark: string, cls: string, label: string, onClick: () => void) => {
       const b = el('button', `npc-option ${cls}`, list);
@@ -132,9 +137,9 @@ export class NpcDialog {
     };
     for (const q of this.quests.handInsAt(npc.id)) {
       const ready = this.quests.isComplete(q.id);
-      option('?', ready ? 'ready' : 'progress', q.title, () => this.go({ kind: 'quest', id: q.id }));
+      option('?', ready ? 'ready' : 'progress', this.say(q.title), () => this.go({ kind: 'quest', id: q.id }));
     }
-    for (const q of this.quests.available(npc.id)) option('!', 'available', q.title, () => this.go({ kind: 'quest', id: q.id }));
+    for (const q of this.quests.available(npc.id)) option('!', 'available', this.say(q.title), () => this.go({ kind: 'quest', id: q.id }));
     if (npc.vendor) option('◆', 'trade', 'Trade', () => this.go({ kind: 'trade', tab: 'buy' }));
     option('', 'bye', 'Goodbye', () => this.cb.close());
   }
@@ -145,8 +150,8 @@ export class NpcDialog {
     const active = log.active.has(id);
     const done = log.done.has(id);
     const ready = log.isComplete(id) && q.turnIn === this.npc?.id;
-    el('div', 'npc-qtitle', body).textContent = q.title;
-    el('p', 'npc-text', body).textContent = done ? q.complete : ready ? q.complete : active ? q.progress : q.offer;
+    el('div', 'npc-qtitle', body).textContent = this.say(q.title);
+    el('p', 'npc-text', body).textContent = this.say(done ? q.complete : ready ? q.complete : active ? q.progress : q.offer);
     if (!done) {
       el('div', 'npc-sub', body).textContent = 'Objective';
       el('div', 'npc-objective', body).textContent = active ? log.status(id) : q.objective.label + (q.objective.kind === 'kill' ? ` (${q.objective.count})` : '');

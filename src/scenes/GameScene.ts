@@ -6,10 +6,12 @@ import { ATLASES, IMAGES } from '../assets';
 import { Ability } from '../abilities/Ability';
 import { Camp, Creep } from '../entities/Creep';
 import { CREEP_GEAR_DROP, CREEP_GOLD_DROP, CREEP_POTION_DROP, creepGold } from '../entities/balance';
-import { GEAR_SLOTS, Gear, GearSlot, ITEMS, ItemId, TIERS, TOMES, TOME_IDS, gearValue, makeGear, rollGear } from '../entities/items';
+import { GEAR_SLOTS, Gear, GearSlot, ITEMS, ItemId, TIERS, TOMES, TOME_IDS, gearValue, makeGear, rollGear, setGearTheme } from '../entities/items';
 import { NPCS, NpcDef, NpcId, QUEST_BY_ID, QuestDef, QuestId, QuestLog } from '../entities/quests';
 import type { StockItem } from '../ui/npcDialog';
 import { Hero, HeroState } from '../entities/Hero';
+import { CLASSES, ClassId } from '../entities/classes';
+import { showClassPick } from '../ui/classPick';
 import { TALENT_BY_ID } from '../entities/talents';
 import { Arrow } from '../entities/Projectile';
 import { DamageOpts, Unit, World } from '../entities/Unit';
@@ -36,10 +38,14 @@ export interface TravelData {
   to?: Destination;
   hero?: HeroState;
   newGame?: boolean;
+  /** The class picked for a new game. */
+  classId?: ClassId;
 }
 
 /** Lasts the whole run (kept in the game registry across map changes). */
 interface RunState {
+  /** The hero's class for this run. */
+  classId: ClassId;
   worldSeed: number;
   /** Chests opened and rocks searched, as `${mapId}:${key}`, so they stay looted when you come back. */
   looted: Set<string>;
@@ -131,7 +137,14 @@ export class GameScene extends Phaser.Scene implements World {
   /** Nature aura under the hero while the moonwell heals. */
   private wellAura!: Phaser.GameObjects.Sprite;
   /** The Trueshot Aura talent: the golden precision aura, always around the hero once learned. */
-  private trueshotAura!: Phaser.GameObjects.Sprite;
+  /** The learned aura talent's aura (Trueshot, Brilliance, Devotion) around the hero. */
+  private talentAura!: Phaser.GameObjects.Sprite;
+  private talentAuraName: AuraName | null = null;
+  private defendAura!: Phaser.GameObjects.Sprite;
+  private bubble!: Phaser.GameObjects.Image;
+  /** The light of the Knight's current move, drawn over him. */
+  private moveFx!: Phaser.GameObjects.Sprite;
+  private moveFxId = 0;
 
   private targeting: Targeting | null = null;
   /** Current aim point in world space while targeting (mouse hover, finger, or button-drag). */
@@ -165,10 +178,16 @@ export class GameScene extends Phaser.Scene implements World {
     this.dpr = (this.game.registry.get('dpr') as number) ?? 1;
     let run = this.registry.get('run') as RunState | undefined;
     if (!run || data.newGame) {
-      run = { worldSeed: (Math.random() * 1e9) | 0, looted: new Set(), cleared: new Set(), quests: new QuestLog(), stock: {} };
+      // A new game starts with the class pick; the world is built once a hero is chosen.
+      if (!data.classId) {
+        this.showClassPick();
+        return;
+      }
+      run = { classId: data.classId ?? 'ranger', worldSeed: (Math.random() * 1e9) | 0, looted: new Set(), cleared: new Set(), quests: new QuestLog(), stock: {} };
       this.registry.set('run', run);
     }
     this.run = run;
+    setGearTheme(run.classId);
     const to: Destination = data.to ?? { kind: 'overworld' };
     this.dest = to;
     if (to.kind === 'dungeon') {
@@ -203,13 +222,19 @@ export class GameScene extends Phaser.Scene implements World {
     this.aimCircle = aimImg('ground_aoe', 0.5, 0.5);
     this.wellAura = this.add.sprite(0, 0, AURA_ATLAS, 'aura_nature_ground_0').setScale(FX_SCALE).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0).setDepth(DEPTH_GROUND_FX + 2);
     this.wellAura.play('aura_nature');
-    this.trueshotAura = this.add.sprite(0, 0, AURA_ATLAS, 'aura_precision_combined_0').setScale(FX_SCALE).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.8).setDepth(DEPTH_GROUND_FX + 2).setVisible(false);
-    this.trueshotAura.play('aura_precision');
+    this.talentAura = this.add.sprite(0, 0, AURA_ATLAS, 'aura_precision_combined_0').setScale(FX_SCALE).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.8).setDepth(DEPTH_GROUND_FX + 2).setVisible(false);
+    this.talentAuraName = null;
+    this.defendAura = this.add.sprite(0, 0, AURA_ATLAS, 'aura_focus_combined_0').setScale(FX_SCALE).setBlendMode(Phaser.BlendModes.ADD).setDepth(DEPTH_GROUND_FX + 3).setVisible(false);
+    this.defendAura.play('aura_focus');
+    // Arcane Shield: the bubble from the mage sheet, around the hero while it holds.
+    this.bubble = this.add.image(0, 0, 'classfx', 'bubble_0').setBlendMode(Phaser.BlendModes.ADD).setVisible(false);
+    this.moveFx = this.add.sprite(0, 0, 'classfx', 'bash_0').setBlendMode(Phaser.BlendModes.ADD).setScale(0.5).setVisible(false);
+    this.moveFxId = 0;
 
     // Arriving back from a dungeon: just outside its gate. Otherwise at the map's spawn.
     const back = to.kind === 'overworld' && to.entrance !== undefined ? this.map.portals.find((p) => p.kind === 'enter' && p.entrance === to.entrance) : undefined;
     const start = back ? { x: back.x, y: back.y + TILE * 2.2 } : { x: this.map.spawn.x * TILE, y: this.map.spawn.y * TILE };
-    this.hero = new Hero(this, start.x, start.y);
+    this.hero = new Hero(this, start.x, start.y, run.classId);
     if (data.hero) this.hero.restore(data.hero);
     this.units.push(this.hero);
     this.map.camps.forEach((spec, i) => this.spawnCamp(spec, i, this.map.kind === 'dungeon' && run.cleared.has(`${this.mapId}:c${i}`)));
@@ -236,7 +261,7 @@ export class GameScene extends Phaser.Scene implements World {
     const vh = this.scale.height / cam.zoom;
     this.updateGround(Infinity, new Phaser.Geom.Rectangle(this.hero.x - vw / 2, this.hero.y - vh / 2, vw, vh));
 
-    this.hud = new Hud(document.getElementById('ui')!, this.hero, this.map, portraitDataUrl(this), (frame) => this.itemIcon(frame), {
+    this.hud = new Hud(document.getElementById('ui')!, this.hero, this.map, portraitDataUrl(this, 4, this.hero.cls.texture), (frame) => this.itemIcon(frame), {
       abilityTap: (i) => this.onAbilityTap(i),
       abilityAim: (i, dx, dy) => this.onAbilityAim(i, dx, dy),
       abilityAimEnd: (i, cast) => this.onAbilityAimEnd(i, cast),
@@ -267,7 +292,7 @@ export class GameScene extends Phaser.Scene implements World {
         if (!this.hero.talents.learn(id)) return;
         this.hud.toast(`${def.name} — rank ${this.hero.talents.rank(id)}`, 'good');
         this.fxOnce('ground_buff', this.hero.x, this.hero.y + 1, { life: 0.8, scale: FX_SCALE * 0.6, grow: 0.7, follow: this.hero });
-        if (def.aura && this.hero.talents.rank(id) === 1) this.auraOnce('precision', this.hero, 1.2);
+        if (def.aura && this.hero.talents.rank(id) === 1) this.auraOnce(def.aura, this.hero, 1.2);
       },
       resetTalents: () => {
         this.hero.talents.reset();
@@ -300,6 +325,7 @@ export class GameScene extends Phaser.Scene implements World {
     }
 
     this.setupInput();
+    this.ready = true;
     const onResize = () => this.applyZoom();
     this.scale.on('resize', onResize);
     // The scene object is reused by restart: drop the global listener with the old map.
@@ -316,6 +342,28 @@ export class GameScene extends Phaser.Scene implements World {
         if (!this.hud.dialogOpen && !this.hud.characterOpen) this.hud.openDialog(NPCS.elder, this.npcPortrait(NPCS.elder), [], 'arrival');
       });
     }
+  }
+
+  // --- Class pick ---------------------------------------------------------------------------
+
+  /** True once create() has built a world (false while the class pick is up). */
+  private ready = false;
+
+  private showClassPick(): void {
+    if (!this.textures.exists('chest')) buildAllTextures(this);
+    this.cameras.main.setBackgroundColor('#0d0f16');
+    const ui = document.getElementById('ui')!;
+    ui.querySelectorAll('.hud, .class-pick').forEach((e) => e.remove());
+    const pick = showClassPick(
+      ui,
+      (id) => portraitDataUrl(this, 4, CLASSES[id].texture),
+      (frame) => (frame.includes(':') ? this.itemIcon(frame) : iconDataUrl(frame, 3)),
+      (classId) => {
+        pick.remove();
+        this.scene.restart({ newGame: true, classId } satisfies TravelData);
+      },
+    );
+    this.events.once('shutdown', () => pick.remove());
   }
 
   // --- Village, quests and trade ------------------------------------------------------------
@@ -584,6 +632,7 @@ export class GameScene extends Phaser.Scene implements World {
 
   /** The scene object survives restart: clear everything the last map left behind. */
   private resetState(): void {
+    this.ready = false;
     this.units = [];
     this.camps = [];
     this.rocks = new Map();
@@ -801,7 +850,16 @@ export class GameScene extends Phaser.Scene implements World {
     if (target.dead) return;
     const isHero = target === this.hero;
     // Armour takes a flat amount off every hit on the hero; a hit always does at least 1.
-    if (isHero && source) amount = Math.max(1, amount - this.hero.armor);
+    if (isHero && source) {
+      amount = Math.max(1, amount - this.hero.armor);
+      // Defender takes a share off; the Arcane Shield soaks what's left (and may soak it all).
+      const before = amount;
+      amount = this.hero.mitigate(amount);
+      if (amount <= 0) {
+        this.floatText(target.x, target.y - 18, `(${Math.round(before)})`, '#8fc8ff');
+        return;
+      }
+    }
     target.hp -= amount;
     this.floatText(target.x, target.y - 18, `${Math.round(amount)}`, isHero ? '#ff6a5a' : (opts.color ?? '#ffffff'), opts.big);
     target.onDamaged(source);
@@ -830,7 +888,7 @@ export class GameScene extends Phaser.Scene implements World {
         } else target.camp.respawnT = 45;
       }
     } else if (isHero) {
-      this.hud.toast('Sylva has fallen!', 'warn');
+      this.hud.toast(`${this.hero.cls.hero} has fallen!`, 'warn');
       this.setTargeting(null);
       for (const c of this.camps) for (const u of c.creeps) if (!u.dead && !u.returning) u.issue({ type: 'idle' });
     }
@@ -941,6 +999,55 @@ export class GameScene extends Phaser.Scene implements World {
 
   fireMagicBolt(from: Unit, target: Unit, damage: number, crit = false): void {
     this.arrows.push(new Arrow(this, from, damage, { kind: 'bolt', target, crit }));
+  }
+
+  fireArcaneBolt(from: Unit, target: Unit, damage: number, crit = false): void {
+    this.arrows.push(new Arrow(this, from, damage, { kind: 'arcane', target, crit }));
+  }
+
+  fireOrb(from: Unit, angle: number, range: number, damage: number): void {
+    this.arrows.push(new Arrow(this, from, damage, { kind: 'orb', angle, range }));
+  }
+
+  spellFx(anim: string, x: number, y: number, opts: { width?: number; scale?: number; originY?: number; delay?: number } = {}): void {
+    const play = () => {
+      const s = this.add.sprite(x, y, 'classfx').setBlendMode(Phaser.BlendModes.ADD).setOrigin(0.5, opts.originY ?? 0.5).setDepth(y + 4);
+      s.play(anim);
+      const f = s.frame;
+      s.setScale(opts.scale ?? (opts.width ? opts.width / Math.max(1, f.width) : 0.5));
+      s.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => this.tweens.add({ targets: s, alpha: 0, duration: 220, onComplete: () => s.destroy() }));
+    };
+    if (opts.delay) this.time.delayedCall(opts.delay, play);
+    else play();
+  }
+
+  /** The hero's lasting buffs: the talent aura, Defender's blue ring and the Arcane Shield bubble. */
+  private updateHeroBuffs(): void {
+    const h = this.hero;
+    const aura = h.dead ? null : h.aura;
+    if (aura !== this.talentAuraName) {
+      this.talentAuraName = aura;
+      if (aura) this.talentAura.play(`aura_${aura}`);
+    }
+    this.talentAura.setVisible(!!aura).setPosition(h.x, h.y + 1);
+    this.defendAura.setVisible(h.defendT > 0 && !h.dead).setPosition(h.x, h.y + 1);
+    const mv = h.move;
+    if (mv && mv.anim && !h.dead) {
+      if (mv.id !== this.moveFxId) {
+        this.moveFxId = mv.id;
+        this.moveFx.setVisible(true).play(mv.anim);
+      }
+      // Frames are pinned at the knight's feet; bash and leap face the way he swings.
+      this.moveFx.setPosition(Math.round(h.x), Math.round(h.y + 2)).setDepth(h.y + 2);
+      this.moveFx.setFlipX(mv.pose === 'swing' && Math.cos(h.angle) < -0.2);
+    } else if (this.moveFx.visible) this.moveFx.setVisible(false).anims.stop();
+    const shielded = h.absorbT > 0 && !h.dead;
+    this.bubble.setVisible(shielded);
+    if (shielded) {
+      const pulse = 1 + Math.sin(this.time.now / 180) * 0.04;
+      this.bubble.setPosition(h.x, h.y - 9).setScale((30 / this.bubble.width) * pulse).setDepth(h.y + 2);
+      this.bubble.setAlpha(Math.min(1, 0.55 + h.absorbT / 6) * (h.absorbT < 2 ? 0.5 + 0.5 * Math.sin(this.time.now / 60) : 1));
+    }
   }
 
   fireVolleyArrow(from: Unit, angle: number, range: number, damage: number): void {
@@ -1289,13 +1396,21 @@ export class GameScene extends Phaser.Scene implements World {
       this.hud.toast(ab.level === 0 ? `${ab.name}: learn it first (+)` : why, 'warn');
       return;
     }
+    if (ab.targeting === 'self') {
+      // Frost Nova, Whirlwind, Defender...: no aiming, it happens around the hero.
+      this.setTargeting(null);
+      this.cameraLocked = true;
+      const err = this.hero.useAbility(ab, this.hero.x, this.hero.y);
+      if (err) this.hud.toast(err, 'warn');
+      return;
+    }
     if (this.targeting?.kind === 'ability' && this.targeting.index === i) this.setTargeting(null);
     else this.setTargeting({ kind: 'ability', index: i });
   }
 
   private onAbilityAim(i: number, dx: number, dy: number): void {
     const ab = this.hero.abilities[i];
-    if (ab.blocked(this.hero)) return;
+    if (ab.blocked(this.hero) || ab.targeting !== 'point') return;
     this.buttonAim = i;
     if (this.targeting?.kind !== 'ability' || this.targeting.index !== i) this.setTargeting({ kind: 'ability', index: i });
     const len = Math.hypot(dx, dy);
@@ -1437,6 +1552,7 @@ export class GameScene extends Phaser.Scene implements World {
   // --- Main loop ----------------------------------------------------------------------------
 
   update(_time: number, deltaMs: number): void {
+    if (!this.ready) return;
     const dt = Math.min(0.05, deltaMs / 1000);
 
     for (const u of this.units) u.update(dt);
@@ -1448,7 +1564,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.updateMoonwell(dt);
     this.updateVillagers();
     this.updateTownsfolk(dt);
-    this.trueshotAura.setVisible(this.hero.hasTrueshotAura && !this.hero.dead).setPosition(this.hero.x, this.hero.y + 1);
+    this.updateHeroBuffs();
     this.checkPortals();
     this.updateCamera(dt);
     this.updateGround();
@@ -1486,7 +1602,7 @@ export class GameScene extends Phaser.Scene implements World {
       h.revive(this.map.spawn.x * TILE, this.map.spawn.y * TILE);
       this.cameraLocked = true;
       this.burst(h.x, h.y - 8, 0x7dff6a, 14);
-      this.hud.toast('Sylva returns!', 'good');
+      this.hud.toast(`${this.hero.cls.hero} returns!`, 'good');
     }
     if (this.map.kind === 'dungeon') return;
     for (const camp of this.camps) {

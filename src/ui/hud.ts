@@ -110,7 +110,7 @@ export class Hud {
     this.levelBadge = el('div', 'level', portrait);
     const bars = el('div', 'bars', frame);
     const name = el('div', 'hero-name', bars);
-    name.textContent = 'Sylva, Ranger';
+    name.textContent = `${hero.cls.hero}, ${hero.cls.name}`;
     const hp = el('div', 'bar hp', bars);
     this.hpFill = el('div', 'fill', hp);
     this.hpText = el('span', 'txt', hp);
@@ -211,7 +211,8 @@ export class Hud {
   private makeAbilityButton(parent: HTMLElement, i: number, icon: string, hotkey: string): AbilityButton {
     const root = el('div', 'ability', parent);
     const img = el('img', '', root);
-    img.src = iconDataUrl(icon, 4);
+    // Ranger icons are drawn in code; the Mage's and Knight's come from their effect frames.
+    img.src = icon.includes(':') ? this.icons(icon) : iconDataUrl(icon, 4);
     img.alt = '';
     img.draggable = false;
     const cd = el('div', 'cd', root);
@@ -296,7 +297,11 @@ export class Hud {
       `<div class="t-title">${ab.name} <span class="t-key">[${ab.hotkey}]</span></div>` +
       `<div class="t-sub">Level ${lvl}/${ab.maxLevel}${lvl ? cost : ''}</div>` +
       `<div>${ab.describe(lvl)}</div>${next}` +
-      (ab.targeting === 'point' ? '<div class="hint">Tap, then tap the map — or drag from the button to aim.</div>' : '<div class="hint">Tap to toggle autocast.</div>');
+      (ab.targeting === 'point'
+        ? '<div class="hint">Tap, then tap the map — or drag from the button to aim.</div>'
+        : ab.targeting === 'self'
+          ? '<div class="hint">Tap to cast.</div>'
+          : '<div class="hint">Tap to toggle autocast.</div>');
     this.tooltip.classList.remove('hidden');
     const r = anchor.getBoundingClientRect();
     const tw = this.tooltip.offsetWidth;
@@ -378,7 +383,7 @@ export class Hud {
   /** The tracker: each active quest's title and its objective, or who to return to (in green). */
   private updateTracker(): void {
     const q = this.quests;
-    const lines = [...q.active.keys()].map((id) => ({ title: QUEST_BY_ID[id].title, status: q.status(id), done: q.isComplete(id) }));
+    const lines = [...q.active.keys()].map((id) => ({ title: QUEST_BY_ID[id].title.replace(/\bRanger\b/g, this.hero.cls.name), status: q.status(id), done: q.isComplete(id) }));
     const key = JSON.stringify(lines);
     if (key === this.trackerKey) return;
     this.trackerKey = key;
@@ -456,7 +461,7 @@ export class Hud {
     });
 
     this.respawn.classList.toggle('hidden', !h.dead);
-    if (h.dead) this.respawn.textContent = `Sylva has fallen — back in ${Math.max(0, Math.ceil(h.respawnT))}s`;
+    if (h.dead) this.respawn.textContent = `${h.cls.hero} has fallen — back in ${Math.max(0, Math.ceil(h.respawnT))}s`;
     this.lockBtn.classList.toggle('on', locked);
 
     // Minimap

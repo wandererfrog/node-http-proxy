@@ -1,15 +1,18 @@
 import { Ability, Channel } from '../abilities/Ability';
-import { SearingArrows, rangerKit } from '../abilities/rangerAbilities';
+import { SearingArrows } from '../abilities/rangerAbilities';
+import { CLASSES, ClassDef, ClassId } from './classes';
+import type { AuraName } from '../art/sprites';
 import { TILE } from '../world/map';
 import { PROPS } from '../world/props';
 import { heroDamage } from './balance';
 import { EMPTY_STATS, Gear, GearSlot, GearStats, Inventory, ItemId, TOMES, TomeId, addStats, requiredLevel } from './items';
 import { Order, Unit, World } from './Unit';
-import { TALENT_VALUES as TV, TalentId, Talents } from './talents';
+import { NO_TALENT_STATS, TALENT_VALUES as TV, TalentId, TalentStats, Talents } from './talents';
 import type { InvEntry } from './items';
 
 /** Everything about the hero that carries over between maps (overworld, dungeon floors). */
 export interface HeroState {
+  cls: ClassId;
   level: number;
   xp: number;
   skillPoints: number;
@@ -34,11 +37,13 @@ export class Hero extends Unit {
   xp = 0;
   skillPoints = 1;
   mana: number;
-  readonly abilities: Ability[] = rangerKit();
+  /** Ranger, Mage or Knight: stats, attack, abilities and talent tree. */
+  readonly cls: ClassDef;
+  readonly abilities: Ability[];
 
   readonly inventory = new Inventory();
-  /** Talent tree: a point per level from 2, spent in the character page's Talents tab. */
-  readonly talents = new Talents();
+  /** Talent tree: a point every second level, spent in the character page's Talents tab. */
+  readonly talents: Talents;
   readonly equipment: Partial<Record<GearSlot, Gear>> = {};
   /** Sum of worn gear stats, recomputed on equip. */
   gear: GearStats = { ...EMPTY_STATS };
@@ -49,53 +54,77 @@ export class Hero extends Unit {
   readonly bonus = { hp: 0, mana: 0, damage: 0, speed: 0 };
   private potionCd = 0;
 
-  private baseMaxHp = 420;
-  private baseMaxMana = 220;
+  /** Arcane Shield: damage it can still soak, and seconds left. */
+  absorbLeft = 0;
+  absorbT = 0;
+  /** Defender: fraction of damage taken off, and seconds left. */
+  defendPct = 0;
+  defendT = 0;
+  /**
+   * A move in progress (the Knight's bash, spin, leap, taunt): the light the scene draws over the
+   * hero (`anim`, '' for none), how the hero's own sprite poses, and a counter so the scene can tell
+   * a new move from the same one.
+   */
+  move: { anim: string; t: number; pose: 'spin' | 'swing' | 'guard'; id: number } | null = null;
+  private moveCount = 0;
 
   private castT = 0;
   private castStarted = false;
   private channel: { c: Channel; t: number } | null = null;
-  private dash: { fx: number; fy: number; tx: number; ty: number; t: number; dur: number } | null = null;
+  private dash: { fx: number; fy: number; tx: number; ty: number; t: number; dur: number; hop: number } | null = null;
   private empowered: { mult: number; t: number } | null = null;
 
   respawnT = 0;
 
-  constructor(world: World, x: number, y: number) {
-    super(world, 'player', 'archer', {
-      maxHp: 420,
-      speed: 46,
+  constructor(world: World, x: number, y: number, cls: ClassId = 'ranger') {
+    const def = CLASSES[cls];
+    super(world, 'player', def.texture, {
+      maxHp: def.maxHp,
+      speed: def.speed,
       radius: 5,
-      attackRange: 6 * TILE,
+      attackRange: def.attackRange,
       damage: heroDamage(1),
-      attackCooldown: 1.1,
-      damagePoint: 0.25,
-      backswing: 0.35,
+      attackCooldown: def.attackCooldown,
+      damagePoint: def.damagePoint,
+      backswing: def.backswing,
       acquireRange: 7 * TILE,
-      ranged: true,
+      ranged: def.attack !== 'melee',
       barHeight: 27,
       spriteScale: 0.5,
     }, x, y);
+    this.cls = def;
+    this.abilities = def.kit();
+    this.talents = new Talents(cls);
     this.mana = this.maxMana;
   }
 
+  private tsCache: { key: string; stats: TalentStats } = { key: '', stats: NO_TALENT_STATS };
+
+  /** What the learned talents add (cached until a rank changes). */
+  get talentStats(): TalentStats {
+    const key = JSON.stringify(this.talents.ranks);
+    if (key !== this.tsCache.key) this.tsCache = { key, stats: this.talents.stats() };
+    return this.tsCache.stats;
+  }
+
   get maxHp(): number {
-    return this.baseMaxHp + (this.level - 1) * 45 + this.bonus.hp + this.gear.hp + this.talents.rank('hardiness') * TV.hardinessHp;
+    return this.cls.maxHp + (this.level - 1) * this.cls.hpPerLevel + this.bonus.hp + this.gear.hp + this.talentStats.hp;
   }
   get maxMana(): number {
-    return this.baseMaxMana + (this.level - 1) * 18 + this.bonus.mana + this.gear.mana;
+    return this.cls.maxMana + (this.level - 1) * this.cls.manaPerLevel + this.bonus.mana + this.gear.mana + this.talentStats.mana;
   }
   get speed(): number {
-    return this.stats.speed + this.bonus.speed + this.gear.speed + this.talents.rank('swiftFeet') * TV.swiftFeetSpeed;
+    return (this.stats.speed + this.bonus.speed + this.gear.speed + this.talentStats.speed) * (this.slowT > 0 ? this.slowMult : 1);
   }
   get armor(): number {
-    return this.gear.armor;
+    return this.cls.armor + this.gear.armor + this.talentStats.armor;
   }
   get attackCooldown(): number {
-    const pct = this.gear.attackSpeed + this.talents.rank('quickDraw') * TV.quickDrawAttackSpeed;
+    const pct = this.gear.attackSpeed + this.talentStats.attackSpeed;
     return this.stats.attackCooldown / (1 + pct / 100);
   }
   get attackRange(): number {
-    return this.stats.attackRange + this.talents.rank('longShot') * TV.longShotRange;
+    return this.stats.attackRange + this.talentStats.range;
   }
 
   private recomputeGear(): void {
@@ -143,16 +172,17 @@ export class Hero extends Unit {
     return `${TOMES[id].name}: ${TOMES[id].effect}`;
   }
   get hpRegen(): number {
-    return 1.2 + this.level * 0.25 + this.gear.hpRegen;
+    return this.cls.hpRegen + this.level * 0.25 + this.gear.hpRegen + this.talentStats.hpRegen;
   }
   get manaRegen(): number {
-    return 1.4 + this.level * 0.2 + this.gear.manaRegen + this.talents.rank('meditation') * TV.meditationMana;
+    return this.cls.manaRegen + this.level * 0.2 + this.gear.manaRegen + this.talentStats.manaRegen;
   }
 
   get damageRange(): [number, number] {
     const [a, b] = heroDamage(this.level);
-    const flat = this.bonus.damage + this.gear.damage + this.talents.rank('sharpshooter') * TV.sharpshooterDamage;
-    return [a + flat, b + flat];
+    const m = this.cls.damageMult;
+    const flat = this.bonus.damage + this.gear.damage + this.talentStats.damage;
+    return [Math.round(a * m) + flat, Math.round(b * m) + flat];
   }
 
   rollDamage(): number {
@@ -218,6 +248,54 @@ export class Hero extends Unit {
     return true;
   }
 
+  // --- Class moves and buffs ----------------------------------------------------------------
+
+  /** Start a move: `anim` (a cfx_* light, or '') over the hero for `seconds`, posing as `pose`. */
+  playMove(anim: string, seconds: number, pose: 'spin' | 'swing' | 'guard' = 'swing'): void {
+    this.move = { anim, t: seconds, pose, id: ++this.moveCount };
+  }
+
+  stopMove(): void {
+    this.move = null;
+  }
+
+  /** Blink: be somewhere else, right now. */
+  teleportTo(x: number, y: number): void {
+    this.x = x;
+    this.y = y;
+    this.path = [];
+    this.moving = false;
+  }
+
+  /** Arcane Shield: soak the next `amount` damage for `seconds`. */
+  shieldUp(amount: number, seconds: number): void {
+    this.absorbLeft = amount;
+    this.absorbT = seconds;
+  }
+
+  /** Defender: take `pct` less damage for `seconds`. */
+  defend(pct: number, seconds: number): void {
+    this.defendPct = pct;
+    this.defendT = seconds;
+  }
+
+  /** Damage the hero actually takes after Defender and the Arcane Shield (armour comes first). */
+  mitigate(amount: number): number {
+    if (this.defendT > 0) amount *= 1 - this.defendPct;
+    if (this.absorbT > 0 && this.absorbLeft > 0) {
+      const soaked = Math.min(this.absorbLeft, amount);
+      this.absorbLeft -= soaked;
+      amount -= soaked;
+      if (this.absorbLeft <= 0) this.absorbT = 0;
+    }
+    return amount;
+  }
+
+  /** The aura of a learned aura talent (Trueshot, Brilliance, Devotion), shown around the hero. */
+  get aura(): AuraName | null {
+    return this.talents.aura;
+  }
+
   // --- Abilities ----------------------------------------------------------------------------
 
   /** Returns an error message to show the player, or null if the order went through. */
@@ -229,13 +307,19 @@ export class Hero extends Unit {
       return null;
     }
     if (why) return why;
+    // Spells around the hero go off where the hero stands, whatever was tapped.
+    if (ab.targeting === 'self') {
+      x = this.x;
+      y = this.y;
+    }
     if (x === undefined || y === undefined) return 'Needs a target';
     this.issue({ type: 'cast', ability: ab, x, y }, queued);
     return null;
   }
 
-  dashTo(x: number, y: number, dur: number): void {
-    this.dash = { fx: this.x, fy: this.y, tx: x, ty: y, t: 0, dur };
+  /** Dash or leap to (x, y) over `dur` seconds, hopping `hop` px off the ground at the middle. */
+  dashTo(x: number, y: number, dur: number, hop = 5): void {
+    this.dash = { fx: this.x, fy: this.y, tx: x, ty: y, t: 0, dur, hop };
     this.angle = Math.atan2(y - this.y, x - this.x);
   }
 
@@ -252,10 +336,22 @@ export class Hero extends Unit {
     return this.empowered ? 0.05 : super.windupTime();
   }
 
+  /** During a move the hero holds its sword out (a swing), spins through every facing, or stands guard. */
+  protected syncSprite(dt: number): void {
+    const m = this.move;
+    if (m && m.pose === 'spin') this.angle += dt * 16;
+    super.syncSprite(dt);
+    if (m && m.pose !== 'guard') {
+      this.sprite.anims.stop();
+      this.sprite.setFrame(`${this.facing.facing}_${m.pose === 'spin' ? 'attack' : 'shoot'}`);
+    }
+  }
+
   /** A copy of everything that should carry over to the next map. */
   snapshot(): HeroState {
     const copy = <T>(v: T): T => JSON.parse(JSON.stringify(v));
     return {
+      cls: this.cls.id,
       level: this.level,
       xp: this.xp,
       skillPoints: this.skillPoints,
@@ -297,28 +393,29 @@ export class Hero extends Unit {
     this.mana = Math.min(this.maxMana, s.mana);
   }
 
+  /** The Ranger's Searing Arrows, if this hero has them. */
+  private get searing(): SearingArrows | null {
+    const a = this.abilities[0];
+    return a instanceof SearingArrows ? a : null;
+  }
+
   /** Mana per Searing arrow, after the Searing Mastery talent. */
   get searingCost(): number {
-    const searing = this.abilities[0] as SearingArrows;
-    return Math.max(0, searing.manaCost() - this.talents.rank('searingMastery') * TV.searingCost);
+    const searing = this.searing;
+    return searing ? Math.max(0, searing.manaCost() - this.talents.rank('searingMastery') * TV.searingCost) : 0;
   }
 
   /** Will the next attack be a Searing (magic) shot? */
   private get searingReady(): boolean {
-    const searing = this.abilities[0] as SearingArrows;
-    return searing.level > 0 && searing.autocast && this.mana >= this.searingCost;
-  }
-
-  /** The Trueshot Aura talent is learned (the game shows its aura around the hero). */
-  get hasTrueshotAura(): boolean {
-    return this.talents.rank('trueshotAura') > 0;
+    const searing = this.searing;
+    return !!searing && searing.level > 0 && searing.autocast && this.mana >= this.searingCost;
   }
 
   protected releaseAttack(target: Unit): void {
     let dmg = this.rollDamage();
     let fire = false;
-    const searing = this.abilities[0] as SearingArrows;
-    if (this.searingReady) {
+    const searing = this.searing;
+    if (searing && this.searingReady) {
       this.mana -= this.searingCost;
       dmg += searing.bonus() + this.talents.rank('searingMastery') * TV.searingDamage;
       fire = true;
@@ -327,11 +424,18 @@ export class Hero extends Unit {
       dmg = Math.round(dmg * this.empowered.mult);
       this.empowered = null;
     }
-    if (this.hasTrueshotAura) dmg = Math.round(dmg * (1 + TV.trueshotDamage));
-    // Deadeye: a chance to hit a weak spot for double damage (shown big, in gold).
-    const crit = this.talents.rank('deadeye') > 0 && Math.random() < TV.deadeyeChance;
+    const ts = this.talentStats;
+    // Auras (Trueshot, Brilliance, Devotion) add a share of damage.
+    if (ts.damagePct) dmg = Math.round(dmg * (1 + ts.damagePct));
+    // Deadeye / Critical Mass / Crushing Blow: a chance for double damage (shown big, in gold).
+    const crit = ts.crit > 0 && Math.random() < ts.crit;
     if (crit) dmg *= 2;
-    if (fire) this.world.fireMagicBolt(this, target, dmg, crit);
+    if (this.cls.attack === 'arcane') this.world.fireArcaneBolt(this, target, dmg, crit);
+    else if (this.cls.attack === 'melee') {
+      if (this.gap(target) > this.attackRange + 8) return;
+      this.world.damage(target, dmg, this, crit ? { color: '#ffd84a', big: true } : {});
+      this.world.hitSpark(target.x + (this.x - target.x) * 0.3, target.y - 6);
+    } else if (fire) this.world.fireMagicBolt(this, target, dmg, crit);
     else this.world.fireArrow(this, target, dmg, false, crit);
   }
 
@@ -420,8 +524,8 @@ export class Hero extends Unit {
       return;
     }
 
-    let tx = o.x;
-    let ty = o.y;
+    let tx = ab.targeting === 'self' ? this.x : o.x;
+    let ty = ab.targeting === 'self' ? this.y : o.y;
     const d = Math.hypot(tx - this.x, ty - this.y);
     const range = ab.castRange();
     if (d > range) {
@@ -436,7 +540,8 @@ export class Hero extends Unit {
     }
     this.path = [];
     this.moving = false;
-    const off = this.turnToward(Math.atan2(ty - this.y, tx - this.x), dt);
+    // Spells around the hero (Frost Nova, Whirlwind...) don't need facing anywhere.
+    const off = ab.targeting === 'self' ? 0 : this.turnToward(Math.atan2(ty - this.y, tx - this.x), dt);
     if (!this.castStarted) {
       if (off > Math.PI / 6) return;
       this.castStarted = true;
@@ -474,6 +579,13 @@ export class Hero extends Unit {
     this.mana = Math.min(this.maxMana, this.mana + this.manaRegen * dt);
     for (const a of this.abilities) a.tick(dt);
     this.potionCd = Math.max(0, this.potionCd - dt);
+    this.absorbT = Math.max(0, this.absorbT - dt);
+    if (this.absorbT <= 0) this.absorbLeft = 0;
+    this.defendT = Math.max(0, this.defendT - dt);
+    if (this.move) {
+      this.move.t -= dt;
+      if (this.move.t <= 0) this.stopMove();
+    }
     if (this.empowered) {
       this.empowered.t -= dt;
       if (this.empowered.t <= 0) this.empowered = null;
@@ -485,12 +597,12 @@ export class Hero extends Unit {
       const e = 1 - (1 - p) * (1 - p);
       this.x = k.fx + (k.tx - k.fx) * e;
       this.y = k.fy + (k.ty - k.fy) * e;
-      this.sprite.setY(Math.round(this.y + 3 - Math.sin(p * Math.PI) * 5));
-      if (Math.random() < 0.6) this.world.burst(this.x, this.y, 0x9be08a, 1);
+      if (Math.random() < 0.6 && this.cls.id === 'ranger') this.world.burst(this.x, this.y, 0x9be08a, 1);
+      const hop = k.hop;
       if (p >= 1) this.dash = null;
       this.moving = true;
       this.syncSprite(dt);
-      if (this.dash) this.sprite.setY(Math.round(this.y + 3 - Math.sin(p * Math.PI) * 5));
+      if (this.dash) this.sprite.setY(Math.round(this.y + 3 - Math.sin(p * Math.PI) * hop));
       return;
     }
     super.update(dt);
@@ -500,6 +612,9 @@ export class Hero extends Unit {
     if (this.channel) this.onOrderInterrupted();
     this.dash = null;
     this.empowered = null;
+    this.absorbT = 0;
+    this.defendT = 0;
+    this.stopMove();
     super.die();
     this.respawnT = 6 + this.level * 1.5;
   }

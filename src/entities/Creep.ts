@@ -71,6 +71,11 @@ export class Creep extends Unit {
     this.issue({ type: 'attack', target });
   }
 
+  taunt(target: Unit): void {
+    if (this.returning) return;
+    this.hunt(target);
+  }
+
   onDamaged(source: Unit | null): void {
     super.onDamaged(source);
     if (source && !this.returning) this.camp.aggro(source);

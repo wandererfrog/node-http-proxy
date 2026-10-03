@@ -33,6 +33,15 @@ export interface World {
   fireArrow(from: Unit, target: Unit, damage: number, fire: boolean, crit?: boolean): void;
   /** Searing Arrows: the homing fire arrow, with a burst of flame where it hits. */
   fireMagicBolt(from: Unit, target: Unit, damage: number, crit?: boolean): void;
+  /** The Mage's attack: a homing bolt of arcane light. */
+  fireArcaneBolt(from: Unit, target: Unit, damage: number, crit?: boolean): void;
+  /** Arcane Orb: a slow orb flying `range` px toward `angle`, hurting every enemy it passes once. */
+  fireOrb(from: Unit, angle: number, range: number, damage: number): void;
+  /**
+   * A one-shot class effect animation (`cfx_*`) at a point: additive light, `width` px wide (or
+   * `scale`), anchored at `originY`, optionally after `delay` ms.
+   */
+  spellFx(anim: string, x: number, y: number, opts?: { width?: number; scale?: number; originY?: number; delay?: number }): void;
   /** Straight skillshot arrow that hits the first enemy in its way. */
   fireVolleyArrow(from: Unit, angle: number, range: number, damage: number): void;
   enemiesInRadius(of: Unit, x: number, y: number, r: number): Unit[];
@@ -121,6 +130,11 @@ export class Unit {
   private flashT = 0;
   /** Idle units pick fights with enemies in acquisition range and retaliate when hit. */
   protected autoAcquire = true;
+  /** Seconds left stunned (frozen by Frost Nova, dazed by Shield Bash): no moving, no attacking. */
+  stunT = 0;
+  /** Seconds left slowed, and the speed multiplier while slowed. */
+  slowT = 0;
+  slowMult = 1;
 
   constructor(
     readonly world: World,
@@ -144,7 +158,29 @@ export class Unit {
   }
 
   get speed(): number {
-    return this.stats.speed;
+    return this.stats.speed * (this.slowT > 0 ? this.slowMult : 1);
+  }
+
+  /** Stun for `seconds` (the longer of this and any stun already on). Cancels a swing in progress. */
+  stun(seconds: number): void {
+    if (this.dead) return;
+    this.stunT = Math.max(this.stunT, seconds);
+    this.swing = null;
+    this.path = [];
+    this.moving = false;
+  }
+
+  /** Defender's taunt: drop everything and attack `target`. */
+  taunt(target: Unit): void {
+    if (this.dead) return;
+    this.engaged = null;
+    this.issue({ type: 'attack', target });
+  }
+
+  slow(mult: number, seconds: number): void {
+    if (this.dead) return;
+    this.slowMult = Math.min(this.slowT > 0 ? this.slowMult : 1, mult);
+    this.slowT = Math.max(this.slowT, seconds);
   }
 
   /** Seconds between attacks; heroes shorten it with gear. */
@@ -400,6 +436,13 @@ export class Unit {
   update(dt: number): void {
     if (this.dead) return;
     this.attackCd = Math.max(0, this.attackCd - dt);
+    this.slowT = Math.max(0, this.slowT - dt);
+    if (this.stunT > 0) {
+      this.stunT -= dt;
+      this.moving = false;
+      this.syncSprite(dt);
+      return;
+    }
     this.updateSwing(dt);
     if (!this.swing || this.swing.phase === 'backswing') this.runOrder(dt);
     // Moving out of a backswing cancels it (orb-walk feel).
@@ -548,16 +591,29 @@ export class Unit {
       const key = `${this.textureKey}_walk_${facing}`;
       if (sp.anims.currentAnim?.key !== key || !sp.anims.isPlaying) sp.play(key, true);
     } else {
-      sp.anims.stop();
-      sp.setFrame(`${facing}_idle`);
+      // Units with a breathing idle loop (the Mage, the Knight) play it; the rest hold a frame.
+      const idle = `${this.textureKey}_idle_${facing}`;
+      if (this.world.phaser.anims.exists(idle)) {
+        if (sp.anims.currentAnim?.key !== idle || !sp.anims.isPlaying) sp.play(idle, true);
+      } else {
+        sp.anims.stop();
+        sp.setFrame(`${facing}_idle`);
+      }
     }
     if (this.flashT > 0) {
       this.flashT -= dt;
       sp.setTintFill(0xffffff);
+    } else if (this.stunT > 0) {
+      sp.setTint(this.stunTint);
+    } else if (this.slowT > 0) {
+      sp.setTint(0xa8d8ff);
     } else {
       sp.clearTint();
     }
   }
+
+  /** Tint while stunned: icy blue when frozen, pale gold when dazed. */
+  stunTint = 0x8fd0ff;
 
   /** Lets subclasses force a pose (e.g. while channelling). */
   protected poseOverride: 'attack' | null = null;
@@ -571,7 +627,10 @@ export class Unit {
     this.order = { type: 'idle' };
     const scene = this.world.phaser;
     this.sprite.anims.stop();
-    this.sprite.setFrame(`${this.facing.facing}_death`).clearTint();
+    const fall = `${this.textureKey}_death_${this.facing.facing}`;
+    if (scene.anims.exists(fall)) this.sprite.play(fall);
+    else this.sprite.setFrame(`${this.facing.facing}_death`);
+    this.sprite.clearTint();
     this.sprite.setDepth(this.y - 8); // corpses lie under the living
     scene.tweens.add({
       targets: [this.sprite, this.shadow],
@@ -592,6 +651,8 @@ export class Unit {
     this.x = x;
     this.y = y;
     this.attackCd = 0;
+    this.stunT = 0;
+    this.slowT = 0;
     this.order = { type: 'idle' };
     this.engaged = null;
     this.world.phaser.tweens.killTweensOf([this.sprite, this.shadow]);

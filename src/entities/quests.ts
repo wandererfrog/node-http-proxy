@@ -29,7 +29,7 @@ export const NPCS: Record<NpcId, NpcDef> = {
     title: 'Merchant',
     sprite: 'npc_red',
     vendor: 'goods',
-    greeting: 'Potions, rings, cloaks, quivers: a bit of everything! Coin is coin, Ranger, and I pay fair for what you bring back from the wilds.',
+    greeting: 'Potions, rings, amulets, cloaks: a bit of everything! Coin is coin, Ranger, and I pay fair for what you bring back from the wilds.',
   },
   smith: {
     id: 'smith',
@@ -106,9 +106,9 @@ export const QUESTS: QuestDef[] = [
     requires: 'arrival',
     intro: true,
     offer:
-      "The boars have been raiding the fields, and boar tusk fetches a good price in the city. Hunt five of them for me. They hit hard up close, so shoot first and keep your distance.",
+      "The boars have been raiding the fields, and boar tusk fetches a good price in the city. Hunt five of them for me. They hit hard up close, so strike first and don't let them surround you.",
     progress: 'Five boars, Ranger. They roam the clearings around the village.',
-    complete: 'Fine tusks! A deal is a deal. And take this quiver: a ranger runs out of arrows faster than you would think.',
+    complete: 'Fine tusks! A deal is a deal. And take this: it came in with the last caravan, and it will serve you better than it serves my shelf.',
     objective: { kind: 'kill', creep: 'boar', count: 5, label: 'Boars slain' },
     reward: { xp: 150, gold: 40, gear: { tier: 1, slot: 'quiver' } },
   },
@@ -122,7 +122,7 @@ export const QUESTS: QuestDef[] = [
     offer:
       'The dead walk in the old ruins beyond the fields. Something stirs them from below. Put eight of them back to rest, then report to Warden Corin by the south gate.',
     progress: 'Eight of the restless dead, Ranger. Then go to Warden Corin.',
-    complete: "The Elder said you'd be good. I didn't think you'd be that good. Take this bow: it shoots straighter than anything my watchmen carry.",
+    complete: "The Elder said you'd be good. I didn't think you'd be that good. Take this: the finest weapon in our armoury, and better in your hands than on my wall.",
     objective: { kind: 'kill', creep: 'skeleton', count: 8, label: 'Skeletons put to rest' },
     reward: { xp: 300, gold: 60, gear: { tier: 1, slot: 'bow' } },
   },

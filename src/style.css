@@ -535,6 +535,81 @@ button { font: inherit; color: inherit; cursor: pointer; }
   .qt-status { font-size: 11px; }
 }
 
+/* --- class pick: three hero cards in the pixel WoW frame --- */
+.class-pick {
+  --wow-gold: #ffd100;
+  --pn-text: #f0e6d0;
+  --pn-dim: #a8987a;
+  position: fixed; inset: 0; z-index: 40; pointer-events: auto;
+  display: grid; place-items: center; overflow: auto;
+  padding: calc(8px + var(--safe-t)) calc(8px + var(--safe-r)) calc(8px + var(--safe-b)) calc(8px + var(--safe-l));
+  background: radial-gradient(ellipse at 50% 40%, #1d2a3a 0%, #0b0d14 70%);
+  font-family: 'Pixelify Sans', 'Press Start 2P', ui-monospace, monospace; color: var(--pn-text);
+  -webkit-font-smoothing: none;
+}
+.cp-panel {
+  position: relative; width: min(920px, 100%);
+  border: 12px solid transparent; border-image: var(--ui-panel) 12 / 12px stretch;
+  background: var(--ui-background) repeat; background-clip: padding-box;
+  padding: 4px 6px 8px; display: flex; flex-direction: column; align-items: stretch; gap: 6px;
+}
+.cp-title { text-align: center; font-size: 24px; font-weight: 700; color: var(--wow-gold); text-shadow: 2px 2px 0 #000; }
+.cp-sub { text-align: center; font-size: 14px; color: var(--pn-dim); text-shadow: 1px 1px 0 #000; margin-top: -4px; }
+.cp-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.cp-card {
+  display: flex; flex-direction: column; gap: 6px; text-align: left; padding: 6px 8px 8px;
+  font: inherit; color: inherit; background: rgba(0, 0, 0, 0.25);
+  border: 6px solid transparent; border-image: var(--ui-inset) 6 fill / 6px stretch;
+}
+.cp-card.on { border-image: var(--ui-buttonGold) 6 fill / 6px stretch; box-shadow: 0 0 14px rgba(255, 209, 0, 0.35); }
+@media (hover: hover) { .cp-card:hover { filter: brightness(1.12); } }
+.cp-head { display: flex; align-items: center; gap: 10px; }
+.cp-ring {
+  flex: none; width: 52px; height: 52px; border-radius: 50%; overflow: hidden; background: #20301f;
+  box-shadow: 0 0 0 2px #0b0906, 0 0 0 4px #c8963e, 0 0 0 6px #0b0906; margin: 4px;
+}
+.cp-ring img { width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; }
+.cp-name { font-size: 20px; font-weight: 700; color: var(--wow-gold); text-shadow: 2px 2px 0 #000; line-height: 1; }
+.cp-hero { margin-top: 3px; font-size: 13px; color: var(--pn-text); text-shadow: 1px 1px 0 #000; }
+.cp-blurb { font-size: 13px; line-height: 1.3; color: #e8dcc0; text-shadow: 1px 1px 0 #000; min-height: 3.9em; }
+.cp-bars { display: grid; gap: 3px; }
+.cp-bar { display: grid; grid-template-columns: 52px 1fr; align-items: center; gap: 6px; font-size: 12px; color: var(--pn-dim); text-shadow: 1px 1px 0 #000; }
+.cp-bar .track { height: 7px; background: #120e0a; box-shadow: 0 0 0 2px #0b0906; }
+.cp-bar .track i { display: block; height: 100%; }
+.cp-bar .hp i { background: #3fbf4a; box-shadow: inset 0 2px 0 #8fe08a; }
+.cp-bar .mp i { background: #3a6ad8; box-shadow: inset 0 2px 0 #8fb8ff; }
+.cp-bar .dmg i { background: #d8502a; box-shadow: inset 0 2px 0 #ff9a6a; }
+.cp-bar .rng i { background: #c8a030; box-shadow: inset 0 2px 0 #ffe08a; }
+.cp-kit { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 6px; }
+.cp-ab { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #fff; text-shadow: 1px 1px 0 #000; min-width: 0; }
+.cp-ab img { flex: none; width: 24px; height: 24px; image-rendering: pixelated; object-fit: contain; background: #0b0906; box-shadow: 0 0 0 1px #4a3418; }
+.cp-ab-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cp-go { margin-top: 2px; }
+/* Phones on their side: tighter cards, no blurb minimum. */
+@media (max-height: 420px) {
+  .cp-title { font-size: 18px; }
+  .cp-sub { display: none; }
+  .cp-panel { gap: 4px; padding-top: 0; }
+  .cp-card { gap: 4px; padding: 4px 6px 6px; }
+  .cp-ring { width: 36px; height: 36px; margin: 2px; }
+  .cp-name { font-size: 16px; }
+  .cp-hero { font-size: 11px; }
+  .cp-blurb { font-size: 11px; min-height: 0; }
+  .cp-bar { font-size: 10px; grid-template-columns: 44px 1fr; }
+  .cp-bar .track { height: 5px; }
+  .cp-ab { font-size: 10px; }
+  .cp-ab img { width: 18px; height: 18px; }
+  .cp-go { padding: 2px 0; font-size: 14px; }
+}
+/* Narrow portrait screens: the cards stack. */
+@media (max-width: 600px) {
+  .class-pick { place-items: start center; }
+  .cp-cards { grid-template-columns: 1fr; }
+  .cp-blurb { min-height: 0; }
+  /* The cards scroll; Begin stays on screen. */
+  .cp-go { position: sticky; bottom: 0; z-index: 2; box-shadow: 0 -6px 12px rgba(0, 0, 0, 0.6); }
+}
+
 /* --- messages --- */
 .toasts {
   position: fixed; top: calc(70px + var(--safe-t)); left: 50%; transform: translateX(-50%);

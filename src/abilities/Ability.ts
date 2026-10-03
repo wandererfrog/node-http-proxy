@@ -1,6 +1,7 @@
 import type { Hero } from '../entities/Hero';
 
-export type Targeting = 'point' | 'toggle';
+/** point: aim at the ground; toggle: switch on/off (autocast); self: cast at once, around the hero. */
+export type Targeting = 'point' | 'toggle' | 'self';
 
 export type Preview =
   | { shape: 'circle'; radius: number }

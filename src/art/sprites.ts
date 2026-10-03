@@ -35,8 +35,43 @@ export function registerRangerFxAnims(scene: Phaser.Scene): void {
   scene.anims.create({ key: 'fx_winddash', frames: fx(['winddash_0', 'winddash_1']), frameRate: 10, repeat: 0 });
 }
 
+/** Hero class atlases sliced from art-source/mage-sheet.png and knight-sheet.png: 6-frame loops. */
+export const CLASS_SHEETS = ['mage', 'knight'] as const;
+
+/**
+ * The Mage and the Knight: 6-frame walk and idle loops and a falling death for every facing, and
+ * their spell effects (atlas 'classfx', additive light). The Knight's moves are the light of his
+ * bash, spin, leap and taunt, drawn over his own sprite (each frame pinned at his feet).
+ */
+export function registerClassAnims(scene: Phaser.Scene): void {
+  const seq = (key: string, prefix: string, n: number) => Array.from({ length: n }, (_, i) => ({ key, frame: `${prefix}_${i}` }));
+  for (const key of CLASS_SHEETS) {
+    const tex = scene.textures.get(key);
+    const castFrames = tex.has('down_cast_5') ? 6 : 5;
+    for (const f of FACINGS) {
+      scene.anims.create({ key: `${key}_walk_${f}`, frames: seq(key, `${f}_walk`, 6), frameRate: 10, repeat: -1 });
+      scene.anims.create({ key: `${key}_idle_${f}`, frames: seq(key, `${f}_idle`, 6), frameRate: 6, repeat: -1 });
+      scene.anims.create({ key: `${key}_death_${f}`, frames: seq(key, `${f}_death`, 6), frameRate: 10, repeat: 0 });
+      scene.anims.create({ key: `${key}_cast_${f}`, frames: seq(key, `${f}_cast`, castFrames), frameRate: 14, repeat: 0 });
+    }
+  }
+  const fx = (name: string, n: number, frameRate: number, repeat = 0) =>
+    scene.anims.create({ key: `cfx_${name}`, frames: seq('classfx', name, n), frameRate, repeat });
+  fx('bolt', 6, 16, -1);
+  fx('orb', 4, 12, -1);
+  fx('nova', 5, 14);
+  fx('teleport', 5, 14);
+  fx('bash', 5, 14);
+  fx('whirl', 5, 14, -1);
+  // The leap's first two frames have the knight in the air; the game draws its own knight.
+  scene.anims.create({ key: 'cfx_leap', frames: [2, 3, 4, 5].map((i) => ({ key: 'classfx', frame: `leap_${i}` })), frameRate: 12, repeat: 0 });
+  fx('block', 6, 12);
+  fx('taunt', 6, 12);
+}
+
 export function registerUnitAnims(scene: Phaser.Scene): void {
   registerRangerFxAnims(scene);
+  registerClassAnims(scene);
   for (const key of UNIT_SHEETS) {
     for (const f of FACINGS) {
       scene.anims.create({
@@ -355,8 +390,8 @@ export function iconDataUrl(name: string, scale = 4): string {
 }
 
 /** Hero portrait for the HUD: head and shoulders cropped from the archer's idle frame. */
-export function portraitDataUrl(scene: Phaser.Scene, scale = 4): string {
-  const frame = scene.textures.getFrame('archer', 'down_idle');
+export function portraitDataUrl(scene: Phaser.Scene, scale = 4, texture = 'archer'): string {
+  const frame = scene.textures.getFrame(texture, 'down_idle');
   const [probe, pctx] = makeCanvas(frame.width, frame.height);
   pctx.drawImage(frame.source.image as HTMLImageElement, frame.cutX, frame.cutY, frame.width, frame.height, 0, 0, frame.width, frame.height);
   const data = pctx.getImageData(0, 0, frame.width, frame.height).data;

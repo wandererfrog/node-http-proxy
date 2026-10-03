@@ -413,8 +413,8 @@ def cut(rgb, m, box, scale, exclude=()):
     return px[on[0].min(): on[0].max() + 1, on[1].min(): on[1].max() + 1]
 
 
-def pack_atlas(images, name, width=1024):
-    """Shelf-pack images into one atlas PNG + Phaser JSON hash."""
+def pack_atlas(images, name, width=1024, pivots=None):
+    """Shelf-pack images into one atlas PNG + Phaser JSON hash (`pivots`: per-frame origin, 0-1)."""
     order = sorted(images, key=lambda k: -images[k].shape[0])
     x = y = shelf = 0
     pos = {}
@@ -434,6 +434,8 @@ def pack_atlas(images, name, width=1024):
             'frame': {'x': fx, 'y': fy, 'w': w, 'h': h}, 'rotated': False, 'trimmed': False,
             'spriteSourceSize': {'x': 0, 'y': 0, 'w': w, 'h': h}, 'sourceSize': {'w': w, 'h': h},
         }
+        if pivots and k in pivots:
+            frames[k]['pivot'] = pivots[k]
     Image.fromarray(sheet).save(os.path.join(OUT, f'{name}.png'))
     with open(os.path.join(OUT, f'{name}.json'), 'w') as f:
         json.dump({'frames': frames, 'meta': {'image': f'{name}.png', 'size': {'w': width, 'h': sheet.shape[0]}, 'scale': '1'}}, f, indent=1)
@@ -951,6 +953,221 @@ def slice_town():
     print('  world px:', ' '.join(f'{n}={w}x{h}' for n, (w, h) in sorted(sizes.items())))
 
 
+
+# --- Hero classes: the Mage and the Knight (art-source/mage-sheet.png, knight-sheet.png) ------------
+# Black background, 8 rows of directions (S, SW, W, NW, N, NE, E, SE) and four 6-frame groups (idle,
+# walk, cast/attack, death). The game draws five facings and mirrors the left half, so it takes the
+# S, SE, E, NE and N rows. Every frame of every group is kept (`<facing>_<group>_<i>`), plus the
+# classic single-frame names the engine uses (`<facing>_idle`, `_walk1`, `_walk2`, `_attack`,
+# `_shoot`, `_death`) as aliases onto those frames.
+CLASS_ROWS = [(44, 118), (123, 198), (201, 275), (278, 352), (354, 431), (431, 507), (508, 585), (586, 664)]
+CLASS_FACING_ROW = {'down': 0, 'downside': 7, 'side': 6, 'upside': 5, 'up': 4}
+CLASS_GROUPS = {'idle': (119, 486), 'walk': (521, 902), 'cast': (921, 1356), 'death': (1344, 1764)}
+CLASS_SHEETS = {
+    # The mage's cast group is five poses and then the bolt itself.
+    'mage': {'src': 'mage-sheet.png', 'scale': 1.42, 'alias': {'attack': ('cast', 1), 'shoot': ('cast', 3)},
+             'groups': {'cast': (928, 1244, 5)}},
+    'knight': {'src': 'knight-sheet.png', 'scale': 1.42, 'alias': {'attack': ('cast', 0), 'shoot': ('cast', 2)}},
+}
+CLASS_CELL = (80, 60)
+
+
+def class_frame(rgb, lum, y0, y1, cx, half):
+    """The character around column `cx`: bright pixels whose blob is centred near cx."""
+    x0, x1 = max(0, int(cx - half)), int(cx + half)
+    sub = lum[y0:y1, x0:x1] > 34
+    lab, n = ndimage.label(ndimage.binary_dilation(sub, iterations=1))
+    keep = np.zeros_like(sub)
+    for i, sl in enumerate(ndimage.find_objects(lab)):
+        if sl is None:
+            continue
+        comp = (lab[sl] == i + 1) & sub[sl]
+        ys, xs = np.nonzero(comp)
+        if len(xs) < 6:
+            continue
+        mx = xs.mean() + sl[1].start
+        if abs(mx - (cx - x0)) < half * 0.75:
+            keep[sl] |= comp
+    # Only what lines up with the figure itself: a neighbouring frame's staff or bolt can poke in.
+    lab, n = ndimage.label(keep)
+    if n > 1:
+        sizes = ndimage.sum(keep, lab, range(1, n + 1))
+        main = ndimage.find_objects(lab)[int(np.argmax(sizes))]
+        out = np.zeros_like(keep)
+        for i, sl in enumerate(ndimage.find_objects(lab)):
+            if sl is not None and sl[1].start <= main[1].stop + 3 and sl[1].stop >= main[1].start - 3:
+                out[sl] |= lab[sl] == i + 1
+        keep = out
+    keep = ndimage.binary_fill_holes(keep)
+    return to_pixel_art(rgb[y0:y1, x0:x1], keep.astype(np.float32), CLASS_SCALE[0])
+
+
+CLASS_SCALE = [1.42]
+
+
+def slice_classes():
+    cw, ch = CLASS_CELL
+    for name, spec in CLASS_SHEETS.items():
+        CLASS_SCALE[0] = spec['scale']
+        rgb = np.array(Image.open(os.path.join(ROOT, 'art-source', spec['src'])).convert('RGB')).astype(np.float32)
+        lum = rgb.max(axis=2)
+        images = {}
+        for facing, row in CLASS_FACING_ROW.items():
+            y0, y1 = CLASS_ROWS[row]
+            for group, (gx0, gx1) in CLASS_GROUPS.items():
+                gx0, gx1, count = spec.get('groups', {}).get(group, (gx0, gx1, 6))
+                step = (gx1 - gx0) / count
+                for i in range(count):
+                    cx = gx0 + step * (i + 0.5)
+                    # Re-centre on the figure's mass (death frames drift as the body falls).
+                    for _ in range(2):
+                        win = lum[y0:y1, int(cx - step * 0.45): int(cx + step * 0.45)] > 34
+                        cols = np.nonzero(win.sum(axis=0) > 2)[0]
+                        if len(cols):
+                            w = win.sum(axis=0)[cols]
+                            cx = int(cx - step * 0.45) + float((cols * w).sum() / w.sum())
+                    images[f'{facing}_{group}_{i}'] = class_frame(rgb, lum, y0, y1, cx, step * 0.62)
+        # Pack fixed cells, feet at the bottom centre, like the other unit atlases.
+        names = list(images)
+        cols = 12
+        rows = (len(names) + cols - 1) // cols
+        sheet = np.zeros((rows * ch, cols * cw, 4), np.uint8)
+        frames = {}
+        for k, fname in enumerate(names):
+            px = images[fname]
+            on = np.nonzero(px[..., 3])
+            if len(on[0]):
+                px = px[on[0].min(): on[0].max() + 1, on[1].min(): on[1].max() + 1]
+            h, w = px.shape[:2]
+            if w > cw or h > ch:
+                print(f'  !! {name} {fname} is {w}x{h}, larger than the {cw}x{ch} cell', file=sys.stderr)
+            ox = int(round(cw / 2 - anchor_x(px)))
+            oy = ch - min(h, ch) - 1
+            cx0, cy0 = (k % cols) * cw, (k // cols) * ch
+            for yy in range(min(h, ch - 1)):
+                for xx in range(w):
+                    tx = ox + xx
+                    if 0 <= tx < cw and px[yy, xx, 3]:
+                        sheet[cy0 + oy + yy, cx0 + tx] = px[yy, xx]
+            frames[fname] = {
+                'frame': {'x': cx0, 'y': cy0, 'w': cw, 'h': ch}, 'rotated': False, 'trimmed': False,
+                'spriteSourceSize': {'x': 0, 'y': 0, 'w': cw, 'h': ch}, 'sourceSize': {'w': cw, 'h': ch},
+            }
+        alias = {'idle': ('idle', 0), 'walk1': ('walk', 1), 'walk2': ('walk', 4), 'death': ('death', 5), **spec['alias']}
+        for facing in CLASS_FACING_ROW:
+            for pose, (group, i) in alias.items():
+                frames[f'{facing}_{pose}'] = frames[f'{facing}_{group}_{i}']
+        Image.fromarray(sheet).save(os.path.join(OUT, f'{name}.png'))
+        with open(os.path.join(OUT, f'{name}.json'), 'w') as f:
+            json.dump({'frames': frames, 'meta': {'image': f'{name}.png', 'size': {'w': sheet.shape[1], 'h': sheet.shape[0]}, 'scale': '1'}}, f, indent=1)
+        print(name, len(frames), 'frames')
+
+
+
+# Spell effects from the bottom rows of the class sheets (y 742-870), into the 'classfx' atlas.
+# All of it is light on black: alpha = brightness, colour unpremultiplied, drawn additively. The
+# knight's moves are drawn with the knight in them, so he is cut out (the game draws its own knight
+# under the light) and each frame is pinned at his feet.
+CLASS_FX = {
+    'mage': {
+        'bolt': [(15, 52), (58, 118), (118, 177), (177, 237), (237, 297), (297, 356)],
+        'nova': [(374, 409), (409, 465), (465, 541), (541, 634), (634, 739)],
+        'orb': [(762, 823), (835, 896), (906, 965), (973, 1032)],
+        'teleport': [(1055, 1100), (1107, 1169), (1177, 1243), (1249, 1314), (1324, 1382)],
+        'bubble': [(1664, 1760)],
+    },
+    'knight': {
+        'bash': [(9, 68), (68, 130), (130, 194), (194, 258), (258, 334)],
+        'whirl': [(337, 416), (416, 489), (489, 562), (562, 641), (641, 717)],
+        'leap': [(718, 778), (778, 840), (840, 900), (900, 950), (950, 1004), (1004, 1058)],
+        'block': [(1058, 1122), (1122, 1186), (1186, 1247), (1247, 1308), (1308, 1368), (1368, 1432)],
+        'taunt': [(1436, 1497), (1497, 1553), (1553, 1612), (1612, 1672), (1672, 1727), (1727, 1770)],
+    },
+}
+CLASS_FX_Y = (740, 872)
+CLASS_FX_SCALE = 1.0
+
+
+def knight_feet(rgb):
+    """(x, y) of the knight's feet in a move frame: the bottom of his body, centred on his legs."""
+    mx = rgb.max(axis=2)
+    sat = rgb.max(axis=2) - rgb.min(axis=2)
+    body = ndimage.binary_opening((mx > 32) & ~((sat > 90) & (mx > 150)), iterations=2)
+    lab, n = ndimage.label(body)
+    if not n:
+        return None
+    sizes = ndimage.sum(body, lab, range(1, n + 1))
+    if sizes.max() < 300:
+        return None
+    body = lab == int(np.argmax(sizes)) + 1
+    ys, xs = np.nonzero(body)
+    bottom = ys.max()
+    legs = xs[ys > bottom - (bottom - ys.min()) * 0.3]
+    return float(legs.mean()), float(bottom)
+
+
+def slice_class_fx():
+    images = {}
+    y0, y1 = CLASS_FX_Y
+    # Where the knight stands in each of his move frames (median per move: the frames share a floor).
+    knight_rgb = np.array(Image.open(os.path.join(ROOT, 'art-source', 'knight-sheet.png')).convert('RGB')).astype(np.float32)
+    stand = {}
+    for move, boxes in CLASS_FX['knight'].items():
+        feet = [knight_feet(knight_rgb[y0:y1, x0:x1]) for x0, x1 in boxes]
+        found = [f for f in feet if f is not None]
+        mx = float(np.median([f[0] for f in found]))
+        my = float(np.median([f[1] for f in found]))
+        stand[move] = [(f[0] if f is not None and abs(f[0] - mx) <= 6 else mx, my) for f in feet]
+    pivots = {}
+    for sheet, effects in CLASS_FX.items():
+        rgb = np.array(Image.open(os.path.join(ROOT, 'art-source', f'{sheet}-sheet.png')).convert('RGB')).astype(np.float32)
+        for name, boxes in effects.items():
+            for i, (x0, x1) in enumerate(boxes):
+                sub = rgb[y0:y1, x0:x1]
+                hh, ww = sub.shape[:2]
+                yy, xx = np.mgrid[0:hh, 0:ww]
+                w = np.ones((hh, ww), np.float32)
+                if name == 'bubble':
+                    # Just the bubble's rim: the mage inside is cut out.
+                    ys, xs = np.nonzero(sub.max(axis=2) > 40)
+                    cy, cx = (ys.min() + ys.max()) / 2, (xs.min() + xs.max()) / 2
+                    rad = (xs.max() - xs.min()) / 2
+                    d = np.hypot(yy - cy, xx - cx) / max(rad, 1)
+                    w = w * np.clip((d - 0.62) / 0.2, 0, 1)
+                if sheet == 'knight':
+                    # Only the light of the move: the knight himself (an ellipse around where he
+                    # stands) is cut out, since the game draws its own knight underneath.
+                    fx, fy = stand[name][i]
+                    d = np.hypot((xx - fx) / 15.0, (yy - (fy - 23)) / 25.0)
+                    # Near him (his sword, shield and cape swing out), keep only coloured light:
+                    # saturated blue (whirlwind, block) or gold (bash, leap, taunt).
+                    r, g, b = sub[..., 0], sub[..., 1], sub[..., 2]
+                    mx = sub.max(axis=2)
+                    blue = np.clip((b - np.maximum(r, g) * 0.75 - 25) / 45, 0, 1) * np.clip((mx - 90) / 60, 0, 1)
+                    gold = np.clip((r - b - 60) / 50, 0, 1) * np.clip((g - 100) / 60, 0, 1)
+                    key = np.maximum(blue, gold)
+                    near = np.clip((2.3 - d) / 0.4, 0, 1)
+                    w = w * np.clip((d - 0.95) / 0.25, 0, 1) * (near * key + (1 - near))
+                pre = sub * w[..., None]
+                # Light on black: alpha = brightness, colour unpremultiplied (drawn additively).
+                a = np.clip(pre.max(axis=2), 0, 255)
+                scale = 1.12 if sheet == 'knight' else CLASS_FX_SCALE
+                img = Image.fromarray(np.dstack([pre, a]).astype(np.uint8), 'RGBA')
+                img = img.resize((max(1, round(img.width / scale)), max(1, round(img.height / scale))), Image.BOX)
+                arr = unpremultiply(np.array(img).astype(np.float32))
+                on = np.nonzero(arr[..., 3])
+                top, left = 0, 0
+                if len(on[0]):
+                    top, left = on[0].min(), on[1].min()
+                    arr = arr[on[0].min(): on[0].max() + 1, on[1].min(): on[1].max() + 1]
+                images[f'{name}_{i}'] = arr
+                if sheet == 'knight':
+                    # Pinned at the knight's feet, so the light sits around the hero sprite.
+                    fx, fy = stand[name][i]
+                    pivots[f'{name}_{i}'] = {'x': round((fx / scale - left) / arr.shape[1], 3), 'y': round((fy / scale - top) / arr.shape[0], 3)}
+    pack_atlas(images, 'classfx', pivots=pivots)
+
+
 def main():
     rgb, mask = load()
     if '--only' in sys.argv:
@@ -966,6 +1183,8 @@ def main():
     slice_concept()
     slice_auras()
     slice_town()
+    slice_classes()
+    slice_class_fx()
 
 
 if __name__ == '__main__':
