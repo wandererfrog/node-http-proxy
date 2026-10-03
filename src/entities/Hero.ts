@@ -229,22 +229,6 @@ export class Hero extends Unit {
     return searing.level > 0 && searing.autocast && this.mana >= searing.manaCost();
   }
 
-  /** Sky-arrow cast pose while channelling Rain of Arrows: raise the bow, then hold, mirrored by facing. */
-  private channelFrame(): string | null {
-    if (!this.channel) return null;
-    const t = this.channel.t;
-    const i = t < 0.15 ? 5 : t < 0.3 ? 6 : t < 0.45 ? 7 : t < 0.6 ? 8 : 9;
-    return `skycast_${i}`;
-  }
-
-  protected syncSprite(dt: number): void {
-    // Searing shots use the archer's own draw/release frames (the magic sheet's hunter poses are a
-    // different scale and style, so swapping to them made the hero jump); the magic is in the bolt.
-    const chan = this.channelFrame();
-    this.frameOverride = chan ? { atlas: 'sky', frame: chan } : null;
-    super.syncSprite(dt);
-  }
-
   protected releaseAttack(target: Unit): void {
     let dmg = this.rollDamage();
     let fire = false;

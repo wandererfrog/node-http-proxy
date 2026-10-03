@@ -7,7 +7,18 @@ Unit art (archer, boars, skeletons) comes from `art-source/units-sheet.png`.
 `tools/slice_sheet.py` cuts it into pixel-art atlases in `src/assets/sprites/`.
 Units face 8 directions: five drawn views (front, front ¾, side, back ¾, back), with the left half mirrored.
 The atlases are sliced at 2x density and drawn at half size, so the detail survives on phone screens.
-The arrow comes from the older concept sheet, `art-source/sprite-sheet.png`.
+**One effects set for the hero:** every arrow, ability effect, marker and aura comes from the ranger concept sheet (`art-source/ranger-concept-sheet.png`, atlas `rangerfx`) and its aura sheet (`art-source/aura-sheet.png`, atlas `auras`). Both are scaled to the hero: the ranger in the concept panels is ~67px tall and the hero is 43px tall at 2x density, so effects are cut at 43/67 and keep the size they have next to the ranger in the concept art. The auras are cut at the sheet's own 32x32 per frame. Glows are rebuilt from the dark background as additive colour; arrows get real transparency. The concept sheet's ranger sprites aren't used for the hero (its 8 directions don't face the way they're labelled and walking/attacking is side-only), so the hero stays the units-sheet archer.
+
+| In game | From the concept / aura sheet |
+|---|---|
+| Auto-attack arrow, Volley arrows, Searing Arrows | Basic attack arrow, multi-shot arrow, fire elemental arrow |
+| Volley release | Multi-shot fan |
+| Rain of Arrows | AOE rune circle (sized to the hit radius), basic arrow falling, arrow rain impact; focus aura while channelling |
+| Tumble | Wind dash trail and wind aura |
+| Aim previews | Cone, line and AOE circle indicators (stretched to each ability's reach) |
+| Order markers | Target marker (move), debuff runes (attack), precision ring (search/cast) |
+| Hits, deaths | Damage impact, death dust |
+| Level up, skill learned, potions, moonwell | Level-up column + precision aura, buff pulse, heal / focus aura, nature aura |
 The world uses the elven tileset in `art-source/elven-sheet-2.png` (transparent, well spaced): trees, crystals, rune stones, ruins, the shrine, the moonwell, banners and village props. The script finds every sprite from the alpha channel, and `ELVEN_PROPS` names the boxes; it's sliced into the `elven` atlas.
 HUD icons, the chest and effects are drawn in code (`src/art/sprites.ts`).
 
@@ -104,10 +115,10 @@ Armour takes a flat amount off every hit (a hit always does at least 1). Attack 
 
 | Key | Ability | |
 |---|---|---|
-| Q | **Searing Arrows** | Autocast toggle. Attacks become magic shots: the hero draws with its normal attack pose and fires the animated bolt from `art-source/magic-shot-sheet.png` with its trail, and the hit plays the impact burst. +12/22/32 damage for 8 mana each. |
+| Q | **Searing Arrows** | Autocast toggle. Attacks become fire arrows (the concept sheet's fire infusion) that burst into flame on hit. +12/22/32 damage for 8 mana each. |
 | W | **Volley** | A cone of 5/7/9 arrows. Each one hits the first enemy in its path, so point-blank shots do huge burst damage. |
 | E | **Tumble** | A short dash that stops at obstacles. Your next attack within 4s fires instantly for 150/175/200% damage. |
-| R | **Rain of Arrows** (ultimate, hero level 4/8) | Mark an area with the leafy sigil ring (0.45s), then 6 waves of sky arrows: each wave drops one arrow onto every enemy inside the ring, and the damage lands with the arrow. The ring is drawn at hero scale (never stretched) and the hit radius (18px) is sized to it, so what you see is what gets hit. Art from `art-source/sky-arrow-sheet.png`. Any new order cancels it. |
+| R | **Rain of Arrows** (ultimate, hero level 4/8) | Mark an area with the rune circle (0.45s), then 6 waves of sky arrows: each wave drops one arrow onto every enemy inside the circle, and the damage lands with the arrow. The circle's rim is drawn exactly at the hit radius (18px), so what you see is what gets hit. The hero channels in the focus aura. Any new order cancels it. |
 
 Abilities level up WC3-style: a skill point per hero level, and basic abilities need hero level 1/3/5.
 

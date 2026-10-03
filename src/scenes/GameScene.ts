@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { buildAllTextures, frameDataUrl, portraitDataUrl } from '../art/sprites';
+import { AuraName, buildAllTextures, frameDataUrl, portraitDataUrl } from '../art/sprites';
 import { DENSITY, buildGround } from '../art/ground';
 import { ENV_ATLAS, PROPS } from '../world/props';
 import { ATLASES, IMAGES } from '../assets';
@@ -23,11 +23,12 @@ interface Chest {
 
 type Targeting = { kind: 'ability'; index: number } | { kind: 'attackMove' };
 
+type MarkerKind = 'move' | 'attack' | 'search';
+
 interface Marker {
-  x: number;
-  y: number;
+  img: Phaser.GameObjects.Image;
   t: number;
-  color: number;
+  scale: number;
 }
 
 interface TouchState {
@@ -42,8 +43,16 @@ const DEPTH_GROUND_FX = -100000;
 const DEPTH_OVERLAY = 1e7;
 /** px around the moonwell's healing circle */
 const MOONWELL_RADIUS = TILE * 2.2;
-/** The sky arrow's shaft sits right of centre in its frame (x 25-43 of 53px). */
-const ARROW_SHAFT_X = 34 / 53;
+/** Ranger effects and auras (2x-density art, drawn at half size like the hero). */
+const FX_ATLAS = 'rangerfx';
+const AURA_ATLAS = 'auras';
+const FX_SCALE = 0.5;
+/** The cone indicator is pre-rotated to point along +x with its apex at the left middle; edges at ±20°. */
+const CONE_HALF_SPREAD = (20 * Math.PI) / 180;
+/** The AOE circle's rim spans this fraction of its frame (the rest is the tick marks around it). */
+const AOE_RIM = 0.86;
+/** How long an order marker shows (s). */
+const MARKER_LIFE = 0.5;
 /** Drawn size of the healing circle glyph (px across). */
 const MOONWELL_GLYPH = TILE * 2.6;
 const MIN_ZOOM = 1.5;
@@ -70,6 +79,12 @@ export class GameScene extends Phaser.Scene implements World {
   private fxGfx!: Phaser.GameObjects.Graphics;
   private barGfx!: Phaser.GameObjects.Graphics;
   private aimGfx!: Phaser.GameObjects.Graphics;
+  /** Ability aim indicators from the ranger FX sheet (hidden when not aiming). */
+  private aimCone!: Phaser.GameObjects.Image;
+  private aimLine!: Phaser.GameObjects.Image;
+  private aimCircle!: Phaser.GameObjects.Image;
+  /** Nature aura under the hero while the moonwell heals. */
+  private wellAura!: Phaser.GameObjects.Sprite;
 
   private targeting: Targeting | null = null;
   /** Current aim point in world space while targeting (mouse hover, finger, or button-drag). */
@@ -102,6 +117,9 @@ export class GameScene extends Phaser.Scene implements World {
     this.dpr = (this.game.registry.get('dpr') as number) ?? 1;
     this.map = new WorldMap(96, 96, (Math.random() * 1e9) | 0);
     buildAllTextures(this);
+    // The ranger effects are painted glows, not hard pixel art: filter them smoothly so the ones that
+    // are stretched to an ability's size (the Volley cone, the rune circle) stay soft instead of blocky.
+    for (const key of [FX_ATLAS, AURA_ATLAS]) this.textures.get(key).setFilter(Phaser.Textures.FilterMode.LINEAR);
 
     const worldW = this.map.width * TILE;
     const worldH = this.map.height * TILE;
@@ -111,6 +129,13 @@ export class GameScene extends Phaser.Scene implements World {
     this.fxGfx = this.add.graphics().setDepth(DEPTH_GROUND_FX);
     this.barGfx = this.add.graphics().setDepth(DEPTH_OVERLAY);
     this.aimGfx = this.add.graphics().setDepth(DEPTH_OVERLAY - 1);
+    const aimImg = (frame: string, ox: number, oy: number) =>
+      this.add.image(0, 0, FX_ATLAS, frame).setOrigin(ox, oy).setBlendMode(Phaser.BlendModes.ADD).setDepth(DEPTH_GROUND_FX + 2).setVisible(false);
+    this.aimCone = aimImg('ground_cone', 0, 0.5);
+    this.aimLine = aimImg('ground_line', 0, 0.5);
+    this.aimCircle = aimImg('ground_aoe', 0.5, 0.5);
+    this.wellAura = this.add.sprite(0, 0, AURA_ATLAS, 'aura_nature_ground_0').setScale(FX_SCALE).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0).setDepth(DEPTH_GROUND_FX + 2);
+    this.wellAura.play('aura_nature');
 
     this.hero = new Hero(this, this.map.spawn.x * TILE, this.map.spawn.y * TILE);
     this.units.push(this.hero);
@@ -234,13 +259,13 @@ export class GameScene extends Phaser.Scene implements World {
     target.hp = 0;
     target.die();
     if (target instanceof Creep) {
-      this.burst(target.x, target.y - 6, 0xff4a3a, 6);
+      this.burst(target.x, target.y - 6, 0xff4a3a, 4);
+      this.fxOnce('ground_death_1', target.x, target.y + 2, { life: 0.9, scale: FX_SCALE * (target.stats.scale ?? 1), originY: 0.75, grow: 0.15 });
       if (!this.hero.dead) {
         this.floatText(this.hero.x, this.hero.y - 26, `+${target.xpValue} xp`, '#c28cff');
         if (this.hero.gainXp(target.xpValue)) {
           this.hud.toast(`Level ${this.hero.level}! New skill point`, 'good');
-          this.burst(this.hero.x, this.hero.y - 8, 0xffd84a, 14);
-          this.glyph('fx_burst', this.hero.x, this.hero.y - 12, 22, 1.2);
+          this.levelUpFx();
         }
       }
       this.hero.kills++;
@@ -364,29 +389,46 @@ export class GameScene extends Phaser.Scene implements World {
     return this.units.filter((u) => !u.dead && of.isEnemy(u) && Math.hypot(u.x - x, u.y - y) <= r + u.stats.radius);
   }
 
-  /** The magical ground mark: the leafy ring grows in, then holds with a slow pulse. */
+  /**
+   * Rain of Arrows: the rune circle from the concept sheet (the same "AOE circle" the aim showed),
+   * sized so its rim is exactly the area. It lands, then pulses while the hero channels in the focus aura.
+   */
   skyMark(x: number, y: number, radius: number, duration: number): void {
-    // Drawn at hero scale (the art is 2x density) and centred on the cast point; the ability's radius
-    // is sized to this art, so the ring is never stretched. Normal blend keeps it a clear outline.
-    void radius;
-    const mark = this.add.sprite(x, y, 'sky', 'skymark_0').setScale(0.5).setAlpha(0.9).setDepth(DEPTH_GROUND_FX + 1);
-    mark.play('sky_mark_in');
-    mark.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => mark.play('sky_mark_loop'));
-    this.tweens.add({ targets: mark, alpha: 0, delay: Math.max(0, duration * 1000 - 400), duration: 400, onComplete: () => mark.destroy() });
+    const mark = this.add.image(x, y, FX_ATLAS, 'ground_aoe').setBlendMode(Phaser.BlendModes.ADD).setDepth(DEPTH_GROUND_FX + 2).setAlpha(0);
+    const scale = (radius * 2) / (mark.width * AOE_RIM);
+    mark.setScale(scale * 1.5);
+    this.tweens.add({ targets: mark, scale, alpha: 1, duration: 380, ease: 'Quad.easeOut' });
+    this.tweens.add({ targets: mark, alpha: 0.7, delay: 400, duration: 450, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    this.time.delayedCall(Math.max(0, duration * 1000 - 350), () => {
+      this.tweens.killTweensOf(mark);
+      this.tweens.add({ targets: mark, alpha: 0, duration: 350, onComplete: () => mark.destroy() });
+    });
+    this.auraOnce('focus', this.hero, duration);
   }
 
-  /** One sky arrow falling onto (gx, gy); `onLand` fires when it hits and the burst plays. */
-  private skyArrow(gx: number, gy: number, delay: number, onLand?: () => void): void {
+  /** One arrow falling from the sky: the basic arrow turned to point down, landing in the rain impact. */
+  private skyArrow(gx: number, gy: number, delay: number, track?: Unit, onLand?: () => void): void {
     this.time.delayedCall(delay, () => {
-      const arrow = this.add.sprite(gx, gy - 90, 'sky', 'skyarrow_0').setOrigin(ARROW_SHAFT_X, 1).setScale(0.5).setAlpha(0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(gy + 2);
-      arrow.play('sky_arrow');
+      const start = { x: gx, y: gy };
+      const arrow = this.add.image(gx, gy - 90, FX_ATLAS, 'arrow_basic').setOrigin(1, 0.5).setRotation(Math.PI / 2).setScale(0.6, 0.5).setDepth(gy + 2);
+      const prog = { t: 0 };
       this.tweens.add({
-        targets: arrow, y: gy + 2, duration: 420, ease: 'Quad.easeIn',
+        targets: prog,
+        t: 1,
+        duration: 380,
+        ease: 'Quad.easeIn',
+        onUpdate: () => {
+          // Arrows aimed at an enemy land where the enemy is when they land (they track a little).
+          const tx = track && !track.dead ? track.x : start.x;
+          const ty = track && !track.dead ? track.y : start.y;
+          arrow.setPosition(tx, ty - 90 + 92 * prog.t).setDepth(ty + 2);
+        },
         onComplete: () => {
+          const hx = arrow.x;
+          const hy = arrow.y - 2;
           arrow.destroy();
-          const hit = this.add.sprite(gx, gy, 'sky', 'skyhit_0').setOrigin(0.5, 0.85).setScale(0.5).setAlpha(0.75).setBlendMode(Phaser.BlendModes.ADD).setDepth(gy + 1);
-          hit.play('sky_hit');
-          hit.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => hit.destroy());
+          const hit = this.add.image(hx, hy, FX_ATLAS, 'ground_rainhit').setOrigin(0.5, 0.8).setScale(FX_SCALE * 0.55).setBlendMode(Phaser.BlendModes.ADD).setDepth(hy + 1);
+          this.tweens.add({ targets: hit, alpha: 0, delay: 120, duration: 260, onComplete: () => hit.destroy() });
           onLand?.();
         },
       });
@@ -394,33 +436,7 @@ export class GameScene extends Phaser.Scene implements World {
   }
 
   skyVolley(x: number, y: number, radius: number, targets: Unit[], extra: number, onLand: (u: Unit) => void): void {
-    // Arrows aimed at enemies land where the enemy is when they land (they track a little).
-    for (const u of targets) {
-      const delay = Math.random() * 120;
-      this.time.delayedCall(delay, () => {
-        const start = { x: u.x, y: u.y };
-        const arrow = this.add.sprite(start.x, start.y - 90, 'sky', 'skyarrow_0').setOrigin(ARROW_SHAFT_X, 1).setScale(0.5).setAlpha(0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(start.y + 2);
-        arrow.play('sky_arrow');
-        const prog = { t: 0 };
-        this.tweens.add({
-          targets: prog, t: 1, duration: 420, ease: 'Quad.easeIn',
-          onUpdate: () => {
-            const tx = u.dead ? arrow.x : u.x;
-            const ty = u.dead ? start.y : u.y;
-            arrow.setPosition(tx, ty - 90 + 92 * prog.t).setDepth(ty + 2);
-          },
-          onComplete: () => {
-            const hx = arrow.x;
-            const hy = arrow.y - 2;
-            arrow.destroy();
-            const hit = this.add.sprite(hx, hy, 'sky', 'skyhit_0').setOrigin(0.5, 0.85).setScale(0.5).setAlpha(0.75).setBlendMode(Phaser.BlendModes.ADD).setDepth(hy + 1);
-            hit.play('sky_hit');
-            hit.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => hit.destroy());
-            onLand(u);
-          },
-        });
-      });
-    }
+    for (const u of targets) this.skyArrow(u.x, u.y, Math.random() * 120, u, () => onLand(u));
     for (let i = 0; i < extra; i++) {
       const a = Math.random() * Math.PI * 2;
       const r = Math.sqrt(Math.random()) * radius * 0.85;
@@ -428,26 +444,17 @@ export class GameScene extends Phaser.Scene implements World {
     }
   }
 
-  fallingArrows(x: number, y: number, radius: number, count: number): void {
-    for (let i = 0; i < count; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const r = Math.sqrt(Math.random()) * radius;
-      const gx = x + Math.cos(a) * r;
-      const gy = y + Math.sin(a) * r;
-      const img = this.add.image(gx - 10, gy - 70, 'arrow').setRotation(Math.atan2(70, 10)).setDepth(gy + 1);
-      this.tweens.add({
-        targets: img,
-        x: gx,
-        y: gy,
-        duration: 260,
-        ease: 'Quad.easeIn',
-        onComplete: () => {
-          this.tweens.add({ targets: img, alpha: 0, duration: 300, delay: 150, onComplete: () => img.destroy() });
-          if (Math.random() < 0.3) this.burst(gx, gy, 0xd8c8a0, 1);
-        },
-      });
-    }
+  volleyBurst(x: number, y: number, angle: number): void {
+    // The multi-shot fan points right in the art, with the bow end at its left edge.
+    const fan = this.add.image(x + Math.cos(angle) * 4, y - 7 + Math.sin(angle) * 4, FX_ATLAS, 'multishot_flight')
+      .setOrigin(0.05, 0.5)
+      .setRotation(angle)
+      .setScale(FX_SCALE)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(y + 8);
+    this.tweens.add({ targets: fan, alpha: 0, scaleX: FX_SCALE * 1.4, duration: 280, ease: 'Quad.easeOut', onComplete: () => fan.destroy() });
   }
+
 
   floatText(x: number, y: number, text: string, color: string, big = false): void {
     const t = this.add
@@ -635,7 +642,7 @@ export class GameScene extends Phaser.Scene implements World {
         const e = this.enemyAt(x, y);
         if (e) this.hero.issue({ type: 'attack', target: e }, queued);
         else this.hero.issue({ type: 'attackMove', x, y }, queued);
-        this.addMarker(x, y, 0xff4a3a);
+        this.addMarker(x, y, 'attack');
       } else {
         this.castAt(tg.index, x, y, queued);
       }
@@ -667,20 +674,20 @@ export class GameScene extends Phaser.Scene implements World {
     const rock = e ? null : this.rockAt(x, y);
     if (e) {
       this.hero.issue({ type: 'attack', target: e }, queued);
-      this.addMarker(e.x, e.y, 0xff4a3a);
+      this.addMarker(e.x, e.y, 'attack');
     } else if (rock) {
       this.hero.issue({ type: 'search', tx: rock.tx, ty: rock.ty }, queued);
-      this.addMarker((rock.tx + 0.5) * TILE, (rock.ty + 0.5) * TILE, 0xffd84a);
+      this.addMarker((rock.tx + 0.5) * TILE, (rock.ty + 0.5) * TILE, 'search');
     } else {
       this.hero.issue({ type: 'move', x, y }, queued);
-      this.addMarker(x, y, 0x7dff6a);
+      this.addMarker(x, y, 'move');
     }
   }
 
   private castAt(i: number, x: number, y: number, queued = false): void {
     const err = this.hero.useAbility(this.hero.abilities[i], x, y, queued);
     if (err) this.hud.toast(err, 'warn');
-    else this.addMarker(x, y, 0xffd84a);
+    else this.addMarker(x, y, 'search');
   }
 
   private setTargeting(t: Targeting | null): void {
@@ -753,22 +760,95 @@ export class GameScene extends Phaser.Scene implements World {
   }
 
   private drink(id: ItemId): void {
+    const before = this.hero.inventory.count(id);
     const err = this.hero.usePotion(id);
     if (err) this.hud.toast(err, 'warn');
+    else if (this.hero.inventory.count(id) < before) {
+      if (id === 'hp_potion') this.fxOnce('ground_heal', this.hero.x, this.hero.y + 2, { life: 0.9, originY: 0.7, follow: this.hero });
+      else this.auraOnce('focus', this.hero, 1.2);
+    }
   }
 
   private learn(i: number): void {
     const ab = this.hero.abilities[i];
     if (this.hero.learn(ab)) {
       this.hud.toast(`${ab.name} — level ${ab.level}`, 'good');
-      this.burst(this.hero.x, this.hero.y - 8, 0xffd84a, 8);
+      this.fxOnce('ground_buff', this.hero.x, this.hero.y + 1, { life: 0.8, scale: FX_SCALE * 0.6, grow: 0.7, follow: this.hero });
     } else if (this.hero.skillPoints === 0) this.hud.toast('No skill points', 'warn');
     else if (ab.level >= ab.maxLevel) this.hud.toast('Already at max level', 'warn');
     else this.hud.toast(`Requires hero level ${ab.requiredHeroLevel(ab.level + 1)}`, 'warn');
   }
 
-  private addMarker(x: number, y: number, color: number): void {
-    this.markers.push({ x, y, t: 0, color });
+  /** WC3-style order marker that shrinks and fades: blue target (move), red runes (attack), gold (search/cast). */
+  private addMarker(x: number, y: number, kind: MarkerKind): void {
+    const [atlas, frame, scale] =
+      kind === 'move' ? [FX_ATLAS, 'ground_target', 0.36] : kind === 'attack' ? [FX_ATLAS, 'ground_debuff', 0.42] : [AURA_ATLAS, 'aura_precision_ground_10', 0.4];
+    const img = this.add.image(x, y, atlas, frame).setScale(scale).setBlendMode(Phaser.BlendModes.ADD).setDepth(DEPTH_GROUND_FX + 3);
+    this.markers.push({ img, t: 0, scale });
+  }
+
+  private followers: Array<{ obj: Phaser.GameObjects.Image | Phaser.GameObjects.Sprite; unit: Unit; dy: number }> = [];
+
+  /**
+   * One-shot additive effect from the ranger FX atlas at (x, y): fades in fast, holds, fades out over
+   * `life` seconds. `grow` scales it up by that fraction over its life; `follow` keeps it on a unit.
+   */
+  private fxOnce(
+    frame: string,
+    x: number,
+    y: number,
+    o: { life?: number; scale?: number; originY?: number; grow?: number; follow?: Unit; depth?: number } = {},
+  ): Phaser.GameObjects.Image {
+    const life = o.life ?? 0.8;
+    const scale = o.scale ?? FX_SCALE;
+    const img = this.add
+      .image(x, y, FX_ATLAS, frame)
+      .setOrigin(0.5, o.originY ?? 0.5)
+      .setScale(scale)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(o.depth ?? DEPTH_GROUND_FX + 4)
+      .setAlpha(0);
+    this.tweens.add({ targets: img, alpha: 1, duration: 90 });
+    this.tweens.add({ targets: img, alpha: 0, delay: life * 550, duration: life * 450, onComplete: () => img.destroy() });
+    if (o.grow) this.tweens.add({ targets: img, scale: scale * (1 + o.grow), duration: life * 1000, ease: 'Quad.easeOut' });
+    if (o.follow) this.followers.push({ obj: img, unit: o.follow, dy: y - o.follow.y });
+    return img;
+  }
+
+  /** Play one of the looping auras under a unit for `seconds`. */
+  private auraOnce(name: AuraName, unit: Unit, seconds: number): void {
+    const spr = this.add.sprite(unit.x, unit.y + 1, AURA_ATLAS).setScale(FX_SCALE).setBlendMode(Phaser.BlendModes.ADD).setDepth(DEPTH_GROUND_FX + 3).setAlpha(0);
+    spr.play(`aura_${name}`);
+    this.tweens.add({ targets: spr, alpha: 1, duration: 150 });
+    this.tweens.add({ targets: spr, alpha: 0, delay: seconds * 1000 - 300, duration: 300, onComplete: () => spr.destroy() });
+    this.followers.push({ obj: spr, unit, dy: 1 });
+  }
+
+  /** Level up: the gold column of light around the hero, with the precision aura at its feet. */
+  private levelUpFx(): void {
+    const h = this.hero;
+    const col = this.fxOnce('levelup', h.x, h.y + 2, { life: 1.6, originY: 0.93, follow: h, depth: h.y + 1 });
+    // The column stands around the hero: draw it just behind them so the light frames the sprite.
+    col.setDepth(h.y - 1);
+    this.auraOnce('precision', h, 1.6);
+  }
+
+  hitSpark(x: number, y: number): void {
+    const s = this.add.sprite(x, y + 3, FX_ATLAS, 'ground_impact_0').setOrigin(0.5, 0.8).setScale(FX_SCALE * 0.45).setBlendMode(Phaser.BlendModes.ADD).setDepth(y + 6);
+    s.play('fx_impact');
+    this.tweens.add({ targets: s, alpha: 0, delay: 120, duration: 160, onComplete: () => s.destroy() });
+  }
+
+  dashTrail(fx: number, fy: number, tx: number, ty: number): void {
+    const d = Math.hypot(tx - fx, ty - fy);
+    if (d < 4) return;
+    // The trail frames point right with the burst at their right end: put that end at the landing spot.
+    const s = this.add.sprite(tx, ty - 6, FX_ATLAS, 'winddash_0').setOrigin(0.92, 0.5).setBlendMode(Phaser.BlendModes.ADD).setDepth(DEPTH_OVERLAY - 5);
+    s.setRotation(Math.atan2(ty - fy, tx - fx));
+    s.setScale(Math.min(FX_SCALE, (d + 12) / s.width), FX_SCALE * 0.8);
+    s.play('fx_winddash');
+    this.tweens.add({ targets: s, alpha: 0, delay: 200, duration: 250, onComplete: () => s.destroy() });
+    this.auraOnce('wind', this.hero, 0.6);
   }
 
   // --- Main loop ----------------------------------------------------------------------------
@@ -804,6 +884,8 @@ export class GameScene extends Phaser.Scene implements World {
       h.mana = Math.min(h.maxMana, h.mana + 25 * dt);
       if (Math.random() < dt * 6) this.burst(h.x + (Math.random() - 0.5) * 10, h.y - 4, 0x8fc8ff, 1);
     }
+    this.wellAura.setPosition(h.x, h.y + 1);
+    this.wellAura.setAlpha(this.wellAura.alpha + ((near ? 1 : 0) - this.wellAura.alpha) * Math.min(1, dt * 5));
     const target = near ? 0.45 : 0.2 + Math.sin(this.time.now / 600) * 0.06;
     this.wellGlow.setAlpha(this.wellGlow.alpha + (target - this.wellGlow.alpha) * Math.min(1, dt * 4));
   }
@@ -863,18 +945,16 @@ export class GameScene extends Phaser.Scene implements World {
   private drawMarkers(dt: number): void {
     const g = this.fxGfx;
     g.clear();
-    for (const m of this.markers) m.t += dt;
-    this.markers = this.markers.filter((m) => m.t < 0.5);
     for (const m of this.markers) {
-      const p = m.t / 0.5;
-      const r = 7 * (1 - p) + 2;
-      g.lineStyle(1.5, m.color, 1 - p);
-      g.strokeEllipse(m.x, m.y, r * 2, r * 1.2);
-      // Four little chevrons closing in, WC3 style.
-      const c = 10 * (1 - p) + 2;
-      g.fillStyle(m.color, 1 - p);
-      for (const [ox, oy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) g.fillRect(m.x + ox * c - 1, m.y + oy * c * 0.6 - 1, 2, 2);
+      m.t += dt;
+      const p = Math.min(1, m.t / MARKER_LIFE);
+      m.img.setScale(m.scale * (1 - 0.45 * p)).setAlpha(1 - p * p);
+      if (p >= 1) m.img.destroy();
     }
+    this.markers = this.markers.filter((m) => m.t < MARKER_LIFE);
+    // Effects that stay on a unit (heal, auras, level-up column).
+    this.followers = this.followers.filter((f) => f.obj.active);
+    for (const f of this.followers) f.obj.setPosition(f.unit.x, f.unit.y + f.dy);
     // Selection circle under the hero.
     if (!this.hero.dead) {
       g.lineStyle(1, 0x7dff6a, 0.9);
@@ -937,6 +1017,9 @@ export class GameScene extends Phaser.Scene implements World {
   private drawAim(): void {
     const g = this.aimGfx;
     g.clear();
+    this.aimCone.setVisible(false);
+    this.aimLine.setVisible(false);
+    this.aimCircle.setVisible(false);
     const t = this.targeting;
     const h = this.hero;
     if (!t || h.dead) return;
@@ -963,26 +1046,23 @@ export class GameScene extends Phaser.Scene implements World {
       ax = h.x + ((ax - h.x) / d) * range;
       ay = h.y + ((ay - h.y) / d) * range;
     }
-    const col = out && !ab.clampToRange ? 0xffd84a : 0x7dff6a;
+    // Out of range (and not clamped): the indicator dims until the aim comes back in.
+    const alpha = out && !ab.clampToRange ? 0.35 : 0.8;
     const pv = ab.preview;
-    g.fillStyle(col, 0.18);
-    g.lineStyle(1, col, 0.9);
     if (pv?.shape === 'circle') {
-      g.fillCircle(ax, ay, pv.radius);
-      g.strokeCircle(ax, ay, pv.radius);
+      // The rune circle, sized so its rim is exactly the area of effect.
+      const c = this.aimCircle;
+      c.setPosition(ax, ay).setScale((pv.radius * 2) / (c.width * AOE_RIM)).setAlpha(alpha).setVisible(true);
     } else if (pv?.shape === 'cone') {
-      const a = Math.atan2(ay - h.y, ax - h.x);
-      g.beginPath();
-      g.moveTo(h.x, h.y);
-      g.arc(h.x, h.y, pv.length, a - (pv.spread / 2), a + (pv.spread / 2));
-      g.closePath();
-      g.fillPath();
-      g.strokePath();
+      // The cone from the hero, stretched to the ability's reach and spread.
+      const c = this.aimCone;
+      const sx = pv.length / c.width;
+      const sy = sx * (Math.tan(pv.spread / 2) / Math.tan(CONE_HALF_SPREAD));
+      c.setPosition(h.x, h.y).setRotation(Math.atan2(ay - h.y, ax - h.x)).setScale(sx, sy).setAlpha(alpha).setVisible(true);
     } else if (pv?.shape === 'line') {
-      g.lineStyle(pv.width, col, 0.25);
-      g.lineBetween(h.x, h.y, ax, ay);
-      g.lineStyle(1, col, 0.9);
-      g.strokeCircle(ax, ay, 5);
+      const c = this.aimLine;
+      const d = Math.max(8, Math.hypot(ax - h.x, ay - h.y));
+      c.setPosition(h.x, h.y).setRotation(Math.atan2(ay - h.y, ax - h.x)).setScale(d / c.width, (pv.width * 1.4) / c.height).setAlpha(alpha).setVisible(true);
     }
   }
 }

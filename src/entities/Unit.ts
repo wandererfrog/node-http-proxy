@@ -29,15 +29,14 @@ export interface World {
   damage(target: Unit, amount: number, source: Unit | null, opts?: DamageOpts): void;
   /** Homing auto-attack arrow. */
   fireArrow(from: Unit, target: Unit, damage: number, fire: boolean): void;
-  /** Homing magic bolt (Searing Arrows): animated projectile with a trail and an impact burst. */
+  /** Searing Arrows: the homing fire arrow, with a burst of flame where it hits. */
   fireMagicBolt(from: Unit, target: Unit, damage: number): void;
   /** Straight skillshot arrow that hits the first enemy in its way. */
   fireVolleyArrow(from: Unit, angle: number, range: number, damage: number): void;
   enemiesInRadius(of: Unit, x: number, y: number, r: number): Unit[];
-  fallingArrows(x: number, y: number, radius: number, count: number): void;
   /** A glowing spell glyph on the ground (additive), sized to `radius` px, for `duration` seconds. */
   glyph(key: string, x: number, y: number, radius: number, duration: number): void;
-  /** Rain of Arrows: the ground mark for `duration` s. */
+  /** Rain of Arrows: the rune circle marking the area for `duration` s (the hero channels in the focus aura). */
   skyMark(x: number, y: number, radius: number, duration: number): void;
   /**
    * A wave of falling arrows: one onto each of `targets` (calling `onLand` as it hits), plus
@@ -46,6 +45,12 @@ export interface World {
   skyVolley(x: number, y: number, radius: number, targets: Unit[], extra: number, onLand: (u: Unit) => void): void;
   floatText(x: number, y: number, text: string, color: string, big?: boolean): void;
   burst(x: number, y: number, color: number, count?: number): void;
+  /** A small gold impact where an arrow hits. */
+  hitSpark(x: number, y: number): void;
+  /** Tumble: the wind-dash trail from (fx, fy) to (tx, ty), and a gust of wind aura at the start. */
+  dashTrail(fx: number, fy: number, tx: number, ty: number): void;
+  /** Volley: the multi-shot fan bursting from the hero toward `angle`. */
+  volleyBurst(x: number, y: number, angle: number): void;
   /** Break a searchable rock and hand out its loot. */
   searchRock(tx: number, ty: number): void;
 }
@@ -529,15 +534,7 @@ export class Unit {
     sp.setFlipX(flip);
     sp.setDepth(this.y);
     this.shadow.setPosition(Math.round(this.x), Math.round(this.y + 2)).setDepth(this.y - 1000);
-    if (this.frameOverride) {
-      sp.anims.stop();
-      sp.setTexture(this.frameOverride.atlas, this.frameOverride.frame);
-    } else if (sp.texture.key !== this.textureKey) {
-      sp.setTexture(this.textureKey, `${facing}_idle`);
-    }
-    if (this.frameOverride) {
-      // handled above
-    } else if (this.swing?.phase === 'backswing') {
+    if (this.swing?.phase === 'backswing') {
       sp.anims.stop();
       sp.setFrame(`${facing}_shoot`);
     } else if (this.attacking || this.poseOverride === 'attack') {
@@ -560,8 +557,6 @@ export class Unit {
 
   /** Lets subclasses force a pose (e.g. while channelling). */
   protected poseOverride: 'attack' | null = null;
-  /** A frame from another atlas to show instead of the unit's own (the hero's magic cast). */
-  protected frameOverride: { atlas: string; frame: string } | null = null;
 
   die(): void {
     this.dead = true;

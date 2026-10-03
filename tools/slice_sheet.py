@@ -16,7 +16,8 @@ Game frames are named `<facing>_<pose>`:
            the game mirrors them for the left half of the compass.
   poses:   idle, walk1, walk2, attack, shoot, death
 
-The arrow projectile is still cut from the older concept sheet, art-source/sprite-sheet.png.
+Hero effects, arrows and auras come from art-source/ranger-concept-sheet.png and art-source/aura-sheet.png
+(slice_concept, slice_auras): one effects set for the whole hero kit.
 
 Run:  python3 tools/slice_sheet.py [--contact OUT_DIR]   (needs pillow, numpy, scipy)
 """
@@ -30,7 +31,6 @@ from scipy import ndimage
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, 'art-source', 'units-sheet.png')
-ARROW_SRC = os.path.join(ROOT, 'art-source', 'sprite-sheet.png')
 OUT = os.path.join(ROOT, 'src', 'assets', 'sprites')
 
 # Sprites are sliced at 2x the world's pixel density and drawn at half size in game.
@@ -265,19 +265,6 @@ def contact(out_dir, rgb, mask):
             img.paste(Image.fromarray(crop, 'RGBA'), (c * W + 5, r * H + 16), Image.fromarray(crop, 'RGBA'))
             d.text((c * W + 3, r * H + 2), f'r{r} c{c}', fill=(255, 255, 0))
         img.save(os.path.join(out_dir, f'contact_{name}.png'))
-
-
-def arrow():
-    """The east-pointing arrow from the projectile panel of the older concept sheet."""
-    im = np.array(Image.open(ARROW_SRC).convert('RGB')).astype(np.float32)
-    ys, xs = slice(170, 196), slice(1452, 1505)
-    d = np.sqrt(((im[ys, xs] - np.array([30.0, 40.0, 39.0])) ** 2).sum(axis=2))
-    alpha = ((d > 34) & (im[ys, xs].mean(axis=2) > 30)).astype(np.float32)
-    px = to_pixel_art(im[ys, xs], alpha, 2.6)
-    on = np.nonzero(px[..., 3])
-    px = px[on[0].min(): on[0].max() + 1, on[1].min(): on[1].max() + 1]
-    Image.fromarray(px).save(os.path.join(OUT, 'arrow.png'))
-    print('arrow', px.shape[1], 'x', px.shape[0])
 
 
 # --- Elven environment sheet (dark background) -------------------------------------------------
@@ -627,134 +614,264 @@ def slice_items():
     pack_atlas(images, 'items', width=512)
 
 
-# --- Hunter magic shot sheet (cast animation + projectile + impact + trail) --------------------
-MAGIC_SRC = os.path.join(ROOT, 'art-source', 'magic-shot-sheet.png')
-# Hunter cast cells: 8 rows (facings in sheet order) x 4 frames. Cell grid measured from the sheet.
-# Game facings per sheet row, by what the art shows (the sheet's labels are off for several rows;
-# the game mirrors right-facing frames for the left side): rows 1,2 aim right-down, 3 right, 4 up-right.
-MAGIC_HUNTER_ROWS = ['down', 'downside', 'side', 'upside', 'up', 'alt_upside', 'alt_side', 'alt_downside']
-MAGIC_HUNTER_GRID = (96, 44, 92, 60, 72, 56)  # x0, y0, dx, dy, cell w, cell h
-# FX strips: 8 cells each, (x0, y0, dx, w, h)
-MAGIC_FX = {
-    'bolt': (474, 92, 104, 96, 80),
-    'impact': (474, 250, 104, 96, 90),
-    'trail': (474, 412, 104, 96, 90),
+# --- Ranger concept sheet (effects) and aura sheet ---------------------------------------------
+# art-source/ranger-concept-sheet.png is flat RGB on a dark navy panel; its effects are glows, so they
+# are rebuilt as premultiplied colour for additive blending. The ranger in those panels is ~67px tall
+# and the hero is 43px tall in our 2x atlases, so everything is scaled by 43/67: an effect keeps the
+# size it has next to the ranger in the concept art. This is the one effects set for the hero kit.
+CONCEPT_SRC = os.path.join(ROOT, 'art-source', 'ranger-concept-sheet.png')
+CONCEPT_SCALE = 43 / 67
+# name: (x0, y0, x1, y1, mode). 'glow' keeps every lit pixel; 'blue' drops the ranger baked into the
+# frame (greens and browns) and keeps the blue wind; 'gold' drops the ranger and keeps the gold light.
+# Projectiles: (x0, y0, x1, y1, mode, angle, scale) - 'arrow' is a real object (normal blend),
+# 'glowarrow' an emissive one (additive); angle is its flight angle on the sheet (degrees, y down) so it
+# comes out pointing along +x, and scale is its own where the concept draws it as an icon.
+CONCEPT_FX = {
+    # Basic attack arrow (also the falling arrow of Rain of Arrows, turned to point down)
+    'arrow_basic': (420, 280, 476, 296, 'arrow', 0, CONCEPT_SCALE),
+    # Multi shot: the lead arrow of the fan (Volley)
+    'arrow_volley': (289, 439, 334, 455, 'arrow', 0, CONCEPT_SCALE),
+    # Elemental infusion: the fire arrow (Searing Arrows), drawn as a big icon on the sheet; sized to
+    # about 1.3x the basic arrow so it reads as an empowered shot, not a spear
+    'arrow_fire': (598, 762, 690, 850, 'glowarrow', -42.9, 0.38),
+    # A1 multi shot
+    'multishot_flight': (235, 401, 334, 493, 'glow'),
+    'multishot_impact': (346, 399, 474, 492, 'glow'),
+    # A2 volley from the sky
+    'skyvolley_warning': (608, 412, 731, 511, 'glow'),
+    'skyvolley_arrows': (733, 389, 900, 514, 'glow'),
+    'skyvolley_impact': (905, 384, 1068, 516, 'glow'),
+    # A3 piercing shot (the green release and the first gold streak)
+    'piercing_shot': (1145, 420, 1348, 475, 'glow'),
+    # A4 trap
+    'trap_0': (100, 575, 214, 665, 'glow'),
+    'trap_1': (228, 571, 339, 663, 'glow'),
+    'trap_2': (353, 555, 501, 667, 'glow'),
+    # A5 wind dash: two trail frames
+    'winddash_0': (673, 586, 854, 658, 'blue'),
+    'winddash_1': (859, 577, 1060, 660, 'blue'),
+    # Passives
+    'buff_focus': (169, 757, 276, 864, 'glow'),
+    'buff_stealth': (306, 755, 410, 862, 'glow'),
+    'levelup': (1193, 716, 1343, 855, 'gold'),
+    # Ground effects (reusable)
+    'ground_target': (14, 926, 104, 1006, 'glow'),
+    'ground_cone': (121, 926, 219, 998, 'glow'),
+    'ground_line': (238, 930, 336, 1000, 'glow'),
+    'ground_aoe': (350, 925, 453, 1009, 'glow'),
+    'ground_trap': (468, 930, 565, 1004, 'glow'),
+    'ground_impact_0': (580, 929, 675, 1009, 'glow'),
+    'ground_impact_1': (681, 929, 784, 1010, 'glow'),
+    'ground_rainhit': (793, 925, 899, 1010, 'glow'),
+    'ground_poison': (911, 925, 1025, 1009, 'glow'),
+    'ground_heal': (1035, 931, 1121, 1004, 'glow'),
+    'ground_buff': (1130, 932, 1232, 1007, 'glow'),
+    'ground_debuff': (1242, 935, 1346, 1008, 'glow'),
+    'ground_death_0': (1359, 926, 1421, 996, 'glow'),
+    'ground_death_1': (1421, 925, 1515, 1008, 'glow'),
 }
-MAGIC_SCALE = 1.0  # hunter art is ~55px tall on the sheet; kept 1:1 so it matches the archer atlas (2x density)
-MAGIC_FX_SCALE = 2.0
 
 
-def slice_magic():
-    rgb = np.array(Image.open(MAGIC_SRC).convert('RGB')).astype(np.float32)
-    lum = rgb.mean(axis=2)
-    sat = rgb.max(axis=2) - rgb.min(axis=2)
-    sprite = (lum > 75) | (sat > 45)
-    holes = ndimage.binary_fill_holes(sprite) & ~sprite
-    lab, n = ndimage.label(holes)
-    if n:
-        sizes = ndimage.sum(holes, lab, range(1, n + 1))
-        sprite |= np.isin(lab, np.nonzero(sizes < 60)[0] + 1)
+def concept_glow(sub, mode):
+    """Premultiplied colour of the lit pixels in a crop, against the crop's own background."""
+    sub = sub.copy()
+    # Panel rules (thin horizontal lines across the crop): replace with the rows around them.
+    med = np.median(sub.mean(axis=2), axis=1)
+    for y in range(2, len(med) - 2):
+        if med[y] - max(med[y - 2], med[y + 2]) > 10:
+            sub[y] = (sub[y - 2] + sub[y + 2]) / 2
+    border = np.concatenate([sub[0], sub[-1], sub[:, 0], sub[:, -1]])
+    bg = np.median(border, axis=0)
+    col = np.clip(sub - bg - 6, 0, 255)
+    r, g, b = sub[..., 0], sub[..., 1], sub[..., 2]
+    lum = sub.mean(axis=2)
+    if mode == 'blue':
+        # The ranger is green/brown and not very bright; the wind is blue to white.
+        ranger = (np.maximum(r, g) > b + 12) & (lum < 200)
+        col[ranger] = 0
+    elif mode == 'gold':
+        # Gold light is bright with little blue; the ranger's cloak, skin and bow are darker or pinker.
+        keep = (lum > 150) & (r - b > 110) | (lum > 225)
+        h, w = lum.shape
+        yy, xx = np.mgrid[0:h, 0:w]
+        # The ranger stands in the middle of the column: only keep strong light there.
+        inner = (np.abs(xx - w * 0.5) < w * 0.2) & (yy > h * 0.3) & (yy < h * 0.93)
+        hole = inner & ~keep
+        col[hole] = 0
+        # Fill the hole with the surrounding light (normalised blur), so no ranger-shaped gap shows.
+        known = (~hole).astype(np.float32)
+        blur = np.stack([ndimage.gaussian_filter(col[..., c], 6) for c in range(3)], axis=-1)
+        wsum = ndimage.gaussian_filter(known, 6)[..., None]
+        col[hole] = (blur / np.maximum(wsum, 1e-3))[hole] * 0.85
+    return col
+
+
+
+def orient_indicator(col, kind):
+    """Rotate an aim indicator so it points along +x. Cone: apex at the left edge, centred vertically."""
+    lum = col.mean(axis=2)
+    ys, xs = np.nonzero(lum > 40)
+    if kind == 'cone':
+        i = np.argmin(xs - ys)  # the apex is the bottom-left corner of the drawn sector
+        ax, ay = float(xs[i]), float(ys[i])
+        d = np.hypot(xs - ax, ys - ay)
+        bright = (d > 0.3 * d.max()) & (lum[ys, xs] > 90)
+        a = np.degrees(np.arctan2(ys[bright] - ay, xs[bright] - ax))
+        angle = (np.percentile(a, 1) + np.percentile(a, 99)) / 2  # halfway between the two edges
+        centre = (ax, ay)
+    else:
+        pts = np.stack([xs, ys], 1).astype(float)
+        m = pts.mean(0)
+        vt = np.linalg.svd(pts - m)[2]
+        angle = np.degrees(np.arctan2(vt[0][1], vt[0][0]))
+        centre = (float(m[0]), float(m[1]))
+    h, w = lum.shape
+    pad = max(h, w)
+    big = np.zeros((h + 2 * pad, w + 2 * pad, 3), np.float32)
+    big[pad:pad + h, pad:pad + w] = col
+    cx, cy = centre[0] + pad, centre[1] + pad
+    rot = np.stack([np.array(Image.fromarray(big[..., c]).rotate(angle, resample=Image.BICUBIC, center=(cx, cy))) for c in range(3)], -1)
+    rot = np.clip(rot, 0, 255)
+    on = np.nonzero(rot.mean(axis=2) > 8)
+    t, b, l, r = on[0].min(), on[0].max() + 1, on[1].min(), on[1].max() + 1
+    if kind == 'cone':
+        l = int(cx) - 2
+        half = int(max(cy - t, b - cy)) + 1
+        t, b = int(cy) - half, int(cy) + half
+    return rot[t:b, l:r]
+
+
+def concept_object(sub, angle):
+    """
+    An arrow as a real object (straight alpha, normal blend): its wooden shaft is darker than the glow,
+    so it is separated from the navy background by colour distance and un-blended from it. Only the
+    big pieces are kept (dropping companion arrows nearby), then it is turned to point along +x.
+    """
+    border = np.concatenate([sub[0], sub[-1], sub[:, 0], sub[:, -1]])
+    bg = np.median(border, axis=0)
+    a = np.clip((np.abs(sub - bg).max(axis=2) - 10) / 45, 0, 1)
+    lab, n = ndimage.label(ndimage.binary_dilation(a > 0.3, iterations=2))
+    if n > 1:
+        sizes = ndimage.sum(a > 0.3, lab, range(1, n + 1))
+        big_parts = np.nonzero(sizes >= 0.3 * sizes.max())[0] + 1
+        a = a * ndimage.binary_dilation(np.isin(lab, big_parts), iterations=2)
+    pre = np.dstack([np.clip(sub - bg[None, None] * (1 - a[..., None]), 0, 255), a * 255])  # premultiplied
+    h, w = a.shape
+    pad = max(h, w)
+    big = np.zeros((h + 2 * pad, w + 2 * pad, 4), np.float32)
+    big[pad:pad + h, pad:pad + w] = pre
+    if angle:
+        big = np.stack([np.array(Image.fromarray(big[..., c]).rotate(angle, resample=Image.BICUBIC)) for c in range(4)], -1)
+    big = np.clip(big, 0, 255)
+    on = np.nonzero(big[..., 3] > 10)
+    return big[on[0].min(): on[0].max() + 1, on[1].min(): on[1].max() + 1]
+
+
+def glow_arrow(col, angle):
+    """A glowing projectile (additive): keep the main arrow, drop the small ones around it, point it along +x."""
+    lit = col.mean(axis=2) > 25
+    lab, n = ndimage.label(ndimage.binary_dilation(lit, iterations=2))
+    if n > 1:
+        sizes = ndimage.sum(lit, lab, range(1, n + 1))
+        col = col * ndimage.binary_dilation(lab == (np.argmax(sizes) + 1), iterations=4)[..., None]
+    h, w = lit.shape
+    pad = max(h, w)
+    big = np.zeros((h + 2 * pad, w + 2 * pad, 3), np.float32)
+    big[pad:pad + h, pad:pad + w] = col
+    big = np.clip(np.stack([np.array(Image.fromarray(big[..., c]).rotate(angle, resample=Image.BICUBIC)) for c in range(3)], -1), 0, 255)
+    on = np.nonzero(big.mean(axis=2) > 8)
+    return big[on[0].min(): on[0].max() + 1, on[1].min(): on[1].max() + 1]
+
+
+def unpremultiply(pre):
+    a = pre[..., 3:4] / 255
+    rgb = np.where(a > 0.02, pre[..., :3] / np.maximum(a, 0.02), 0)
+    out = np.dstack([np.clip(rgb, 0, 255), pre[..., 3]])
+    out[out[..., 3] < 12] = 0
+    return out.astype(np.uint8)
+
+
+def slice_concept():
+    rgb = np.array(Image.open(CONCEPT_SRC).convert('RGB')).astype(np.float32)
     images = {}
-    x0, y0, dx, dy, cw, ch = MAGIC_HUNTER_GRID
-    for r, facing in enumerate(MAGIC_HUNTER_ROWS):
-        for c in range(4):
-            bx0, by0 = x0 + c * dx, y0 + r * dy
-            box = (bx0, by0, bx0 + cw, by0 + ch)
-            sub = sprite[by0: by0 + ch, bx0: bx0 + cw]
-            px = to_pixel_art(rgb[by0: by0 + ch, bx0: bx0 + cw], sub.astype(np.float32), MAGIC_SCALE)
-            on = np.nonzero(px[..., 3])
-            images[f'cast_{facing}_{c}'] = px[on[0].min(): on[0].max() + 1, on[1].min(): on[1].max() + 1]
-    # FX frames: keep the glow, so no hole filling / fragment dropping; take every bright pixel in the cell
-    # and keep colour premultiplied by a soft alpha (brightness) for additive blending.
-    for name, (fx0, fy0, fdx, fw, fh) in MAGIC_FX.items():
-        for c in range(8):
-            bx0, by0 = fx0 + c * fdx, fy0
-            sub = rgb[by0: by0 + fh, bx0: bx0 + fw]
-            sl = sub.mean(axis=2)
-            ss = sub.max(axis=2) - sub.min(axis=2)
-            a = np.clip((np.maximum(sl - 50, 0) / 120) + (ss / 160), 0, 1)
-            a[a < 0.12] = 0
-            nw, nh = round(fw / MAGIC_FX_SCALE), round(fh / MAGIC_FX_SCALE)
-            pre = Image.fromarray(np.clip(sub * a[..., None], 0, 255).astype(np.uint8)).resize((nw, nh), Image.BOX)
-            arr = np.zeros((nh, nw, 4), np.uint8)
-            arr[..., :3] = np.array(pre)
-            arr[..., 3] = 255
-            images[f'{name}_{c}'] = arr
-    pack_atlas(images, 'magic', width=512)
+    for name, spec in CONCEPT_FX.items():
+        x0, y0, x1, y1, mode = spec[:5]
+        scale = CONCEPT_SCALE
+        if mode == 'arrow':
+            pre = concept_object(rgb[y0:y1, x0:x1], spec[5])
+            nw, nh = max(1, round(pre.shape[1] * spec[6])), max(1, round(pre.shape[0] * spec[6]))
+            small = np.stack([np.array(Image.fromarray(pre[..., c]).resize((nw, nh), Image.LANCZOS)) for c in range(4)], -1)
+            images[name] = unpremultiply(np.clip(small, 0, 255))
+            continue
+        if mode == 'glowarrow':
+            col = glow_arrow(concept_glow(rgb[y0:y1, x0:x1], 'glow'), spec[5])
+            scale = spec[6]
+        else:
+            col = concept_glow(rgb[y0:y1, x0:x1], mode)
+        if name in ('ground_cone', 'ground_line'):
+            col = orient_indicator(col, name.split('_')[1])
+        nw, nh = max(1, round(col.shape[1] * scale)), max(1, round(col.shape[0] * scale))
+        small = np.array(Image.fromarray(col.astype(np.uint8)).resize((nw, nh), Image.LANCZOS)).astype(np.float32)
+        small[small < 6] = 0
+        arr = np.zeros((nh, nw, 4), np.uint8)
+        arr[..., :3] = np.clip(small, 0, 255).astype(np.uint8)
+        arr[..., 3] = 255
+        images[name] = arr
+    pack_atlas(images, 'rangerfx', width=1024)
 
 
-# --- Hunter sky-arrow sheet (Rain of Arrows: cast, falling arrows, ground mark, impact, scatter) ---
-SKY_SRC = os.path.join(ROOT, 'art-source', 'sky-arrow-sheet.png')
-# Each strip: (y0, y1, x0, x1, frame count). Frames are evenly spaced across the strip; the sparse
-# effect frames break into fragments if segmented, so even columns are used instead.
-SKY_STRIPS = {
-    'skycast': (40, 150, 14, 1160, 10),
-    'skyarrow': (175, 345, 40, 1520, 14),
-    'skymark': (395, 515, 14, 1520, 10),
-    'skyhit': (535, 680, 14, 1520, 10),
-    'skyscatter': (720, 790, 14, 1520, 10),
+# art-source/aura-sheet.png: five looping auras, three rows each (ground, character only, combined),
+# 12 frames per row, with real alpha. The sheet says 32x32 per frame (at 1x); our atlases are 2x,
+# so a 96px cell becomes 64px. Only the ground and combined rows are kept.
+AURA_SRC = os.path.join(ROOT, 'art-source', 'aura-sheet.png')
+AURA_SCALE = 64 / 96
+AURA_COLUMNS = [285, 380, 476, 573, 674, 770, 867, 965, 1064, 1163, 1270, 1369]
+# aura: {row: (y0, y1)} bands that stop just above each row's frame numbers
+AURA_ROWS = {
+    'focus': {'ground': (0, 67), 'combined': (150, 215)},
+    'agility': {'ground': (228, 300), 'combined': (385, 445)},
+    'precision': {'ground': (460, 525), 'combined': (603, 664)},
+    'wind': {'ground': (679, 739), 'combined': (815, 869)},
+    'nature': {'ground': (883, 931)},
 }
-SKY_SCALE = 2.0
 
 
-def sky_mask(rgb):
-    """Everything that isn't the baked-in checkerboard (neutral greys)."""
-    sat = rgb.max(axis=2) - rgb.min(axis=2)
-    lum = rgb.mean(axis=2)
-    return (sat > 28) | (lum < 110)
-
-
-def slice_sky():
-    rgb = np.array(Image.open(SKY_SRC).convert('RGB')).astype(np.float32)
-    m = sky_mask(rgb)
+def slice_auras():
+    src = np.array(Image.open(AURA_SRC).convert('RGBA'))
+    # Horizontal rules between sections run on into the empty right margin: clear those rows.
+    full = (src[..., 3] > 30)[:, 1430:1520].mean(axis=1) > 0.5
+    src[full] = 0
     images = {}
-    for name, (y0, y1, x0, x1, n) in SKY_STRIPS.items():
-        w = (x1 - x0) / n
-        for i in range(n):
-            bx0, bx1 = int(x0 + i * w), int(x0 + (i + 1) * w)
-            sub = rgb[y0:y1, bx0:bx1]
-            sm = m[y0:y1, bx0:bx1]
-            if name == 'skycast':
-                # Solid sprite: clean outline, drop stray specks.
-                lab, k = ndimage.label(sm)
-                if k > 1:
-                    sizes = ndimage.sum(sm, lab, range(1, k + 1))
-                    sm = np.isin(lab, np.nonzero(sizes >= max(10, sizes.max() * 0.03))[0] + 1)
-                px = to_pixel_art(sub, sm.astype(np.float32), SKY_SCALE)
-            else:
-                # Glowing effect: soft alpha from brightness/saturation, premultiplied for additive blending.
-                sl = sub.mean(axis=2)
-                ss = sub.max(axis=2) - sub.min(axis=2)
-                a = np.clip(ss / 110 + np.maximum(sl - 175, 0) / 80, 0, 1)
-                a[~sm] = 0
-                # Real alpha (not just premultiplied colour on black) so the frames work with normal
-                # blending too: the ground mark is drawn normally, arrows and impacts additively.
-                nw, nh = round(sub.shape[1] / SKY_SCALE), round(sub.shape[0] / SKY_SCALE)
-                a_small = np.array(Image.fromarray((a * 255).astype(np.uint8)).resize((nw, nh), Image.BOX)).astype(np.float32) / 255
-                pre = np.array(Image.fromarray(np.clip(sub * a[..., None], 0, 255).astype(np.uint8)).resize((nw, nh), Image.BOX)).astype(np.float32)
-                col = np.clip(pre / np.maximum(a_small[..., None], 1e-3), 0, 255)
-                px = np.zeros((nh, nw, 4), np.uint8)
-                px[..., :3] = col.astype(np.uint8)
-                px[..., 3] = (a_small * 255).astype(np.uint8)
-            if name == 'skycast':
-                on = np.nonzero(px[..., 3])
-                px = px[on[0].min(): on[0].max() + 1, on[1].min(): on[1].max() + 1]
-            images[f'{name}_{i}'] = px
-    pack_atlas(images, 'sky', width=1024)
+    for aura, rows in AURA_ROWS.items():
+        for row, (y0, y1) in rows.items():
+            cells = [src[y0:y1, cx - 48: cx + 48] for cx in AURA_COLUMNS]
+            # One shared crop per row, so the loop doesn't wobble.
+            on = np.nonzero(np.max([c[..., 3] for c in cells], axis=0) > 8)
+            t, b, l, r = on[0].min(), on[0].max() + 1, on[1].min(), on[1].max() + 1
+            # keep the crop centred horizontally on the cell so the ring sits under the anchor
+            half = max(48 - l, r - 48)
+            l, r = 48 - half, 48 + half
+            for i, c in enumerate(cells):
+                c = c[t:b, l:r]
+                im = Image.fromarray(c).resize((round(c.shape[1] * AURA_SCALE), round(c.shape[0] * AURA_SCALE)), Image.LANCZOS)
+                images[f'aura_{aura}_{row}_{i}'] = np.array(im)
+    pack_atlas(images, 'auras', width=1024)
 
 
 def main():
     rgb, mask = load()
+    if '--only' in sys.argv:
+        globals()[f"slice_{sys.argv[sys.argv.index('--only') + 1]}"]()
+        return
     if '--contact' in sys.argv:
         contact(sys.argv[sys.argv.index('--contact') + 1], rgb, mask)
         return
     for name, spec in SHEETS.items():
         pack(name, spec, rgb, mask)
-    arrow()
     slice_elven()
     slice_items()
-    slice_magic()
-    slice_sky()
+    slice_concept()
+    slice_auras()
 
 
 if __name__ == '__main__':

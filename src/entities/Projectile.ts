@@ -27,21 +27,14 @@ export class Arrow {
     this.x = source.x + Math.cos(source.angle) * 4;
     this.y = source.y - CHEST;
     const scene = world.phaser;
-    if (mode.kind === 'bolt') {
-      // Animated magic bolt (2x density art drawn at half size) with a looping trail behind it.
-      const s = scene.add.sprite(this.x, this.y, 'magic', 'bolt_0').setOrigin(0.7, 0.5).setScale(0.5).setBlendMode(Phaser.BlendModes.ADD);
-      s.play('magic_bolt');
-      this.sprite = s;
-      this.trail = scene.add.sprite(this.x, this.y, 'magic', 'trail_0').setOrigin(0.5, 0.5).setScale(0.5).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.8);
-      this.trail.play('magic_trail');
-    } else {
-      const fire = mode.kind === 'homing' && mode.fire;
-      this.sprite = scene.add.image(this.x, this.y, fire ? 'arrow_fire' : 'arrow').setOrigin(0.8, 0.5);
-    }
+    // Arrows from the ranger concept sheet (2x density, drawn at half size like the hero): the basic
+    // arrow, the green multi-shot arrow for Volley, and the glowing fire arrow for Searing Arrows.
+    const fire = mode.kind === 'bolt' || (mode.kind === 'homing' && mode.fire);
+    const frame = fire ? 'arrow_fire' : mode.kind === 'linear' ? 'arrow_volley' : 'arrow_basic';
+    this.sprite = scene.add.image(this.x, this.y, 'rangerfx', frame).setOrigin(0.85, 0.5).setScale(0.5);
+    if (fire) this.sprite.setBlendMode(Phaser.BlendModes.ADD);
     this.total = mode.kind === 'linear' ? mode.range : Math.max(1, source.dist(mode.target));
   }
-
-  private trail: Phaser.GameObjects.Sprite | null = null;
 
   update(dt: number): void {
     if (this.done) return;
@@ -59,11 +52,13 @@ export class Arrow {
         this.finish();
         if (!m.target.dead) {
           if (m.kind === 'bolt') {
-            this.world.damage(m.target, this.damage, this.source, { color: '#9dffb0' });
-            this.impact(tx, ty);
+            this.world.damage(m.target, this.damage, this.source, { color: '#ff9a3a' });
+            this.world.burst(tx, ty, 0xff7a1f, 6);
+            this.world.hitSpark(tx, ty);
           } else {
             this.world.damage(m.target, this.damage, this.source, m.fire ? { color: '#ff9a3a' } : {});
             if (m.fire) this.world.burst(tx, ty, 0xff7a1f, 5);
+            this.world.hitSpark(tx, ty);
           }
         }
         return;
@@ -87,6 +82,7 @@ export class Arrow {
         if (u.dead || !this.source.isEnemy(u) || !u.targetable) continue;
         if (Math.hypot(u.x - this.x, u.y - feetY) <= u.stats.radius + 4) {
           this.world.damage(u, this.damage, this.source, { color: '#8fd3ff' });
+          this.world.hitSpark(u.x, u.y - 4);
           this.finish();
           return;
         }
@@ -104,27 +100,15 @@ export class Arrow {
     this.sprite.setPosition(this.x, this.y - lift);
     this.sprite.setRotation(angle + (Math.cos(angle) >= 0 ? -slope : slope));
     this.sprite.setDepth(this.y + CHEST + 1);
-    if (this.trail) {
-      this.trail.setPosition(this.x - Math.cos(angle) * 8, this.y - Math.sin(angle) * 8).setRotation(angle).setDepth(this.y + CHEST);
-    }
-  }
-
-  /** The impact burst from the magic sheet, played once where the bolt lands. */
-  private impact(x: number, y: number): void {
-    const fx = this.world.phaser.add.sprite(x, y, 'magic', 'impact_0').setOrigin(0.5, 0.5).setScale(0.6).setBlendMode(Phaser.BlendModes.ADD).setDepth(y + CHEST + 2);
-    fx.play('magic_impact');
-    fx.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => fx.destroy());
   }
 
   private finish(): void {
     this.done = true;
     this.sprite.destroy();
-    this.trail?.destroy();
   }
 
   private fade(): void {
     this.done = true;
-    const targets = this.trail ? [this.sprite, this.trail] : [this.sprite];
-    this.world.phaser.tweens.add({ targets, alpha: 0, duration: 150, onComplete: () => { this.sprite.destroy(); this.trail?.destroy(); } });
+    this.world.phaser.tweens.add({ targets: this.sprite, alpha: 0, duration: 150, onComplete: () => this.sprite.destroy() });
   }
 }

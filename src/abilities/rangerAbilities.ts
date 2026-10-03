@@ -67,6 +67,7 @@ export class Volley extends Ability {
   cast(hero: Hero, x: number, y: number): void {
     const base = Math.atan2(y - hero.y, x - hero.x);
     const n = this.arrows();
+    hero.world.volleyBurst(hero.x, hero.y, base);
     for (let i = 0; i < n; i++) {
       const a = base + (n === 1 ? 0 : -this.spread / 2 + (this.spread * i) / (n - 1));
       hero.world.fireVolleyArrow(hero, a, this.castRange(), this.arrowDamage());
@@ -115,6 +116,7 @@ export class Tumble extends Ability {
       if (!hasLineOfWalk(hero.world.map, from, to, r)) break;
       reach = d;
     }
+    hero.world.dashTrail(hero.x, hero.y, hero.x + (dx / len) * reach, hero.y + (dy / len) * reach);
     hero.dashTo(hero.x + (dx / len) * reach, hero.y + (dy / len) * reach, 0.22);
     hero.empower(this.empowerMult(), 4);
   }

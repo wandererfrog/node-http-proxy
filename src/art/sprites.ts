@@ -16,27 +16,27 @@ export type Pose = (typeof POSES)[number];
 /** Unit atlases sliced from art-source/units-sheet.png by tools/slice_sheet.py (2x density, drawn at half size). */
 export const UNIT_SHEETS = ['archer', 'boar', 'skeleton', 'boar_alpha'] as const;
 
-/** Magic-shot animations from art-source/magic-shot-sheet.png: the bolt, its trail and the impact. */
-export function registerMagicAnims(scene: Phaser.Scene): void {
-  const frames = (name: string, n: number) => Array.from({ length: n }, (_, i) => ({ key: 'magic', frame: `${name}_${i}` }));
-  scene.anims.create({ key: 'magic_bolt', frames: frames('bolt', 8), frameRate: 20, repeat: -1 });
-  scene.anims.create({ key: 'magic_trail', frames: frames('trail', 8), frameRate: 16, repeat: -1 });
-  scene.anims.create({ key: 'magic_impact', frames: frames('impact', 8), frameRate: 18, repeat: 0 });
-}
+/**
+ * Ranger effects from art-source/ranger-concept-sheet.png (atlas 'rangerfx') and the looping auras
+ * from art-source/aura-sheet.png (atlas 'auras'). Both are 2x density, drawn at half size like the hero.
+ */
+export const AURAS = ['focus', 'agility', 'precision', 'wind', 'nature'] as const;
+export type AuraName = (typeof AURAS)[number];
 
-/** Sky-arrow animations from art-source/sky-arrow-sheet.png (Rain of Arrows). */
-export function registerSkyAnims(scene: Phaser.Scene): void {
-  const frames = (name: string, n: number, from = 0) => Array.from({ length: n }, (_, i) => ({ key: 'sky', frame: `${name}_${from + i}` }));
-  scene.anims.create({ key: 'sky_arrow', frames: frames('skyarrow', 14), frameRate: 28, repeat: 0 });
-  scene.anims.create({ key: 'sky_mark_in', frames: frames('skymark', 10), frameRate: 20, repeat: 0 });
-  scene.anims.create({ key: 'sky_mark_loop', frames: frames('skymark', 2, 8), frameRate: 4, repeat: -1, yoyo: true });
-  scene.anims.create({ key: 'sky_hit', frames: frames('skyhit', 10), frameRate: 18, repeat: 0 });
-  scene.anims.create({ key: 'sky_scatter', frames: frames('skyscatter', 10), frameRate: 12, repeat: -1 });
+export function registerRangerFxAnims(scene: Phaser.Scene): void {
+  for (const a of AURAS) {
+    // The combined row has the ground ring plus the rising sparkles; nature only has its ground ring.
+    const row = a === 'nature' ? 'ground' : 'combined';
+    const frames = Array.from({ length: 12 }, (_, i) => ({ key: 'auras', frame: `aura_${a}_${row}_${i}` }));
+    scene.anims.create({ key: `aura_${a}`, frames, frameRate: 12, repeat: -1 });
+  }
+  const fx = (names: string[]) => names.map((frame) => ({ key: 'rangerfx', frame }));
+  scene.anims.create({ key: 'fx_impact', frames: fx(['ground_impact_0', 'ground_impact_1']), frameRate: 10, repeat: 0 });
+  scene.anims.create({ key: 'fx_winddash', frames: fx(['winddash_0', 'winddash_1']), frameRate: 10, repeat: 0 });
 }
 
 export function registerUnitAnims(scene: Phaser.Scene): void {
-  registerMagicAnims(scene);
-  registerSkyAnims(scene);
+  registerRangerFxAnims(scene);
   for (const key of UNIT_SHEETS) {
     for (const f of FACINGS) {
       scene.anims.create({
@@ -112,14 +112,9 @@ function buildProps(scene: Phaser.Scene): void {
   }
   scene.textures.addCanvas('shadow', sc);
 
-  const [fc, fctx] = makeCanvas(9, 3);
-  drawRows(fctx, ['yy....ooy', '.yaaaoooY', 'yy....ooy'], { y: '#ffd84a', a: '#ff9a3a', o: '#ff5a1f', Y: '#fff2a8' });
-  scene.textures.addCanvas('arrow_fire', fc);
-
   const [pc, pctx] = makeCanvas(3, 3);
   drawRows(pctx, ['.w.', 'www', '.w.'], { w: '#ffffff' });
   scene.textures.addCanvas('spark', pc);
-
 }
 
 // --- HUD icons -------------------------------------------------------------------------------
