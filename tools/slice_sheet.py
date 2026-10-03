@@ -727,11 +727,15 @@ def slice_sky():
                 ss = sub.max(axis=2) - sub.min(axis=2)
                 a = np.clip(ss / 110 + np.maximum(sl - 175, 0) / 80, 0, 1)
                 a[~sm] = 0
+                # Real alpha (not just premultiplied colour on black) so the frames work with normal
+                # blending too: the ground mark is drawn normally, arrows and impacts additively.
                 nw, nh = round(sub.shape[1] / SKY_SCALE), round(sub.shape[0] / SKY_SCALE)
-                pre = Image.fromarray(np.clip(sub * a[..., None], 0, 255).astype(np.uint8)).resize((nw, nh), Image.BOX)
+                a_small = np.array(Image.fromarray((a * 255).astype(np.uint8)).resize((nw, nh), Image.BOX)).astype(np.float32) / 255
+                pre = np.array(Image.fromarray(np.clip(sub * a[..., None], 0, 255).astype(np.uint8)).resize((nw, nh), Image.BOX)).astype(np.float32)
+                col = np.clip(pre / np.maximum(a_small[..., None], 1e-3), 0, 255)
                 px = np.zeros((nh, nw, 4), np.uint8)
-                px[..., :3] = np.array(pre)
-                px[..., 3] = 255
+                px[..., :3] = col.astype(np.uint8)
+                px[..., 3] = (a_small * 255).astype(np.uint8)
             if name == 'skycast':
                 on = np.nonzero(px[..., 3])
                 px = px[on[0].min(): on[0].max() + 1, on[1].min(): on[1].max() + 1]

@@ -37,9 +37,13 @@ export interface World {
   fallingArrows(x: number, y: number, radius: number, count: number): void;
   /** A glowing spell glyph on the ground (additive), sized to `radius` px, for `duration` seconds. */
   glyph(key: string, x: number, y: number, radius: number, duration: number): void;
-  /** Rain of Arrows visuals: the ground mark for `duration` s; a wave of falling arrows with impacts. */
+  /** Rain of Arrows: the ground mark for `duration` s. */
   skyMark(x: number, y: number, radius: number, duration: number): void;
-  skyWave(x: number, y: number, radius: number, count: number): void;
+  /**
+   * A wave of falling arrows: one onto each of `targets` (calling `onLand` as it hits), plus
+   * `extra` arrows onto random ground in the area.
+   */
+  skyVolley(x: number, y: number, radius: number, targets: Unit[], extra: number, onLand: (u: Unit) => void): void;
   floatText(x: number, y: number, text: string, color: string, big?: boolean): void;
   burst(x: number, y: number, color: number, count?: number): void;
   /** Break a searchable rock and hand out its loot. */

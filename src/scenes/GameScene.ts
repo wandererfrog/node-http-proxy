@@ -358,42 +358,67 @@ export class GameScene extends Phaser.Scene implements World {
     return this.units.filter((u) => !u.dead && of.isEnemy(u) && Math.hypot(u.x - x, u.y - y) <= r + u.stats.radius);
   }
 
-  /** The leafy targeting ring: grows in, then pulses, with scatter leaves drifting over it. */
+  /** The magical ground mark: the leafy ring grows in, then holds with a slow pulse. */
   skyMark(x: number, y: number, radius: number, duration: number): void {
-    const mark = this.add.sprite(x, y, 'sky', 'skymark_0').setBlendMode(Phaser.BlendModes.ADD).setDepth(DEPTH_GROUND_FX + 1);
-    mark.setScale((radius * 2.3) / mark.width);
+    // The ring art is ~76px wide with a little margin; normal blend so the mark reads as a clear
+    // outline on the grass rather than an additive wash.
+    const mark = this.add.sprite(x, y + 2, 'sky', 'skymark_0').setAlpha(0.85).setDepth(DEPTH_GROUND_FX + 1);
+    mark.setScale((radius * 2 * 1.08) / mark.width);
     mark.play('sky_mark_in');
     mark.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => mark.play('sky_mark_loop'));
-    const leaves = this.add.sprite(x, y - 6, 'sky', 'skyscatter_0').setBlendMode(Phaser.BlendModes.ADD).setDepth(DEPTH_GROUND_FX + 2).setAlpha(0.8);
-    leaves.setScale((radius * 2) / leaves.width);
-    leaves.play('sky_scatter');
-    this.tweens.add({
-      targets: [mark, leaves], alpha: 0, delay: Math.max(0, duration * 1000 - 400), duration: 400,
-      onComplete: () => { mark.destroy(); leaves.destroy(); },
+    this.tweens.add({ targets: mark, alpha: 0, delay: Math.max(0, duration * 1000 - 400), duration: 400, onComplete: () => mark.destroy() });
+  }
+
+  /** One sky arrow falling onto (gx, gy); `onLand` fires when it hits and the burst plays. */
+  private skyArrow(gx: number, gy: number, delay: number, onLand?: () => void): void {
+    this.time.delayedCall(delay, () => {
+      const arrow = this.add.sprite(gx, gy - 110, 'sky', 'skyarrow_0').setOrigin(0.5, 1).setScale(0.45).setAlpha(0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(gy + 2);
+      arrow.play('sky_arrow');
+      this.tweens.add({
+        targets: arrow, y: gy + 4, duration: 420, ease: 'Quad.easeIn',
+        onComplete: () => {
+          arrow.destroy();
+          const hit = this.add.sprite(gx, gy, 'sky', 'skyhit_0').setOrigin(0.5, 0.8).setScale(0.4).setAlpha(0.7).setBlendMode(Phaser.BlendModes.ADD).setDepth(gy + 1);
+          hit.play('sky_hit');
+          hit.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => hit.destroy());
+          onLand?.();
+        },
+      });
     });
   }
 
-  /** A volley of sky arrows falling into the area; each one bursts where it lands. */
-  skyWave(x: number, y: number, radius: number, count: number): void {
-    for (let i = 0; i < count; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const r = Math.sqrt(Math.random()) * radius;
-      const gx = x + Math.cos(a) * r;
-      const gy = y + Math.sin(a) * r;
-      const delay = Math.random() * 180;
+  skyVolley(x: number, y: number, radius: number, targets: Unit[], extra: number, onLand: (u: Unit) => void): void {
+    // Arrows aimed at enemies land where the enemy is when they land (they track a little).
+    for (const u of targets) {
+      const delay = Math.random() * 120;
       this.time.delayedCall(delay, () => {
-        const arrow = this.add.sprite(gx, gy - 90, 'sky', 'skyarrow_0').setOrigin(0.5, 1).setScale(0.45).setAlpha(0.85).setBlendMode(Phaser.BlendModes.ADD).setDepth(gy + 2);
+        const start = { x: u.x, y: u.y };
+        const arrow = this.add.sprite(start.x, start.y - 110, 'sky', 'skyarrow_0').setOrigin(0.5, 1).setScale(0.45).setAlpha(0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(start.y + 2);
         arrow.play('sky_arrow');
+        const prog = { t: 0 };
         this.tweens.add({
-          targets: arrow, y: gy + 4, duration: 240, ease: 'Quad.easeIn',
+          targets: prog, t: 1, duration: 420, ease: 'Quad.easeIn',
+          onUpdate: () => {
+            const tx = u.dead ? arrow.x : u.x;
+            const ty = u.dead ? start.y : u.y;
+            arrow.setPosition(tx, ty - 110 + 114 * prog.t).setDepth(ty + 2);
+          },
           onComplete: () => {
+            const hx = arrow.x;
+            const hy = arrow.y - 4;
             arrow.destroy();
-            const hit = this.add.sprite(gx, gy, 'sky', 'skyhit_0').setOrigin(0.5, 0.8).setScale(0.35).setAlpha(0.6).setBlendMode(Phaser.BlendModes.ADD).setDepth(gy + 1);
+            const hit = this.add.sprite(hx, hy, 'sky', 'skyhit_0').setOrigin(0.5, 0.8).setScale(0.4).setAlpha(0.7).setBlendMode(Phaser.BlendModes.ADD).setDepth(hy + 1);
             hit.play('sky_hit');
             hit.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => hit.destroy());
+            onLand(u);
           },
         });
       });
+    }
+    for (let i = 0; i < extra; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = Math.sqrt(Math.random()) * radius * 0.85;
+      this.skyArrow(x + Math.cos(a) * r, y + Math.sin(a) * r, Math.random() * 150);
     }
   }
 

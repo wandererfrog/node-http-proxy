@@ -149,23 +149,29 @@ export class RainOfArrows extends Ability {
   }
   describe(l: number): string {
     const L = Math.max(1, l);
-    return `Channel for 3s: 6 waves of arrows each deal ${this.waveDamage(L)} damage in an area. Moving cancels it.`;
+    return `Mark an area, then 6 waves of arrows fall on every enemy in it for ${this.waveDamage(L)} damage each. Channelled; moving cancels it.`;
   }
   cast(hero: Hero, x: number, y: number): Channel {
     let t = 0;
     let waves = 0;
     const dmg = this.waveDamage();
     const world = hero.world;
-    world.skyMark(x, y, this.radius, 3.2);
+    // The magical mark appears first (MARK_IN seconds), then the arrows start.
+    const MARK_IN = 0.45;
+    const WAVE_GAP = 0.45;
+    world.skyMark(x, y, this.radius, MARK_IN + 6 * WAVE_GAP + 0.4);
     return {
-      duration: 3,
+      duration: MARK_IN + 6 * WAVE_GAP,
       update: (dt) => {
         t += dt;
-        // Each wave: a volley of sky arrows lands and bursts, then the damage tick.
-        while (waves < 6 && t >= waves * 0.5 + 0.35) {
+        while (waves < 6 && t >= MARK_IN + waves * WAVE_GAP) {
           waves++;
-          world.skyWave(x, y, this.radius, 4 + Math.min(waves, 3));
-          for (const u of world.enemiesInRadius(hero, x, y, this.radius)) world.damage(u, dmg, hero, { color: '#9dffb0' });
+          // One arrow onto every enemy in the area; each hit lands with its arrow. A couple of
+          // extra arrows fall on open ground so an empty mark still shows the spell.
+          const targets = world.enemiesInRadius(hero, x, y, this.radius);
+          world.skyVolley(x, y, this.radius, targets, 2, (u) => {
+            if (!u.dead && Math.hypot(u.x - x, u.y - y) <= this.radius + u.stats.radius) world.damage(u, dmg, hero, { color: '#9dffb0' });
+          });
         }
       },
     };
