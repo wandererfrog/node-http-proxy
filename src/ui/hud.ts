@@ -2,7 +2,7 @@ import { iconDataUrl } from '../art/sprites';
 import { Hero, MAX_LEVEL, xpForLevel } from '../entities/Hero';
 import type { Unit } from '../entities/Unit';
 import { SearingArrows } from '../abilities/rangerAbilities';
-import { Tile, WorldMap } from '../world/map';
+import { TILE, Tile, WorldMap } from '../world/map';
 import { GearSlot, ITEMS, ItemId } from '../entities/items';
 import { CharacterPage, CharacterTab } from './characterPage';
 import type { TalentId } from '../entities/talents';
@@ -317,12 +317,17 @@ export class Hud {
       [Tile.Chest]: '#ffd84a',
       [Tile.Block]: '#5a5e68',
       [Tile.Paved]: '#a8a4b8',
+      [Tile.Wall]: '#141218',
+      [Tile.Floor]: '#6a6478',
     };
     for (let y = 0; y < this.map.height; y++)
       for (let x = 0; x < this.map.width; x++) {
         ctx.fillStyle = colors[this.map.get(x, y)];
         ctx.fillRect(x * 2, y * 2, 2, 2);
       }
+    // Doorways: dungeon gates and the way down, as bright purple dots.
+    ctx.fillStyle = '#d070ff';
+    for (const p of this.map.portals) ctx.fillRect(Math.floor(p.x / TILE) * 2 - 2, Math.floor(p.y / TILE) * 2 - 2, 5, 5);
     return c;
   }
 

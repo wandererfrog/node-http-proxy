@@ -7,12 +7,12 @@ import { Ability } from '../abilities/Ability';
 import { Camp, Creep } from '../entities/Creep';
 import { CREEP_GEAR_DROP, CREEP_POTION_DROP } from '../entities/balance';
 import { Gear, GearSlot, ITEMS, ItemId, TIERS, TOMES, TOME_IDS, rollGear } from '../entities/items';
-import { Hero } from '../entities/Hero';
+import { Hero, HeroState } from '../entities/Hero';
 import { TALENT_BY_ID } from '../entities/talents';
 import { Arrow } from '../entities/Projectile';
 import { DamageOpts, Unit, World } from '../entities/Unit';
 import { Command, Hud } from '../ui/hud';
-import { CampSpec, TILE, Tile, WorldMap } from '../world/map';
+import { CampSpec, DUNGEON_NAMES, Portal, TILE, Tile, WorldMap } from '../world/map';
 
 interface Chest {
   img: Phaser.GameObjects.Image;
@@ -23,6 +23,34 @@ interface Chest {
 }
 
 type Targeting = { kind: 'ability'; index: number } | { kind: 'attackMove' };
+
+/** Where the scene builds: the overworld, or a floor of one of its dungeons. */
+export type Destination =
+  | { kind: 'overworld'; /** arriving back from this entrance's dungeon */ entrance?: number }
+  | { kind: 'dungeon'; entrance: number; depth: number; level: number };
+
+/** What scene.restart passes when travelling between maps (or starting a new game). */
+export interface TravelData {
+  to?: Destination;
+  hero?: HeroState;
+  newGame?: boolean;
+}
+
+/** Lasts the whole run (kept in the game registry across map changes). */
+interface RunState {
+  worldSeed: number;
+  /** Chests opened and rocks searched, as `${mapId}:${key}`, so they stay looted when you come back. */
+  looted: Set<string>;
+}
+
+const OVERWORLD_SIZE = 96;
+const DUNGEON_W = 64;
+const DUNGEON_H = 56;
+/** Radius (world px) of the hero's own pool of light in a dungeon. */
+const HERO_LIGHT = 64;
+const DARKNESS = 0.88;
+/** World px per texel of the darkness canvas (it's soft anyway, so it can be coarse and cheap). */
+const DARK_RES = 2;
 
 type MarkerKind = 'move' | 'attack' | 'search';
 
@@ -116,10 +144,29 @@ export class GameScene extends Phaser.Scene implements World {
     for (const i of IMAGES) this.load.image(i.key, i.png);
   }
 
-  create(): void {
+  create(data: TravelData = {}): void {
+    this.resetState();
     this.dpr = (this.game.registry.get('dpr') as number) ?? 1;
-    this.map = new WorldMap(96, 96, (Math.random() * 1e9) | 0);
-    buildAllTextures(this);
+    let run = this.registry.get('run') as RunState | undefined;
+    if (!run || data.newGame) {
+      run = { worldSeed: (Math.random() * 1e9) | 0, looted: new Set() };
+      this.registry.set('run', run);
+    }
+    this.run = run;
+    const to: Destination = data.to ?? { kind: 'overworld' };
+    this.dest = to;
+    if (to.kind === 'dungeon') {
+      // Each entrance's floors are fixed by the world seed: the same dungeon every visit (creeps come back).
+      const seed = (run.worldSeed ^ Math.imul(to.entrance + 1, 0x9e3779b1) ^ Math.imul(to.depth, 0x85ebca6b)) >>> 0;
+      this.map = new WorldMap(DUNGEON_W, DUNGEON_H, seed, { kind: 'dungeon', depth: to.depth, level: to.level });
+      this.mapId = `d${to.entrance}-${to.depth}`;
+    } else {
+      this.map = new WorldMap(OVERWORLD_SIZE, OVERWORLD_SIZE, run.worldSeed);
+      this.mapId = 'world';
+    }
+    // Rocks already searched on this map stay gone.
+    for (const [anchor, p] of [...this.map.props]) if (PROPS[p.key].kind === 'rock' && run.looted.has(`${this.mapId}:r${anchor}`)) this.map.removeProp(anchor);
+    if (!this.textures.exists('chest')) buildAllTextures(this);
     // The ranger effects are painted glows, not hard pixel art: filter them smoothly so the ones that
     // are stretched to an ability's size (the Volley cone, the rune circle) stay soft instead of blocky.
     for (const key of [FX_ATLAS, AURA_ATLAS]) this.textures.get(key).setFilter(Phaser.Textures.FilterMode.LINEAR);
@@ -142,13 +189,26 @@ export class GameScene extends Phaser.Scene implements World {
     this.trueshotAura = this.add.sprite(0, 0, AURA_ATLAS, 'aura_precision_combined_0').setScale(FX_SCALE).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.8).setDepth(DEPTH_GROUND_FX + 2).setVisible(false);
     this.trueshotAura.play('aura_precision');
 
-    this.hero = new Hero(this, this.map.spawn.x * TILE, this.map.spawn.y * TILE);
+    // Arriving back from a dungeon: just outside its gate. Otherwise at the map's spawn.
+    const back = to.kind === 'overworld' && to.entrance !== undefined ? this.map.portals.find((p) => p.kind === 'enter' && p.entrance === to.entrance) : undefined;
+    const start = back ? { x: back.x, y: back.y + TILE * 2.2 } : { x: this.map.spawn.x * TILE, y: this.map.spawn.y * TILE };
+    this.hero = new Hero(this, start.x, start.y);
+    if (data.hero) this.hero.restore(data.hero);
     this.units.push(this.hero);
     for (const spec of this.map.camps) this.spawnCamp(spec);
+    for (const [key, chest] of this.chests) {
+      if (!run.looted.has(`${this.mapId}:${key}`)) continue;
+      chest.opened = true;
+      chest.img.setTexture('chest_open');
+      chest.glint.destroy();
+    }
+    this.buildPortals();
+    if (this.map.kind === 'dungeon') this.buildDarkness();
 
     const cam = this.cameras.main;
     cam.setBounds(0, 0, worldW, worldH);
-    cam.setBackgroundColor('#1f4a24');
+    cam.setBackgroundColor(this.map.kind === 'dungeon' ? '#0a090d' : '#1f4a24');
+    cam.fadeIn(350, 0, 0, 0);
     cam.setRoundPixels(true);
     this.userZoom = Phaser.Math.Clamp(Math.min(window.innerWidth, window.innerHeight) / 165, 2.3, 4.6);
     this.applyZoom();
@@ -193,8 +253,8 @@ export class GameScene extends Phaser.Scene implements World {
         this.hud.toast('Talents reset: points refunded', 'info');
       },
       newGame: () => {
-        this.scene.restart();
         document.querySelectorAll('#ui .hud').forEach((e) => e.remove());
+        this.scene.restart({ newGame: true } satisfies TravelData);
       },
     });
 
@@ -210,8 +270,184 @@ export class GameScene extends Phaser.Scene implements World {
     }
 
     this.setupInput();
-    this.scale.on('resize', () => this.applyZoom());
-    this.hud.toast('Tap to move · tap enemies to attack · tap rocks to search them for potions', 'info');
+    const onResize = () => this.applyZoom();
+    this.scale.on('resize', onResize);
+    // The scene object is reused by restart: drop the global listener with the old map.
+    this.events.once('shutdown', () => this.scale.off('resize', onResize));
+    if (to.kind === 'dungeon') {
+      this.hud.toast(`${DUNGEON_NAMES[to.entrance % DUNGEON_NAMES.length]} — floor ${to.depth} (creep level ${to.level})`, 'good');
+      if (to.depth === 1) this.hud.toast('The gate behind you leads back out. Find the rune portal to go deeper.', 'info');
+    } else if (back) this.hud.toast('Back in the open air', 'info');
+    else this.hud.toast('Tap to move · tap enemies to attack · tap rocks to search them for potions', 'info');
+  }
+
+  // --- Maps and travel ----------------------------------------------------------------------
+
+  private run!: RunState;
+  private dest: Destination = { kind: 'overworld' };
+  /** Key for this map in the run's looted set. */
+  private mapId = 'world';
+  private travelling = false;
+  /** A portal only fires once you've stood off every doorway (no bouncing straight back). */
+  private portalArmed = false;
+  private darkness: Phaser.GameObjects.Image | null = null;
+  private darkTex: Phaser.Textures.CanvasTexture | null = null;
+  private lightGlows: Array<{ img: Phaser.GameObjects.Image; radius: number; phase: number; flicker: boolean }> = [];
+
+  /** The scene object survives restart: clear everything the last map left behind. */
+  private resetState(): void {
+    this.units = [];
+    this.camps = [];
+    this.rocks = new Map();
+    this.props = [];
+    this.wellGlow = null;
+    this.lastCull = { x: Infinity, y: Infinity, zoom: 0 };
+    this.chests = new Map();
+    this.levelTags = new Map();
+    this.arrows = [];
+    this.markers = [];
+    this.followers = [];
+    this.targeting = null;
+    this.aim = null;
+    this.buttonAim = null;
+    this.cameraLocked = true;
+    this.touches = new Map();
+    this.pinch = null;
+    this.gestureUsed = false;
+    this.travelling = false;
+    this.portalArmed = false;
+    this.darkness = null;
+    this.darkTex = null;
+    this.lightGlows = [];
+  }
+
+  /** Doorway effects: a swirling wind aura in gate openings, a pulsing rune circle for the way down. */
+  private buildPortals(): void {
+    for (const p of this.map.portals) {
+      if (p.kind === 'down') {
+        const ring = this.add.image(p.x, p.y, FX_ATLAS, 'ground_aoe').setBlendMode(Phaser.BlendModes.ADD).setDepth(DEPTH_GROUND_FX + 2).setTint(0xc89aff);
+        ring.setScale((TILE * 2.6) / ring.width);
+        this.tweens.add({ targets: ring, alpha: 0.55, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+        this.tweens.add({ targets: ring, angle: 360, duration: 12000, repeat: -1 });
+        const swirl = this.add.sprite(p.x, p.y, AURA_ATLAS).setScale(FX_SCALE).setBlendMode(Phaser.BlendModes.ADD).setDepth(DEPTH_GROUND_FX + 3);
+        swirl.play('aura_focus');
+        if (this.map.kind === 'dungeon') this.map.lights.push({ x: p.x, y: p.y, color: 0xb08aff, radius: 50 });
+        continue;
+      }
+      // Gate doorway: dark void with a swirl in it.
+      const swirl = this.add.sprite(p.x, p.y - 2, AURA_ATLAS).setScale(FX_SCALE * 0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(p.y + 1).setAlpha(0.9);
+      swirl.play('aura_wind');
+      if (p.kind === 'enter') {
+        const name = DUNGEON_NAMES[(p.entrance ?? 0) % DUNGEON_NAMES.length];
+        this.add
+          .text(p.x, p.y - TILE * 3.6, `${name}\nlevel ${p.level}`, { fontFamily: 'Pixelify Sans, monospace', fontSize: '16px', color: '#ffd84a', align: 'center', stroke: '#000', strokeThickness: 4 })
+          .setOrigin(0.5, 1)
+          .setScale(0.32)
+          .setResolution(3)
+          .setDepth(DEPTH_OVERLAY - 4);
+      }
+    }
+  }
+
+  /**
+   * Dungeon darkness: a small canvas over the camera view (half world resolution, smoothed when
+   * scaled up), filled dark each frame with soft holes cut around the hero, torches, crystals and
+   * the portal. Coloured additive glows tint the lit pools.
+   */
+  private buildDarkness(): void {
+    if (!this.textures.exists('light_brush')) {
+      const c = document.createElement('canvas');
+      c.width = c.height = 128;
+      const g = c.getContext('2d')!;
+      const grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+      grad.addColorStop(0, 'rgba(255,255,255,1)');
+      grad.addColorStop(0.45, 'rgba(255,255,255,0.6)');
+      grad.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = grad;
+      g.fillRect(0, 0, 128, 128);
+      this.textures.addCanvas('light_brush', c);
+    }
+    const tex = this.textures.exists('darkness')
+      ? (this.textures.get('darkness') as Phaser.Textures.CanvasTexture)
+      : this.textures.createCanvas('darkness', 64, 64)!;
+    tex.setFilter(Phaser.Textures.FilterMode.LINEAR);
+    this.darkTex = tex;
+    this.darkness = this.add.image(0, 0, 'darkness').setOrigin(0, 0).setScale(DARK_RES).setDepth(DEPTH_OVERLAY - 20);
+    for (const l of this.map.lights) {
+      const img = this.add.image(l.x, l.y, 'light_brush').setTint(l.color).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.3).setDepth(DEPTH_OVERLAY - 21);
+      img.setScale((l.radius * 2) / 128);
+      this.lightGlows.push({ img, radius: l.radius, phase: Math.random() * 10, flicker: l.color === 0xffa040 });
+    }
+  }
+
+  private updateDarkness(): void {
+    const tex = this.darkTex;
+    const img = this.darkness;
+    if (!tex || !img) return;
+    const v = this.cameras.main.worldView;
+    const w = Math.ceil(v.width / DARK_RES) + 2;
+    const h = Math.ceil(v.height / DARK_RES) + 2;
+    if (tex.width !== w || tex.height !== h) tex.setSize(w, h);
+    const ox = Math.floor(v.x / DARK_RES) * DARK_RES;
+    const oy = Math.floor(v.y / DARK_RES) * DARK_RES;
+    img.setPosition(ox, oy);
+    const ctx = tex.context;
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = `rgba(4, 3, 8, ${DARKNESS})`;
+    ctx.fillRect(0, 0, w, h);
+    ctx.globalCompositeOperation = 'destination-out';
+    const t = this.time.now / 1000;
+    // Cut a soft round hole of radius `r` (world px) out of the darkness.
+    const hole = (x: number, y: number, r: number) => {
+      if (x + r < v.x || x - r > v.x + v.width || y + r < v.y || y - r > v.y + v.height) return;
+      const cx = (x - ox) / DARK_RES;
+      const cy = (y - oy) / DARK_RES;
+      const cr = r / DARK_RES;
+      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, cr);
+      grad.addColorStop(0, 'rgba(0,0,0,1)');
+      grad.addColorStop(0.5, 'rgba(0,0,0,0.75)');
+      grad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(cx - cr, cy - cr, cr * 2, cr * 2);
+    };
+    if (!this.hero.dead) hole(this.hero.x, this.hero.y - 6, HERO_LIGHT);
+    for (const g of this.lightGlows) {
+      const f = g.flicker ? 1 + Math.sin(t * 9 + g.phase) * 0.05 + Math.sin(t * 23 + g.phase) * 0.03 : 1;
+      g.img.setScale((g.radius * 2 * f) / 128);
+      hole(g.img.x, g.img.y, g.radius * f);
+    }
+    tex.refresh();
+  }
+
+  /** Walked into a doorway? Then go where it leads. */
+  private checkPortals(): void {
+    if (this.travelling || this.hero.dead) return;
+    const p = this.map.portalAt(Math.floor(this.hero.x / TILE), Math.floor(this.hero.y / TILE));
+    if (!p) {
+      this.portalArmed = true;
+      return;
+    }
+    if (this.portalArmed) this.travel(p);
+  }
+
+  private travel(p: Portal): void {
+    const cur = this.dest;
+    let to: Destination;
+    if (p.kind === 'enter') to = { kind: 'dungeon', entrance: p.entrance ?? 0, depth: 1, level: p.level ?? 2 };
+    else if (p.kind === 'down' && cur.kind === 'dungeon') to = { kind: 'dungeon', entrance: cur.entrance, depth: cur.depth + 1, level: cur.level + 1 };
+    else to = { kind: 'overworld', entrance: cur.kind === 'dungeon' ? cur.entrance : undefined };
+    this.travelling = true;
+    this.setTargeting(null);
+    this.hud.toggleCharacter(false);
+    this.hero.stop();
+    const hero = this.hero.snapshot();
+    const cam = this.cameras.main;
+    cam.fadeOut(300, 0, 0, 0);
+    cam.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+      document.querySelectorAll('#ui .hud').forEach((e) => e.remove());
+      this.scene.restart({ to, hero } satisfies TravelData);
+    });
   }
 
   // --- World construction -------------------------------------------------------------------
@@ -309,9 +545,10 @@ export class GameScene extends Phaser.Scene implements World {
     const img = this.rocks.get(key);
     if (!img || this.map.get(tx, ty) !== Tile.Rock) return;
     this.rocks.delete(key);
+    this.run.looted.add(`${this.mapId}:r${key}`);
     this.props = this.props.filter((p) => p !== img);
     const def = PROPS[this.map.props.get(key)!.key];
-    this.map.set(tx, ty, Tile.Grass);
+    this.map.set(tx, ty, this.map.groundTile);
     for (let dx = 0; dx < def.w; dx++) this.hud.clearMinimapTile(tx + dx, ty);
     const x = (tx + 0.5) * TILE;
     const y = (ty + 0.5) * TILE;
@@ -327,6 +564,7 @@ export class GameScene extends Phaser.Scene implements World {
       return;
     }
     chest.opened = true;
+    for (const [k, c] of this.chests) if (c === chest) this.run.looted.add(`${this.mapId}:${k}`);
     chest.img.setTexture('chest_open');
     chest.glint.destroy();
     const x = chest.img.x;
@@ -886,11 +1124,14 @@ export class GameScene extends Phaser.Scene implements World {
 
     this.updateRespawns(dt);
     this.updateMoonwell(dt);
+    this.trueshotAura.setVisible(this.hero.hasTrueshotAura && !this.hero.dead).setPosition(this.hero.x, this.hero.y + 1);
+    this.checkPortals();
     this.updateCamera(dt);
     this.cullProps();
     this.drawMarkers(dt);
     this.drawBars();
     this.drawAim();
+    this.updateDarkness();
 
     const cam = this.cameras.main;
     this.hud.update(this.units, { x: cam.worldView.x, y: cam.worldView.y, w: cam.worldView.width, h: cam.worldView.height }, this.cameraLocked);
@@ -908,7 +1149,6 @@ export class GameScene extends Phaser.Scene implements World {
       if (Math.random() < dt * 6) this.burst(h.x + (Math.random() - 0.5) * 10, h.y - 4, 0x8fc8ff, 1);
     }
     this.wellAura.setPosition(h.x, h.y + 1);
-    this.trueshotAura.setVisible(h.hasTrueshotAura && !h.dead).setPosition(h.x, h.y + 1);
     this.wellAura.setAlpha(this.wellAura.alpha + ((near ? 1 : 0) - this.wellAura.alpha) * Math.min(1, dt * 5));
     const target = near ? 0.45 : 0.2 + Math.sin(this.time.now / 600) * 0.06;
     this.wellGlow.setAlpha(this.wellGlow.alpha + (target - this.wellGlow.alpha) * Math.min(1, dt * 4));

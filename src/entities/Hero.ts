@@ -5,7 +5,24 @@ import { PROPS } from '../world/props';
 import { heroDamage } from './balance';
 import { EMPTY_STATS, Gear, GearSlot, GearStats, Inventory, ItemId, TOMES, TomeId, addStats } from './items';
 import { Order, Unit, World } from './Unit';
-import { TALENT_VALUES as TV, Talents } from './talents';
+import { TALENT_VALUES as TV, TalentId, Talents } from './talents';
+import type { InvEntry } from './items';
+
+/** Everything about the hero that carries over between maps (overworld, dungeon floors). */
+export interface HeroState {
+  level: number;
+  xp: number;
+  skillPoints: number;
+  abilities: Array<{ level: number; autocast?: boolean }>;
+  bonus: { hp: number; mana: number; damage: number; speed: number };
+  kills: number;
+  equipment: Partial<Record<GearSlot, Gear>>;
+  bag: (InvEntry | null)[];
+  potions: Record<ItemId, number>;
+  talents: { ranks: Record<TalentId, number>; points: number };
+  hp: number;
+  mana: number;
+}
 
 import { MAX_LEVEL, xpForLevel } from './xp';
 
@@ -233,6 +250,49 @@ export class Hero extends Unit {
 
   protected windupTime(): number {
     return this.empowered ? 0.05 : super.windupTime();
+  }
+
+  /** A copy of everything that should carry over to the next map. */
+  snapshot(): HeroState {
+    const copy = <T>(v: T): T => JSON.parse(JSON.stringify(v));
+    return {
+      level: this.level,
+      xp: this.xp,
+      skillPoints: this.skillPoints,
+      abilities: this.abilities.map((a) => ({ level: a.level, autocast: a instanceof SearingArrows ? a.autocast : undefined })),
+      bonus: { ...this.bonus },
+      kills: this.kills,
+      equipment: copy(this.equipment),
+      bag: copy(this.inventory.slots),
+      potions: { ...this.inventory.potions },
+      talents: { ranks: { ...this.talents.ranks }, points: this.talents.points },
+      hp: this.hp,
+      mana: this.mana,
+    };
+  }
+
+  /** Become the hero described by `s` (used when arriving on a new map). */
+  restore(s: HeroState): void {
+    this.level = s.level;
+    this.xp = s.xp;
+    this.skillPoints = s.skillPoints;
+    s.abilities.forEach((a, i) => {
+      const ab = this.abilities[i];
+      if (!ab) return;
+      ab.level = a.level;
+      if (ab instanceof SearingArrows && a.autocast !== undefined) ab.autocast = a.autocast;
+    });
+    Object.assign(this.bonus, s.bonus);
+    this.kills = s.kills;
+    for (const k of Object.keys(this.equipment) as GearSlot[]) delete this.equipment[k];
+    Object.assign(this.equipment, s.equipment);
+    s.bag.forEach((e, i) => (this.inventory.slots[i] = e));
+    Object.assign(this.inventory.potions, s.potions);
+    Object.assign(this.talents.ranks, s.talents.ranks);
+    this.talents.points = s.talents.points;
+    this.recomputeGear();
+    this.hp = Math.max(1, Math.min(this.maxHp, s.hp));
+    this.mana = Math.min(this.maxMana, s.mana);
   }
 
   /** Mana per Searing arrow, after the Searing Mastery talent. */

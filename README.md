@@ -141,6 +141,19 @@ Buffs come from a WoW-style talent tree, **Marksmanship** (`src/entities/talents
 
 **Test mode:** the hero currently starts with all 9 talent points (as well as every ability maxed), so the whole tree can be tried at level 1.
 
+## Dungeons
+
+The overworld has **three dungeon entrances**: stone gates far from the start (with rocks behind them and a road to the door), each labelled with its name and creep level. Walk into a gate's doorway to go down. Every floor is generated (`src/world/dungeon.ts`), fixed by the world seed so each entrance always has the same floors:
+
+1. **Rooms:** up to 11 non-overlapping rooms: plain halls, pillared halls (two rows of pillars) and caves (noisy ellipses).
+2. **Corridors:** a minimum spanning tree over the room centres plus a few extra links for loops; L-shaped and two tiles wide.
+3. **Start and boss:** you arrive in the room nearest a random corner, by the **exit gate** back to the overworld. The room farthest from it on foot is the **boss room**: an elite pack (often led by an alpha boar) around a chest, and the purple **rune portal** that leads a floor deeper (+1 creep level each floor).
+4. **The rest:** a skeleton-heavy pack in every other room (tougher in the far half), searchable crystals (potions), torches in the corners, ruins and supplies against the walls.
+
+The look is old top-down Zelda: dark stone floor, walls as a dark mass with a brick face where floor lies below them (3/4 view), a lit ledge, stone rims and shadow at the foot of each wall. It's **dark**: a pool of light around the hero, warm flickering torches, blue crystals, and the portal's glow. The minimap shows the floor plan, and doorways as purple dots.
+
+Travelling restarts the scene with the new map and carries the hero over (level, XP, abilities, talents, gear, backpack, potions, health and mana). Chests opened and rocks searched stay looted for the rest of the run, on every map. Dying in a dungeon brings you back in its start room.
+
 ## World generation
 
 Every game builds a new random map (`src/world/map.ts`, seeded, so a seed always gives the same map), in a Night Elf style.

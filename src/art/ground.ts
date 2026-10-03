@@ -141,8 +141,131 @@ function nearPaved(map: WorldMap, i: number): boolean {
   return false;
 }
 
+/** Soft shadows under props (one per solid column group: an arch gets one under each pillar). */
+function propShadows(ctx: CanvasRenderingContext2D, map: WorldMap, ox: number, oy: number, W: number, H: number, colour: string): void {
+  ctx.fillStyle = colour;
+  for (const p of map.props.values()) {
+    const def = PROPS[p.key];
+    for (const [dx, dy] of footprint(def)) {
+      if (dy !== 0) continue;
+      const span = def.solid ? 1 : def.w;
+      if (!def.solid && dx !== 0) continue;
+      const cx = (p.tx + dx + span / 2) * T - ox;
+      const cy = (p.ty + 1) * T - 4 - oy;
+      const rx = span * T * 0.42;
+      if (cx + rx < 0 || cx - rx > W || cy + 8 < 0 || cy - 8 > H) continue;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rx, T * 0.18, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+}
+
+/**
+ * Dungeon ground, in the old top-down Zelda style: dark stone floor (the sheet's paving, dimmed
+ * and cooled), and walls as a dark mass with a brick face (3/4 view) wherever floor lies below
+ * them, a lit ledge on top of that face, stone rims where the wall meets floor at its sides, and
+ * shadow cast onto the floor at the foot of every wall.
+ */
+function buildDungeonGround(scene: Phaser.Scene, map: WorldMap): Array<{ key: string; x: number; y: number }> {
+  const stone = [frame(scene, 'ground_plaza'), frame(scene, 'ground_stone')];
+  const brickPal = tones([stone[1]], 6).map(([r, g, b]) => [r * 0.5, g * 0.48, b * 0.56] as [number, number, number]);
+  const { width, height } = map;
+  const wall = (x: number, y: number) => map.get(x, y) === Tile.Wall;
+  const FACE = 18; // texels of brick face at the bottom of a wall tile with floor below
+  const RIM = 3;
+  const out: Array<{ key: string; x: number; y: number }> = [];
+  for (let cty = 0; cty < height; cty += CHUNK_TILES) {
+    for (let ctx0 = 0; ctx0 < width; ctx0 += CHUNK_TILES) {
+      const tw = Math.min(CHUNK_TILES, width - ctx0);
+      const th = Math.min(CHUNK_TILES, height - cty);
+      const W = tw * T;
+      const H = th * T;
+      const ox = ctx0 * T;
+      const oy = cty * T;
+      const [canvas, ctx] = makeCanvas(W, H);
+      tileTexture(ctx, stone[0], 32, ox, oy, 53, stone, true);
+      const img = ctx.getImageData(0, 0, W, H);
+      const px = img.data;
+      for (let ty = 0; ty < th; ty++) {
+        for (let tx = 0; tx < tw; tx++) {
+          const mx = ctx0 + tx;
+          const my = cty + ty;
+          const isWall = wall(mx, my);
+          const faceBelow = isWall && !wall(mx, my + 1);
+          const shadeTop = !isWall && wall(mx, my - 1);
+          const shadeL = !isWall && wall(mx - 1, my);
+          const shadeR = !isWall && wall(mx + 1, my);
+          for (let y = 0; y < T; y++) {
+            for (let x = 0; x < T; x++) {
+              const gx = ox + tx * T + x;
+              const gy = oy + ty * T + y;
+              const k = ((ty * T + y) * W + tx * T + x) * 4;
+              if (!isWall) {
+                // Floor: dimmed, cooled paving, darker in the shadow at the foot of walls.
+                let f = 0.6 + noise(gx / 14, gy / 14, 61) * 0.12;
+                if (shadeTop) f *= 0.45 + 0.55 * Math.min(1, y / 10);
+                if (shadeL) f *= 0.6 + 0.4 * Math.min(1, x / 6);
+                if (shadeR) f *= 0.6 + 0.4 * Math.min(1, (T - 1 - x) / 6);
+                if (hash(gx >> 1, gy >> 1, 67) < 0.006) f *= 0.55; // cracks and grit
+                px[k] = px[k] * f * 0.92;
+                px[k + 1] = px[k + 1] * f * 0.9;
+                px[k + 2] = px[k + 2] * f * 1.05;
+                continue;
+              }
+              let c: [number, number, number];
+              if (faceBelow && y >= T - FACE) {
+                // Brick face: courses of 6 texels, bricks 12 wide, every other course offset.
+                const fy = y - (T - FACE);
+                if (fy < 2) c = [112, 104, 124]; // lit ledge
+                else if (fy < 3) c = [20, 17, 24];
+                else {
+                  const row = Math.floor((fy - 3) / 5);
+                  const bx = gx + (row % 2) * 6;
+                  const mortar = (fy - 3) % 5 === 4 || bx % 12 === 0;
+                  if (mortar) c = [14, 12, 18];
+                  else {
+                    const tone = brickPal[1 + Math.floor(hash(Math.floor(bx / 12), Math.floor(gy / 5), 71) * 4)];
+                    const lit = (fy - 3) % 5 === 0 ? 1.25 : 1; // top edge of each brick catches light
+                    c = [tone[0] * lit, tone[1] * lit, tone[2] * lit];
+                  }
+                  // Darker towards the floor (ambient occlusion).
+                  const ao = 1 - Math.max(0, fy - FACE + 6) * 0.07;
+                  c = [c[0] * ao, c[1] * ao, c[2] * ao];
+                }
+              } else {
+                // Top of the wall mass: near-black with a little texture, rimmed with stone where floor
+                // lies beside or above it.
+                const n = noise(gx / 6, gy / 6, 73);
+                c = n > 0.62 ? [30, 26, 36] : n < 0.3 ? [16, 14, 20] : [22, 19, 27];
+                const rim =
+                  (!wall(mx - 1, my) && x < RIM) ||
+                  (!wall(mx + 1, my) && x >= T - RIM) ||
+                  (!wall(mx, my - 1) && y < RIM) ||
+                  (faceBelow && y >= T - FACE - RIM);
+                if (rim) c = [74, 68, 84];
+              }
+              px[k] = c[0];
+              px[k + 1] = c[1];
+              px[k + 2] = c[2];
+            }
+          }
+        }
+      }
+      ctx.putImageData(img, 0, 0);
+      propShadows(ctx, map, ox, oy, W, H, 'rgba(0, 0, 0, 0.35)');
+      const key = `ground_${ctx0}_${cty}`;
+      if (scene.textures.exists(key)) scene.textures.remove(key);
+      scene.textures.addCanvas(key, canvas);
+      out.push({ key, x: ctx0 * TILE, y: cty * TILE });
+    }
+  }
+  return out;
+}
+
 /** Builds the chunk textures and returns where to place them (world px, top-left). */
 export function buildGround(scene: Phaser.Scene, map: WorldMap): Array<{ key: string; x: number; y: number }> {
+  if (map.kind === 'dungeon') return buildDungeonGround(scene, map);
   const grass = GRASS_FRAMES.map((n) => frame(scene, n));
   const dirt = frame(scene, 'ground_dirt');
   const water = frame(scene, 'ground_water');
@@ -266,23 +389,7 @@ export function buildGround(scene: Phaser.Scene, map: WorldMap): Array<{ key: st
       ctx.putImageData(base, 0, 0);
 
       // Shadows under props.
-      ctx.fillStyle = 'rgba(16, 32, 12, 0.28)';
-      for (const p of map.props.values()) {
-        const def = PROPS[p.key];
-        // One soft shadow per solid column group (an arch gate gets one under each pillar).
-        for (const [dx, dy] of footprint(def)) {
-          if (dy !== 0) continue;
-          const span = def.solid ? 1 : def.w;
-          if (!def.solid && dx !== 0) continue;
-          const cx = (p.tx + dx + span / 2) * T - ox;
-          const cy = (p.ty + 1) * T - 4 - oy;
-          const rx = span * T * 0.42;
-          if (cx + rx < 0 || cx - rx > W || cy + 8 < 0 || cy - 8 > H) continue;
-          ctx.beginPath();
-          ctx.ellipse(cx, cy, rx, T * 0.18, 0, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
+      propShadows(ctx, map, ox, oy, W, H, 'rgba(16, 32, 12, 0.28)');
       // Decor, anchored bottom-centre.
       for (const d of map.decor) {
         const f = frame(scene, d.key);

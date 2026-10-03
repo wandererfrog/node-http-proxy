@@ -1,6 +1,7 @@
 import { Grid, Point, findTilePath } from './pathfinding';
 import type { CreepKind } from '../entities/balance';
 import { GROUPS, PROPS, footprint } from './props';
+import { layoutDungeon, roomCentre } from './dungeon';
 
 export const TILE = 16;
 
@@ -16,7 +17,40 @@ export enum Tile {
   Block = 6,
   /** Walkable stone paving (the sanctuary plaza). */
   Paved = 7,
+  /** Dungeon wall: blocks movement and arrows. */
+  Wall = 8,
+  /** Dungeon floor (walkable). */
+  Floor = 9,
 }
+
+export type MapOptions = { kind: 'overworld' } | { kind: 'dungeon'; depth: number; level: number };
+
+/**
+ * A doorway between maps. Walking onto any of its tiles uses it: a dungeon entrance in the
+ * overworld ('enter'), the way back up from a dungeon ('exit'), or the rune portal deeper ('down').
+ */
+export interface Portal {
+  kind: 'enter' | 'exit' | 'down';
+  /** Trigger tiles (indices). */
+  tiles: number[];
+  /** World-px centre of the doorway, for its effects. */
+  x: number;
+  y: number;
+  /** Overworld entrances: which one, and the dungeon's creep level. */
+  entrance?: number;
+  level?: number;
+}
+
+/** A light in a dungeon (torches, crystals), world px. */
+export interface Light {
+  x: number;
+  y: number;
+  color: number;
+  radius: number;
+}
+
+/** Names for the overworld's dungeons, one per entrance. */
+export const DUNGEON_NAMES = ['Sunken Crypt', 'Moonless Halls', 'Thornroot Barrow', 'Hollow Vault'];
 
 /** A prop sprite on the map, anchored at its bottom-left footprint tile. */
 export interface PropPlacement {
@@ -54,8 +88,9 @@ export function campLevel(dist: number): number {
  * boars get more common deeper in; big boar packs at level 3+ may be led by an alpha.
  * Returns the members and the level adjustment.
  */
-export function rollGroup(rand: () => number, level: number, treasure: boolean): { members: CreepKind[]; levelBonus: number } {
-  const pBoar = Math.min(0.7, 0.15 + 0.1 * level);
+export function rollGroup(rand: () => number, level: number, treasure: boolean, dungeon = false): { members: CreepKind[]; levelBonus: number } {
+  // Dungeons are the dead's domain: mostly skeletons, the odd boar that wandered in.
+  const pBoar = dungeon ? 0.15 : Math.min(0.7, 0.15 + 0.1 * level);
   const pick = (): CreepKind => (rand() < pBoar ? 'boar' : 'skeleton');
   if (treasure) {
     const members: CreepKind[] = [pick(), pick(), pick()];
@@ -118,7 +153,13 @@ export class WorldMap implements Grid {
   /** per-tile random variant for decoration (grass tufts, flowers...) */
   readonly variant: Uint8Array;
   readonly camps: CampSpec[] = [];
-  readonly spawn: Point;
+  spawn!: Point;
+  readonly kind: 'overworld' | 'dungeon';
+  /** Dungeons: how deep (1 = first floor) and the creep level of the floor. */
+  readonly depth: number = 0;
+  readonly level: number = 0;
+  readonly portals: Portal[] = [];
+  readonly lights: Light[] = [];
   /** Props by anchor tile index. */
   readonly props = new Map<number, PropPlacement>();
   /** For every blocked tile that belongs to a prop: the anchor index of that prop. */
@@ -130,11 +171,18 @@ export class WorldMap implements Grid {
   /** Props placed to dress camps and the start, so they can be removed if they block a path. */
   private dressing: Array<{ anchor: number; camp: number }> = [];
 
-  constructor(readonly width: number, readonly height: number, seed = 1337) {
+  constructor(readonly width: number, readonly height: number, seed = 1337, opts: MapOptions = { kind: 'overworld' }) {
     this.tiles = new Uint8Array(width * height);
     this.variant = new Uint8Array(width * height);
     this.owner = new Int32Array(width * height).fill(-1);
     const rand = mulberry32(seed);
+    this.kind = opts.kind;
+    if (opts.kind === 'dungeon') {
+      this.depth = opts.depth;
+      this.level = opts.level;
+      this.generateDungeon(rand);
+      return;
+    }
     const forest = makeNoise(rand, 64);
     const lakes = makeNoise(rand, 64);
     const pines = makeNoise(rand, 64);
@@ -193,6 +241,7 @@ export class WorldMap implements Grid {
     this.placeCamps(rand);
     this.buildSanctuary();
     this.placeLandmarks(rand);
+    this.placeEntrances(rand);
     this.ensureReachable();
     // Chests go in last so no road or dressing clears them away.
     for (const c of this.camps) if (c.treasure) this.set(Math.floor(c.x), Math.floor(c.y), Tile.Chest);
@@ -237,6 +286,136 @@ export class WorldMap implements Grid {
     }
   }
 
+  /**
+   * Dungeon entrances: three stone gates far from the start, each with a road to its doorway.
+   * Walking into the gate's opening (the two middle tiles) goes down. Deeper ones are tougher.
+   */
+  private placeEntrances(rand: () => number): void {
+    const want = 3;
+    for (let tries = 0; tries < 600 && this.portals.length < want; tries++) {
+      const tx = 8 + Math.floor(rand() * (this.width - 20));
+      const ty = 10 + Math.floor(rand() * (this.height - 20));
+      const cx = tx + 2;
+      const cy = ty;
+      const dist = Math.hypot(cx - this.spawn.x, cy - this.spawn.y);
+      if (dist < 18) continue;
+      if (this.camps.some((c) => Math.hypot(c.x - cx, c.y - cy) < 7)) continue;
+      if (this.portals.some((p) => Math.hypot(p.x / TILE - cx, p.y / TILE - cy) < 16)) continue;
+      let water = false;
+      for (let y = ty - 3; y <= ty + 3; y++) for (let x = tx - 2; x <= tx + 6; x++) if (this.get(x, y) === Tile.Water) water = true;
+      if (water) continue;
+      // A clearing, a dirt apron in front of the doorway, and a road from the nearest camp or the start.
+      this.clearCircle(cx, cy, 4.5);
+      this.paintCircle(cx, cy + 2, 1.8, Tile.Dirt);
+      const anchors = [this.spawn, ...this.camps];
+      const near = anchors.reduce((a, b) => (Math.hypot(b.x - cx, b.y - cy - 2) < Math.hypot(a.x - cx, a.y - cy - 2) ? b : a));
+      this.carveRoad(near, { x: cx, y: cy + 2.5 }, rand, near === this.spawn ? SANCTUARY_R + 0.5 : 0);
+      for (let x = tx; x < tx + 4; x++) this.set(x, ty, Tile.Grass);
+      const anchor = this.placeProp(tx, ty, 'stone_gate', false);
+      if (anchor < 0) continue;
+      // Rocks behind the gate so it reads as a way down, not an arch in a field.
+      for (const [dx, key] of [[-1, 'rock_3'], [3, 'rock_2']] as Array<[number, string]>) this.placeProp(tx + dx, ty - 1, key);
+      const i = this.portals.length;
+      this.portals.push({
+        kind: 'enter',
+        tiles: [ty * this.width + tx + 1, ty * this.width + tx + 2],
+        x: (tx + 2) * TILE,
+        y: (ty + 0.5) * TILE,
+        entrance: i,
+        level: campLevel(dist) + 1,
+      });
+    }
+  }
+
+  /**
+   * A dungeon floor from a random layout (see dungeon.ts): walls and floor, the exit gate in the
+   * start room, a guarded chest and the rune portal deeper in the boss room, creep packs in the
+   * other rooms, and torches, crystals, pillars and clutter.
+   */
+  private generateDungeon(rand: () => number): void {
+    const { width, height } = this;
+    const L = layoutDungeon(rand, width, height);
+    for (let i = 0; i < width * height; i++) {
+      this.tiles[i] = L.floor[i] ? Tile.Floor : Tile.Wall;
+      this.variant[i] = Math.floor(rand() * 256);
+    }
+    const start = L.rooms[L.start];
+    const sc = roomCentre(start);
+    this.spawn = { x: sc.x + 0.5, y: sc.y + 1.5 };
+
+    // The way back up: a stone gate against the start room's top wall.
+    const gx = sc.x - 2;
+    const gy = start.y;
+    for (let x = gx; x < gx + 4; x++) this.tiles[gy * width + x] = Tile.Floor;
+    if (this.placeProp(gx, gy, 'stone_gate', false, true) >= 0) {
+      this.portals.push({ kind: 'exit', tiles: [gy * width + gx + 1, gy * width + gx + 2], x: (gx + 2) * TILE, y: (gy + 0.5) * TILE });
+    }
+
+    const light = (tx: number, ty: number, color: number, radius = 46) => this.lights.push({ x: (tx + 0.5) * TILE, y: (ty + 0.2) * TILE, color, radius });
+    const TORCH = 0xffa040;
+    const CRYSTAL = 0x7ac8ff;
+    // Free floor tile inside a room, at least `margin` from its edge, with nothing on it.
+    const freeIn = (r: { x: number; y: number; w: number; h: number }, margin: number) => {
+      for (let k = 0; k < 40; k++) {
+        const x = r.x + margin + Math.floor(rand() * Math.max(1, r.w - margin * 2));
+        const y = r.y + margin + Math.floor(rand() * Math.max(1, r.h - margin * 2));
+        if (this.get(x, y) === Tile.Floor && this.owner[y * width + x] === -1 && !this.portalAt(x, y)) return { x, y };
+      }
+      return null;
+    };
+    // Torches on lamp posts in the room corners (the nearest floor tile to each corner).
+    const corners = (r: { x: number; y: number; w: number; h: number }) =>
+      [[r.x + 1, r.y + 1], [r.x + r.w - 2, r.y + 1], [r.x + 1, r.y + r.h - 2], [r.x + r.w - 2, r.y + r.h - 2]] as Array<[number, number]>;
+
+    L.rooms.forEach((r, ri) => {
+      const c = roomCentre(r);
+      const isStart = ri === L.start;
+      const isBoss = ri === L.boss;
+      // Torches: two to four per room.
+      const torchKeys = ['lantern_post', 'lamp_small', 'spire_lamp'];
+      for (const [x, y] of corners(r)) {
+        if (rand() < (isStart || isBoss ? 1 : 0.6) && this.get(x, y) === Tile.Floor && this.placeProp(x, y, pickFrom(rand, torchKeys), false, true) >= 0) light(x, y, TORCH);
+      }
+      // Pillared halls: two rows of pillars.
+      if (r.shape === 'pillars' && !isStart) {
+        for (let x = r.x + 2; x < r.x + r.w - 3; x += 4) {
+          for (const y of [r.y + 2, r.y + r.h - 2]) this.placeProp(x, y, rand() < 0.5 ? 'ruin_pillar' : 'elf_pillar_0', false, true);
+        }
+      }
+      if (isStart) return;
+      // Searchable crystals (potions) glow blue.
+      const crystals = rand() < 0.6 ? 1 + Math.floor(rand() * 2) : 0;
+      for (let k = 0; k < crystals; k++) {
+        const spot = freeIn(r, 1);
+        if (!spot || Math.hypot(spot.x - c.x, spot.y - c.y) <= 2.5) continue;
+        if (this.placeProp(spot.x, spot.y, pickFrom(rand, GROUPS.crystal), false, true) >= 0) light(spot.x, spot.y, CRYSTAL, 34);
+      }
+      // Clutter: ruins and supplies against the room's edges.
+      const clutter = [...GROUPS.supplies, 'rubble', 'ruin_block', 'rune_slab', 'runestone_1', 'statue', 'pot_0', 'pot_1'];
+      const count = 1 + Math.floor(rand() * 3);
+      for (let k = 0; k < count; k++) {
+        const spot = freeIn(r, 1);
+        if (spot && Math.hypot(spot.x - c.x, spot.y - c.y) > 2.5) this.placeProp(spot.x, spot.y, pickFrom(rand, clutter), false, true);
+      }
+      // Creeps: a pack per room, an elite treasure guard in the boss room. Deeper rooms are tougher.
+      const far = L.distance[ri] / Math.max(1, L.distance[L.boss]);
+      const level = this.level + (far > 0.6 ? 1 : 0);
+      const { members, levelBonus } = rollGroup(rand, level, isBoss, true);
+      this.camps.push({ x: c.x + 0.5, y: c.y + 0.5, level: level + levelBonus + (isBoss ? 1 : 0), members, treasure: isBoss });
+      if (isBoss) {
+        this.tiles[c.y * width + c.x] = Tile.Chest;
+        // The rune portal deeper, below the chest.
+        const py = Math.min(r.y + r.h - 2, c.y + 3);
+        for (const [x, y] of [[c.x, py], [c.x - 1, py], [c.x, py - 1], [c.x - 1, py - 1]]) {
+          const i = y * width + x;
+          if (this.owner[i] !== -1) this.removeProp(this.owner[i]);
+          this.tiles[i] = Tile.Floor;
+        }
+        this.portals.push({ kind: 'down', tiles: [py * width + c.x, py * width + c.x - 1, (py - 1) * width + c.x, (py - 1) * width + c.x - 1], x: c.x * TILE, y: py * TILE });
+      }
+    });
+  }
+
   /** One or two giant violet trees in open ground away from the start and the camps. */
   private placeLandmarks(rand: () => number): void {
     let placed = 0;
@@ -263,7 +442,7 @@ export class WorldMap implements Grid {
       const y = ty - dy;
       if (x < 0 || y < 0 || x >= this.width || y >= this.height) return -1;
       const i = y * this.width + x;
-      const free = this.tiles[i] === Tile.Grass || (onPaving && this.tiles[i] === Tile.Paved);
+      const free = this.tiles[i] === Tile.Grass || (onPaving && (this.tiles[i] === Tile.Paved || this.tiles[i] === Tile.Floor));
       if (!force && (!free || this.owner[i] !== -1)) return -1;
       if (force && this.owner[i] !== -1) return -1;
       tiles.push(i);
@@ -290,7 +469,7 @@ export class WorldMap implements Grid {
     if (!p) return;
     for (const [dx, dy] of footprint(PROPS[p.key])) {
       const i = (p.ty - dy) * this.width + p.tx + dx;
-      this.tiles[i] = Tile.Grass;
+      this.tiles[i] = this.groundTile;
       this.owner[i] = -1;
     }
     this.props.delete(anchor);
@@ -413,7 +592,18 @@ export class WorldMap implements Grid {
 
   isWalkable(tx: number, ty: number): boolean {
     const t = this.get(tx, ty);
-    return t === Tile.Grass || t === Tile.Dirt || t === Tile.Paved;
+    return t === Tile.Grass || t === Tile.Dirt || t === Tile.Paved || t === Tile.Floor;
+  }
+
+  /** What a cleared tile becomes: grass outside, floor in a dungeon. */
+  get groundTile(): Tile {
+    return this.kind === 'dungeon' ? Tile.Floor : Tile.Grass;
+  }
+
+  /** The portal whose doorway covers a tile, if any. */
+  portalAt(tx: number, ty: number): Portal | null {
+    const i = ty * this.width + tx;
+    return this.portals.find((p) => p.tiles.includes(i)) ?? null;
   }
 
   /** Tiles the hero can walk up to and interact with. */
@@ -424,7 +614,8 @@ export class WorldMap implements Grid {
 
   /** Projectiles fly over water and rocks but not through trees. */
   blocksProjectiles(tx: number, ty: number): boolean {
-    return this.get(tx, ty) === Tile.Tree;
+    const t = this.get(tx, ty);
+    return t === Tile.Tree || t === Tile.Wall;
   }
 
   private clearCircle(cx: number, cy: number, r: number): void {
