@@ -22,6 +22,7 @@ export interface HudCallbacks {
   usePotion(id: ItemId): void;
   equip(bagIndex: number): void;
   unequip(slot: GearSlot): void;
+  newGame(): void;
 }
 
 export interface CameraRect {
@@ -171,6 +172,7 @@ export class Hud {
       equip: (i) => this.cb.equip(i),
       unequip: (slot) => this.cb.unequip(slot),
       close: () => this.toggleCharacter(false),
+      newGame: () => this.cb.newGame(),
     });
   }
 
@@ -305,6 +307,7 @@ export class Hud {
       [Tile.Chest]: '#ffd84a',
       [Tile.Block]: '#5a5e68',
       [Tile.Paved]: '#a8a4b8',
+      [Tile.Beacon]: '#7ad8ff',
     };
     for (let y = 0; y < this.map.height; y++)
       for (let x = 0; x < this.map.width; x++) {

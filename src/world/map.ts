@@ -16,6 +16,8 @@ export enum Tile {
   Block = 6,
   /** Walkable stone paving (the sanctuary plaza). */
   Paved = 7,
+  /** Save beacon (checkpoint): blocks movement, interactable. */
+  Beacon = 8,
 }
 
 /** A prop sprite on the map, anchored at its bottom-left footprint tile. */
@@ -126,6 +128,8 @@ export class WorldMap implements Grid {
   readonly decor: Decor[] = [];
   /** Centre of the sanctuary's moonwell (tile space), which restores health and mana nearby. */
   moonwell: Point | null = null;
+  /** Save beacons (tile coords of the beacon tile). The first is in the sanctuary. */
+  readonly beacons: Array<{ tx: number; ty: number }> = [];
   private readonly biome: Biome[] = [];
   /** Props placed to dress camps and the start, so they can be removed if they block a path. */
   private dressing: Array<{ anchor: number; camp: number }> = [];
@@ -193,6 +197,7 @@ export class WorldMap implements Grid {
     this.placeCamps(rand);
     this.buildSanctuary();
     this.placeLandmarks(rand);
+    this.placeBeacons(rand);
     this.ensureReachable();
     // Chests go in last so no road or dressing clears them away.
     for (const c of this.camps) if (c.treasure) this.set(Math.floor(c.x), Math.floor(c.y), Tile.Chest);
@@ -234,6 +239,30 @@ export class WorldMap implements Grid {
     for (const [key, x, y] of dressing) {
       const a = this.placeProp(x, y, key, false, true);
       if (a >= 0) this.dressing.push({ anchor: a, camp: -1 });
+    }
+  }
+
+  /**
+   * Save beacons: one on the plaza below the moonwell, and one next to each treasure camp (a
+   * reward for clearing it: a checkpoint deep in the map). Beacon tiles block but never sit on roads.
+   */
+  private placeBeacons(rand: () => number): void {
+    const sx = Math.floor(this.spawn.x);
+    const sy = Math.floor(this.spawn.y);
+    const tryAt = (tx: number, ty: number): boolean => {
+      if (!this.isWalkable(tx, ty) || this.get(tx, ty) === Tile.Dirt) return false;
+      this.tiles[ty * this.width + tx] = Tile.Beacon;
+      this.beacons.push({ tx, ty });
+      return true;
+    };
+    for (const [dx, dy] of [[2, 2], [-2, 2], [3, 1], [-3, 1], [2, 3]]) if (tryAt(sx + dx, sy + dy)) break;
+    for (const c of this.camps) {
+      if (!c.treasure) continue;
+      for (let tries = 0; tries < 20; tries++) {
+        const a = rand() * Math.PI * 2;
+        const r = 4.5 + rand();
+        if (tryAt(Math.floor(c.x + Math.cos(a) * r), Math.floor(c.y + Math.sin(a) * r))) break;
+      }
     }
   }
 
@@ -419,7 +448,7 @@ export class WorldMap implements Grid {
   /** Tiles the hero can walk up to and interact with. */
   isSearchable(tx: number, ty: number): boolean {
     const t = this.get(tx, ty);
-    return t === Tile.Rock || t === Tile.Chest;
+    return t === Tile.Rock || t === Tile.Chest || t === Tile.Beacon;
   }
 
   /** Projectiles fly over water and rocks but not through trees. */

@@ -16,6 +16,8 @@ export interface CharacterCallbacks {
   /** Tap worn gear: take it off into the bag. */
   unequip(slot: GearSlot): void;
   close(): void;
+  /** Erase the checkpoint and start over (asks once). */
+  newGame(): void;
 }
 
 /**
@@ -50,6 +52,20 @@ export class CharacterPage {
     img.src = portraitUrl;
     img.alt = '';
     this.title = el('div', 'char-title', head);
+    const reset = el('button', 'char-reset', head);
+    reset.textContent = 'New game';
+    reset.title = 'Erase the saved checkpoint and start a new adventure';
+    let armed = false;
+    reset.addEventListener('click', () => {
+      if (!armed) {
+        armed = true;
+        reset.textContent = 'Erase save?';
+        reset.classList.add('armed');
+        setTimeout(() => { armed = false; reset.textContent = 'New game'; reset.classList.remove('armed'); }, 3000);
+        return;
+      }
+      this.cb.newGame();
+    });
     const close = el('button', 'char-close', head);
     close.textContent = '✕';
     close.setAttribute('aria-label', 'Close');

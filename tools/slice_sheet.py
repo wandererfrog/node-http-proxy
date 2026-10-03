@@ -743,6 +743,59 @@ def slice_sky():
     pack_atlas(images, 'sky', width=1024)
 
 
+# --- Save beacon sheet (checkpoint) ----------------------------------------------------------
+BEACON_SRC = os.path.join(ROOT, 'art-source', 'beacon-sheet.png')
+# Strips: (y0, y1, x0, x1, frame count). Checkerboard is baked in; art is removed by colour.
+BEACON_STRIPS = {
+    'beacon_idle': (78, 258, 10, 1075, 13),
+    'beacon_activate': (318, 515, 9, 1075, 15),
+    'beacon_saved': (828, 975, 973, 1062, 1),
+}
+BEACON_SCALE = 2.0  # 32x64 art cells; at 2.0 the beacon is ~2.6 heroes tall (a structure, like the moonwell)
+
+
+def beacon_mask(rgb):
+    sat = rgb.max(axis=2) - rgb.min(axis=2)
+    lum = rgb.mean(axis=2)
+    return (sat > 30) | (lum > 215)
+
+
+def slice_beacon():
+    rgb = np.array(Image.open(BEACON_SRC).convert('RGB')).astype(np.float32)
+    m = beacon_mask(rgb)
+    images = {}
+    for name, (y0, y1, x0, x1, n) in BEACON_STRIPS.items():
+        w = (x1 - x0) / n
+        for i in range(n):
+            bx0, bx1 = int(x0 + i * w), int(x0 + (i + 1) * w)
+            sub = rgb[y0:y1, bx0:bx1]
+            sm = m[y0:y1, bx0:bx1]
+            # Soft alpha: the stone body is opaque, the glow fades. Saturation/brightness drive alpha.
+            sl = sub.mean(axis=2)
+            ss = sub.max(axis=2) - sub.min(axis=2)
+            a = np.clip(ss / 70 + np.maximum(sl - 190, 0) / 50, 0, 1)
+            a[~sm] = 0
+            # The stone pedestal and pillar are low-saturation greys: keep them fully opaque where the
+            # strict mask says "art" and they sit below the glow (bottom 60% of the cell).
+            body = sm.copy()
+            body[: int(sm.shape[0] * 0.35)] = False
+            lab, k = ndimage.label(body)
+            if k:
+                sizes = ndimage.sum(body, lab, range(1, k + 1))
+                body = np.isin(lab, np.nonzero(sizes >= sizes.max() * 0.2)[0] + 1)
+                body = ndimage.binary_fill_holes(body)
+            a = np.where(body, 1.0, a)
+            nw, nh = round(sub.shape[1] / BEACON_SCALE), round(sub.shape[0] / BEACON_SCALE)
+            a_small = np.array(Image.fromarray((a * 255).astype(np.uint8)).resize((nw, nh), Image.BOX)).astype(np.float32) / 255
+            pre = np.array(Image.fromarray(np.clip(sub * a[..., None], 0, 255).astype(np.uint8)).resize((nw, nh), Image.BOX)).astype(np.float32)
+            col = np.clip(pre / np.maximum(a_small[..., None], 1e-3), 0, 255)
+            px = np.zeros((nh, nw, 4), np.uint8)
+            px[..., :3] = col.astype(np.uint8)
+            px[..., 3] = (a_small * 255).astype(np.uint8)
+            images[f'{name}_{i}'] = px
+    pack_atlas(images, 'beacon', width=1024)
+
+
 def main():
     rgb, mask = load()
     if '--contact' in sys.argv:
@@ -755,6 +808,7 @@ def main():
     slice_items()
     slice_magic()
     slice_sky()
+    slice_beacon()
 
 
 if __name__ == '__main__':

@@ -148,6 +148,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .char-title b { color: var(--gold); font-weight: normal; }
 .char-title span { font-size: 8px; color: #b8b0a0; }
 .char-close { width: 36px; height: 36px; padding: 0; background: #5a1a14; border: 2px solid #ff4a3a; border-radius: 6px; font-size: 12px; }
+.char-reset { font-size: 7px; padding: 8px 8px; background: #2a2a3a; border: 2px solid #555a70; border-radius: 6px; white-space: nowrap; }
+.char-reset.armed { background: #5a1a14; border-color: #ff4a3a; color: #ffb0a8; }
 .char-body { display: grid; grid-template-columns: auto 1fr auto; gap: 14px; padding: 10px 12px 12px; }
 .char-head { padding: 6px 10px; }
 .char-portrait { width: 48px; height: 36px; }

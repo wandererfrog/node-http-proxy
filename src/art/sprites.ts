@@ -34,9 +34,17 @@ export function registerSkyAnims(scene: Phaser.Scene): void {
   scene.anims.create({ key: 'sky_scatter', frames: frames('skyscatter', 10), frameRate: 12, repeat: -1 });
 }
 
+/** Save beacon animations from art-source/beacon-sheet.png. */
+export function registerBeaconAnims(scene: Phaser.Scene): void {
+  const frames = (name: string, n: number) => Array.from({ length: n }, (_, i) => ({ key: 'beacon', frame: `${name}_${i}` }));
+  scene.anims.create({ key: 'beacon_idle', frames: frames('beacon_idle', 13), frameRate: 8, repeat: -1 });
+  scene.anims.create({ key: 'beacon_activate', frames: frames('beacon_activate', 15), frameRate: 14, repeat: 0 });
+}
+
 export function registerUnitAnims(scene: Phaser.Scene): void {
   registerMagicAnims(scene);
   registerSkyAnims(scene);
+  registerBeaconAnims(scene);
   for (const key of UNIT_SHEETS) {
     for (const f of FACINGS) {
       scene.anims.create({

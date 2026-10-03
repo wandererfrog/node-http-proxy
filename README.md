@@ -68,6 +68,16 @@ All tuning lives in `src/entities/balance.ts`:
 - **Kiting:** a melee creep charging from max range eats 2–3 arrows before it reaches you. Creeps move at 30–34 px/s, the archer fires every 1.1s from 96px.
 - **Creep levels:** camps get tougher the further they are from the start. The level shows next to each creep's health bar: green = lower than you, yellow = same, orange/red = higher.
 
+## Saving: beacons
+
+Progress is saved at **save beacons** (`art-source/beacon-sheet.png`): one stands on the sanctuary plaza, and one waits beside every treasure camp as a deep-map checkpoint.
+- Tap a beacon: the hero walks over, the activation rise plays, health and mana are refilled, and "Progress saved" appears. The activated beacon glows brighter.
+- Saved to the browser's local storage: level, XP, skill points, abilities, gear, bag, tomes, kills, the beacon, and the **map seed**, so the same world comes back.
+- Dying returns you to the last activated beacon (the sanctuary if none).
+- Reopening the game resumes from the save automatically. **New game** (in the character page, tap twice) erases it.
+
+The save lives only in that browser; clearing site data removes it.
+
 ## Items
 
 Icons come from `art-source/items-sheet.png`, sliced into the `items` atlas (bows, quivers, daggers, armour, rings, amulets, belts, cloaks, potions, food, materials, quest items and misc; 113 icons).
