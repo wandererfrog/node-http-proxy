@@ -20,7 +20,7 @@ python3 tools/slice_sheet.py --contact /tmp/out  # labelled contact sheets for c
 ```
 
 The sheet's checkerboard background is baked into the pixels, so the slicer removes it by colour.
-Some columns face a different way from their neighbours (e.g. three of the archer's shooting frames aim left), so `picks` in the script maps each game frame to a sheet row/column by hand.
+Some columns face a different way from their neighbours (the idle and walk side frames face left, the attack frames right), so `picks` in the script maps each game frame to a sheet row/column, and the slicer checks each side/diagonal frame's facing from a marker (the archer's skin, the boar's tusks) and mirrors it to face right. The skeleton's facings are set by hand.
 
 ## Run it
 

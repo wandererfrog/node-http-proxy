@@ -78,11 +78,13 @@ SHEETS = {
     'skeleton': {
         'panel': (280, 500, 1260, 1024),
         'cell': (60, 50),
-        # rows: 0 idle, 1 walk, 2 thrust, 3 swing, 4 death
+        # rows: 0 idle, 1 walk, 2 thrust, 3 swing, 4 death. The idle/walk side and front-diagonal
+        # frames face left on the sheet (shield forward), the attack rows face right.
+        'auto_facing': False,
         'picks': {
-            'idle': eight_way(0, {'down': 0, 'downside': 8, 'side': 6, 'upside': 5, 'up': 4}),
-            'walk1': eight_way(1, {'down': 0, 'downside': 8, 'side': 6, 'upside': 5, 'up': 4}),
-            'walk2': eight_way(0, {'down': 0, 'downside': 8, 'side': 6, 'upside': 5, 'up': 4}),
+            'idle': eight_way(0, {'down': 0, 'downside': 8, 'side': 6, 'upside': 5, 'up': 4}, flips=('downside', 'side')),
+            'walk1': eight_way(1, {'down': 0, 'downside': 8, 'side': 6, 'upside': 5, 'up': 4}, flips=('downside', 'side')),
+            'walk2': eight_way(0, {'down': 0, 'downside': 8, 'side': 6, 'upside': 5, 'up': 4}, flips=('downside', 'side')),
             'attack': eight_way(3, {'down': 0, 'downside': 8, 'side': 6, 'upside': 5, 'up': 4}),
             'shoot': eight_way(2, {'down': 0, 'downside': 8, 'side': 7, 'upside': 5, 'up': 4}),
             'death': eight_way(4, {'down': 0, 'downside': 8, 'side': 6, 'upside': 5, 'up': 4}),
@@ -152,6 +154,40 @@ def to_pixel_art(rgb, alpha, scale):
     return out
 
 
+def facing_sign(unit, px):
+    """
+    Which way a frame faces horizontally: +1 right, -1 left, 0 unsure. Uses a per-unit 'front'
+    marker (the archer's skin, the skeleton's eye sockets, the boar's tusks) against the body centre.
+    The sheet's columns are not reliable about this, so every side/diagonal frame is checked.
+    """
+    on = px[..., 3] > 0
+    ys, xs = np.nonzero(on)
+    if len(xs) == 0:
+        return 0
+    body_cx = xs.mean()
+    rgb = px[..., :3].astype(np.float32)
+    r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
+    lum = rgb.mean(axis=2)
+    if unit == 'archer':
+        marker = on & (r > 185) & (g > 130) & (g < 215) & (b > 90) & (b < 185) & (r > g) & (g > b)
+    elif unit == 'skeleton':
+        top = ys.min()
+        head = np.zeros_like(on)
+        head[top: top + int(on.shape[0] * 0.32)] = True
+        interior = ndimage.binary_erosion(on, iterations=1)
+        marker = head & interior & (lum < 90)
+        hy, hx = np.nonzero(head & on)
+        body_cx = hx.mean() if len(hx) else body_cx
+    else:  # boar: tusks
+        sat = rgb.max(axis=2) - rgb.min(axis=2)
+        marker = on & (lum > 200) & (sat < 30)
+    my, mx = np.nonzero(marker)
+    if len(mx) < 3:
+        return 0
+    d = mx.mean() - body_cx
+    return 1 if d > 1.2 else -1 if d < -1.2 else 0
+
+
 def anchor_x(px):
     """Horizontal anchor: centre of the bottom third (the feet), so bows and swords don't shift the body."""
     on = px[..., 3] > 0
@@ -169,10 +205,23 @@ def pack(name, spec, rgb, mask):
     rows = (len(frames_list) + cols - 1) // cols
     sheet = np.zeros((rows * ch, cols * cw, 4), np.uint8)
     frames = {}
+    unit = 'boar' if name.startswith('boar') else name
     for k, (fname, (r, c, flip)) in enumerate(frames_list):
         ys, xs, lab = cells[(r, c)]
         px = to_pixel_art(rgb[ys, xs], (mask[ys, xs] & lab).astype(np.float32), spec.get('scale', SCALE))
-        if flip:
+        facing = fname.split('_')[0]
+        # Side and diagonal frames must face right; the game mirrors them for the left half.
+        # Back-diagonal views are checked by hand (seen from behind, the marker sits on the far side).
+        auto = spec.get('auto_facing', True) and facing in ('side', 'downside') or (unit == 'boar' and facing == 'upside')
+        if auto:
+            sign = facing_sign(unit, px)
+            if sign < 0:
+                px = px[:, ::-1]
+            elif sign == 0:
+                print(f'  ?? {name} {fname}: facing unclear, using manual flip={flip}', file=sys.stderr)
+                if flip:
+                    px = px[:, ::-1]
+        elif flip:
             px = px[:, ::-1]
         h, w = px.shape[:2]
         if w > cw or h > ch:
