@@ -45,13 +45,13 @@ export const PROPS: Record<string, PropDef> = {
   // elven structures
   shrine: block(8, 2), statue: block(2), statue_1: block(3), moonwell: block(3, 2),
   arch_gate: { kind: 'block', w: 7, h: 1, solid: [0, 6] },
-  spire_lamp: block(2), crystal_pillar: block(), banner_pole: block(2), banner_pole_1: block(2), banner_small_0: block(), banner_small_1: block(),
-  lamp_post_0: block(), lamp_post_1: block(2), lamp_small: block(), lantern_post: block(2), pedestal_0: block(),
-  altar: block(3), bench_0: block(), bench_1: block(3), market_stall: block(4), market_stall_1: block(4),
-  signpost: block(2), crates: block(), crate_0: block(), crate_1: block(), crate_small: block(),
+  spire_lamp: block(), crystal_pillar: block(), banner_pole: block(), banner_pole_1: block(), banner_small_0: block(), banner_small_1: block(),
+  lamp_post_0: block(), lamp_post_1: block(), lamp_small: block(), lantern_post: block(), pedestal_0: block(),
+  altar: block(2), bench_0: block(), bench_1: block(2), market_stall: block(2), market_stall_1: block(2),
+  signpost: block(), crates: block(), crate_0: block(), crate_1: block(), crate_small: block(),
   barrel_0: block(), barrel_1: block(), barrel_2: block(), sack: block(), pot_0: block(), pot_1: block(),
-  planter_0: block(), planter_1: block(), chest_closed: block(2),
-  fence_0: block(2), fence_1: block(3), fence_2: block(3),
+  planter_0: block(), planter_1: block(), chest_closed: block(),
+  fence_0: block(), fence_1: block(2), fence_2: block(2),
 };
 
 export const GROUPS = {

@@ -221,7 +221,7 @@ export class WorldMap implements Grid {
     for (const [key, x, y] of core) {
       const a = this.placeProp(x, y, key, false, true);
       // The healing circle sits just in front of the well, where the hero starts.
-      if (key === 'moonwell' && a >= 0) this.moonwell = { x: sx + 0.5, y: sy - 1 };
+      if (key === 'moonwell' && a >= 0) this.moonwell = { x: sx + 0.5, y: sy - 0.5 };
     }
     const dressing: Array<[string, number, number]> = [
       ['banner_pole', sx - 4, sy - 1], ['banner_pole_1', sx + 3, sy - 1],

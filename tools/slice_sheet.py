@@ -461,8 +461,16 @@ ELVEN_BIG = {'shrine', 'statue', 'statue_1', 'arch_gate', 'stone_gate', 'moonwel
 ELVEN_BIG_SCALE = 1.6
 # Per-prop overrides: this sheet draws some structures smaller, so they are cut finer.
 ELVEN_SCALES = {
+    # Structures stay big.
     'shrine': 1.0, 'moonwell': 1.0, 'statue': 1.15, 'statue_1': 1.15, 'arch_gate': 1.2, 'stone_gate': 1.15,
-    'market_stall': 1.15, 'market_stall_1': 1.15, 'violet_giant': 1.3, 'spire_lamp': 1.15, 'chest_closed': 1.4,
+    'violet_giant': 1.3,
+    # Human-scale props: a stall is ~1.5 heroes wide, a lamp post ~2 heroes tall.
+    'market_stall': 1.9, 'market_stall_1': 1.9, 'spire_lamp': 1.9, 'lamp_post_0': 1.9, 'lamp_post_1': 1.9,
+    'lantern_post': 1.9, 'lamp_small': 1.9, 'banner_pole': 1.8, 'banner_pole_1': 1.8, 'banner_small_0': 1.8,
+    'banner_small_1': 1.8, 'crystal_pillar': 1.8, 'elf_pillar_0': 1.6, 'signpost': 1.8, 'bench_0': 1.8, 'bench_1': 1.8,
+    'fence_0': 1.8, 'fence_1': 1.8, 'fence_2': 1.8, 'barrel_0': 2.0, 'barrel_1': 2.0, 'barrel_2': 2.0,
+    'crates': 2.0, 'crate_0': 2.0, 'crate_1': 2.0, 'crate_small': 2.0, 'sack': 2.0, 'pot_0': 2.0, 'pot_1': 2.0,
+    'planter_0': 2.0, 'planter_1': 2.0, 'altar': 1.7, 'pedestal_0': 1.8, 'chest_closed': 1.6,
 }
 # Ground detail stays small.
 ELVEN_DECOR_SCALE = 2.2
