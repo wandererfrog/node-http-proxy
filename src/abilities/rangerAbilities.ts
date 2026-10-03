@@ -156,6 +156,7 @@ export class RainOfArrows extends Ability {
     let waves = 0;
     const dmg = this.waveDamage();
     const world = hero.world;
+    world.glyph('fx_moon', x, y, this.radius, 3.2);
     return {
       duration: 3,
       update: (dt) => {

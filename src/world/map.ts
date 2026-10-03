@@ -1,6 +1,6 @@
 import { Grid, Point, findTilePath } from './pathfinding';
 import type { CreepKind } from '../entities/balance';
-import { GROUPS, PROPS } from './props';
+import { GROUPS, PROPS, footprint } from './props';
 
 export const TILE = 16;
 
@@ -14,6 +14,8 @@ export enum Tile {
   Chest = 5,
   /** Solid prop that doesn't stop arrows: boulders, ruins, logs, village props. */
   Block = 6,
+  /** Walkable stone paving (the sanctuary plaza). */
+  Paved = 7,
 }
 
 /** A prop sprite on the map, anchored at its bottom-left footprint tile. */
@@ -102,7 +104,14 @@ interface Biome {
   forest: number;
   pine: number;
   rocky: number;
+  /** Fey woods: violet trees. */
+  fey: number;
+  /** Autumn groves. */
+  autumn: number;
 }
+
+/** Radius (tiles) of the elven sanctuary around the start. Roads begin at its edge. */
+const SANCTUARY_R = 7.5;
 
 export class WorldMap implements Grid {
   readonly tiles: Uint8Array;
@@ -115,6 +124,8 @@ export class WorldMap implements Grid {
   /** For every blocked tile that belongs to a prop: the anchor index of that prop. */
   private readonly owner: Int32Array;
   readonly decor: Decor[] = [];
+  /** Centre of the sanctuary's moonwell (tile space), which restores health and mana nearby. */
+  moonwell: Point | null = null;
   private readonly biome: Biome[] = [];
   /** Props placed to dress camps and the start, so they can be removed if they block a path. */
   private dressing: Array<{ anchor: number; camp: number }> = [];
@@ -128,6 +139,7 @@ export class WorldMap implements Grid {
     const lakes = makeNoise(rand, 64);
     const pines = makeNoise(rand, 64);
     const rocks = makeNoise(rand, 64);
+    const fey = makeNoise(rand, 64);
 
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
@@ -137,6 +149,8 @@ export class WorldMap implements Grid {
           forest: forest(x / 7, y / 7) + forest(x / 3, y / 3) * 0.35,
           pine: pines(x / 11 + 50, y / 11 + 50),
           rocky: rocks(x / 6 + 200, y / 6 + 200),
+          fey: fey(x / 10 + 300, y / 10 + 300),
+          autumn: fey(x / 8 + 900, y / 8 + 900),
         });
       }
     }
@@ -158,8 +172,7 @@ export class WorldMap implements Grid {
         if (b.forest > 1.0) this.placeProp(x, y, this.treeFor(b, rand));
         else if (b.forest > 0.9 && r < 0.4) this.placeProp(x, y, rand() < 0.75 ? pickFrom(rand, GROUPS.bush) : this.treeFor(b, rand));
         else if (b.rocky > 0.68 && r < 0.16) {
-          const q = rand();
-          this.placeProp(x, y, q < 0.45 ? pickFrom(rand, GROUPS.boulder) : q < 0.8 ? pickFrom(rand, GROUPS.rock) : pickFrom(rand, GROUPS.dead));
+          this.placeProp(x, y, rand() < 0.55 ? pickFrom(rand, GROUPS.stone) : pickFrom(rand, GROUPS.rock));
         } else if (r < 0.012) this.placeProp(x, y, pickFrom(rand, GROUPS.rock));
         else if (r < 0.022) this.placeProp(x, y, this.treeFor(b, rand, true));
         else if (r < 0.032) this.placeProp(x, y, pickFrom(rand, GROUPS.bush));
@@ -168,42 +181,86 @@ export class WorldMap implements Grid {
     }
 
     this.spawn = { x: Math.floor(width / 2) + 0.5, y: Math.floor(height / 2) + 0.5 };
-    this.clearCircle(this.spawn.x, this.spawn.y, 4.5);
-    this.paintCircle(this.spawn.x, this.spawn.y, 2.2, Tile.Dirt);
+    this.clearCircle(this.spawn.x, this.spawn.y, SANCTUARY_R + 0.5);
+    this.paintCircle(this.spawn.x, this.spawn.y, 3.6, Tile.Paved);
 
     this.placeCamps(rand);
-    this.dressSpawn(rand);
+    this.buildSanctuary();
+    this.placeLandmarks(rand);
     this.ensureReachable();
     // Chests go in last so no road or dressing clears them away.
     for (const c of this.camps) if (c.treasure) this.set(Math.floor(c.x), Math.floor(c.y), Tile.Chest);
     this.scatterDecor(rand);
   }
 
-  /** A tree that fits the biome: pine woods, oak woods, or a lone tree in the open. */
+  /** A tree that fits the biome: fey (violet) woods, autumn groves, pine woods or green oaks. */
   private treeFor(b: Biome, rand: () => number, lone = false): string {
-    const r = rand();
-    if (b.pine > 0.52) return r < 0.75 ? pickFrom(rand, GROUPS.pine) : r < 0.9 ? pickFrom(rand, GROUPS.pineSmall) : pickFrom(rand, GROUPS.oakSmall);
-    if (lone) return r < 0.6 ? pickFrom(rand, GROUPS.oakSmall) : pickFrom(rand, GROUPS.oakBig);
-    return r < 0.55 ? pickFrom(rand, GROUPS.oakBig) : r < 0.9 ? pickFrom(rand, GROUPS.oakSmall) : pickFrom(rand, GROUPS.pine);
+    if (b.fey > 0.64) return pickFrom(rand, GROUPS.violet);
+    if (b.autumn > 0.66) return pickFrom(rand, GROUPS.autumn);
+    if (b.pine > 0.55 && !lone) return pickFrom(rand, GROUPS.pine);
+    return pickFrom(rand, GROUPS.oak);
+  }
+
+  /**
+   * The elven sanctuary at the start: a paved plaza with a moonwell, the shrine behind it,
+   * banners, lamps, a statue, an arch gate and a small market. Props that don't fit are skipped.
+   */
+  private buildSanctuary(): void {
+    const sx = Math.floor(this.spawn.x);
+    const sy = Math.floor(this.spawn.y);
+    const core: Array<[string, number, number]> = [
+      ['moonwell', sx - 1, sy - 2],
+      ['shrine', sx - 2, sy - 6],
+    ];
+    for (const [key, x, y] of core) {
+      const a = this.placeProp(x, y, key, false, true);
+      if (key === 'moonwell' && a >= 0) this.moonwell = { x: sx + 0.5, y: sy - 2 };
+    }
+    const dressing: Array<[string, number, number]> = [
+      ['banner_pole', sx - 3, sy - 1], ['banner_pole_1', sx + 3, sy - 1],
+      ['spire_lamp', sx - 3, sy + 2], ['lamp_post', sx + 3, sy + 2],
+      ['statue', sx + 4, sy - 4], ['crystal_pillar', sx - 5, sy - 4],
+      ['arch_gate', sx - 2, sy + 5],
+      ['market_stall', sx - 7, sy + 1], ['crates', sx - 5, sy + 1], ['barrel', sx - 7, sy + 2],
+      ['cart', sx + 5, sy + 2], ['sacks', sx + 5, sy + 3], ['bench', sx - 1, sy + 3],
+    ];
+    for (const [key, x, y] of dressing) {
+      const a = this.placeProp(x, y, key, false, true);
+      if (a >= 0) this.dressing.push({ anchor: a, camp: -1 });
+    }
+  }
+
+  /** One or two giant violet trees in open ground away from the start and the camps. */
+  private placeLandmarks(rand: () => number): void {
+    let placed = 0;
+    for (let tries = 0; tries < 400 && placed < 2; tries++) {
+      const x = 8 + Math.floor(rand() * (this.width - 16));
+      const y = 8 + Math.floor(rand() * (this.height - 16));
+      if (Math.hypot(x - this.spawn.x, y - this.spawn.y) < 16) continue;
+      if (this.camps.some((c) => Math.hypot(c.x - x, c.y - y) < 8)) continue;
+      if (this.get(x, y) === Tile.Water) continue;
+      this.clearCircle(x + 0.5, y, 3.2);
+      if (this.placeProp(x - 1, y, 'violet_giant') >= 0) placed++;
+    }
   }
 
   /**
    * Put a prop with its footprint (anchor = bottom-left, growing right and up). Every footprint
    * tile must be free grass unless `force` (map border). Returns the anchor index or -1.
    */
-  placeProp(tx: number, ty: number, key: string, force = false): number {
+  placeProp(tx: number, ty: number, key: string, force = false, onPaving = false): number {
     const def = PROPS[key];
     const tiles: number[] = [];
-    for (let dy = 0; dy < def.h; dy++)
-      for (let dx = 0; dx < def.w; dx++) {
-        const x = tx + dx;
-        const y = ty - dy;
-        if (x < 0 || y < 0 || x >= this.width || y >= this.height) return -1;
-        const i = y * this.width + x;
-        if (!force && (this.tiles[i] !== Tile.Grass || this.owner[i] !== -1)) return -1;
-        if (force && this.owner[i] !== -1) return -1;
-        tiles.push(i);
-      }
+    for (const [dx, dy] of footprint(def)) {
+      const x = tx + dx;
+      const y = ty - dy;
+      if (x < 0 || y < 0 || x >= this.width || y >= this.height) return -1;
+      const i = y * this.width + x;
+      const free = this.tiles[i] === Tile.Grass || (onPaving && this.tiles[i] === Tile.Paved);
+      if (!force && (!free || this.owner[i] !== -1)) return -1;
+      if (force && this.owner[i] !== -1) return -1;
+      tiles.push(i);
+    }
     const anchor = ty * this.width + tx;
     const t = def.kind === 'tree' ? Tile.Tree : def.kind === 'rock' ? Tile.Rock : Tile.Block;
     for (const i of tiles) {
@@ -218,13 +275,11 @@ export class WorldMap implements Grid {
   removeProp(anchor: number): void {
     const p = this.props.get(anchor);
     if (!p) return;
-    const def = PROPS[p.key];
-    for (let dy = 0; dy < def.h; dy++)
-      for (let dx = 0; dx < def.w; dx++) {
-        const i = (p.ty - dy) * this.width + p.tx + dx;
-        this.tiles[i] = Tile.Grass;
-        this.owner[i] = -1;
-      }
+    for (const [dx, dy] of footprint(PROPS[p.key])) {
+      const i = (p.ty - dy) * this.width + p.tx + dx;
+      this.tiles[i] = Tile.Grass;
+      this.owner[i] = -1;
+    }
     this.props.delete(anchor);
   }
 
@@ -239,10 +294,10 @@ export class WorldMap implements Grid {
     const c = this.camps[campIndex];
     const skeletons = c.members.filter((m) => m === 'skeleton').length;
     const pool: readonly string[] = c.treasure
-      ? ['arch', ...GROUPS.supplies, ...GROUPS.supplies, ...GROUPS.ruins]
+      ? [...GROUPS.shrineProps, ...GROUPS.supplies, ...GROUPS.crystal]
       : skeletons * 2 >= c.members.length
-        ? GROUPS.ruins
-        : [...GROUPS.wood, ...GROUPS.stump, ...GROUPS.bush, 'firewood'];
+        ? [...GROUPS.ruins, ...GROUPS.stone]
+        : [...GROUPS.wood, ...GROUPS.stump, ...GROUPS.bush];
     const count = 2 + Math.floor(rand() * 3);
     let placed = 0;
     for (let tries = 0; tries < 30 && placed < count; tries++) {
@@ -250,27 +305,11 @@ export class WorldMap implements Grid {
       const r = 3 + rand() * 0.8;
       const tx = Math.floor(c.x + Math.cos(a) * r);
       const ty = Math.floor(c.y + Math.sin(a) * r);
-      const key = c.treasure && placed === 0 ? 'arch' : pickFrom(rand, pool);
+      const key = c.treasure && placed === 0 ? 'ruin_arch' : pickFrom(rand, pool);
       const anchor = this.placeProp(tx, ty, key);
       if (anchor >= 0) {
         this.dressing.push({ anchor, camp: campIndex });
         placed++;
-      }
-    }
-  }
-
-  /** A little outpost around the start: signpost, lamp, cart and supplies. */
-  private dressSpawn(rand: () => number): void {
-    const items = ['signpost', 'lamppost', 'cart', 'barrel', 'crate', 'sack', 'fence_0'];
-    for (const key of items) {
-      for (let tries = 0; tries < 20; tries++) {
-        const a = rand() * Math.PI * 2;
-        const r = 3 + rand() * 1.2;
-        const anchor = this.placeProp(Math.floor(this.spawn.x + Math.cos(a) * r), Math.floor(this.spawn.y + Math.sin(a) * r), key);
-        if (anchor >= 0) {
-          this.dressing.push({ anchor, camp: -1 });
-          break;
-        }
       }
     }
   }
@@ -299,18 +338,11 @@ export class WorldMap implements Grid {
         const b = this.biome[y * width + x];
         const r = rand();
         if (t === Tile.Grass) {
-          if (r < 0.1) add(pickFrom(rand, GROUPS.tuft), x, y);
-          else if (r < 0.17 && b.forest < 0.6) add(pickFrom(rand, GROUPS.flower), x, y);
-          else if (r < 0.19) add(pickFrom(rand, GROUPS.clover), x, y);
-          else if (r < 0.25 && nearTree(x, y)) add(rand() < 0.5 ? pickFrom(rand, GROUPS.mushroom) : pickFrom(rand, GROUPS.litter), x, y);
-          else if (r < 0.35 && b.rocky > 0.62) add(pickFrom(rand, GROUPS.pebble), x, y);
-        } else if (t === Tile.Dirt) {
-          if (r < 0.04) add(pickFrom(rand, GROUPS.pebble), x, y);
-          else if (r < 0.06) add('twigs', x, y);
+          const meadow = b.forest < 0.6 ? 0.1 : 0;
+          if (r < 0.05 + meadow || (r < 0.12 && nearTree(x, y))) add(pickFrom(rand, GROUPS.flower), x, y);
         } else if (t === Tile.Water) {
           const shore = [this.get(x - 1, y), this.get(x + 1, y), this.get(x, y - 1), this.get(x, y + 1)].some((n) => n !== Tile.Water);
-          if (shore && r < 0.18) add(pickFrom(rand, GROUPS.reeds), x, y);
-          else if (!shore && r < 0.08) add(pickFrom(rand, GROUPS.lily), x, y);
+          if (shore && r < 0.2) add(pickFrom(rand, GROUPS.reeds), x, y);
         }
       }
     }
@@ -329,7 +361,7 @@ export class WorldMap implements Grid {
       const x = 6 + Math.floor(rand() * (width - 12)) + 0.5;
       const y = 6 + Math.floor(rand() * (height - 12)) + 0.5;
       const dist = Math.hypot(x - this.spawn.x, y - this.spawn.y);
-      if (dist < 10) continue;
+      if (dist < SANCTUARY_R + 5) continue;
       if (spots.some((s) => Math.hypot(s.x - x, s.y - y) < 9)) continue;
       spots.push({ x, y, dist });
     }
@@ -347,7 +379,7 @@ export class WorldMap implements Grid {
       this.paintCircle(s.x, s.y, members.length >= 4 ? 2.4 : 1.8, Tile.Dirt);
       const anchors = [this.spawn, ...spots.slice(0, i)];
       const nearest = anchors.reduce((a, b) => (Math.hypot(b.x - s.x, b.y - s.y) < Math.hypot(a.x - s.x, a.y - s.y) ? b : a));
-      this.carveRoad(nearest, s, rand);
+      this.carveRoad(nearest, s, rand, nearest === this.spawn ? SANCTUARY_R + 0.5 : 0);
       this.camps.push({ x: s.x, y: s.y, level: campLevel(s.dist) + levelBonus, members, treasure: isTreasure });
     });
     this.camps.forEach((_, i) => this.dressCamp(i, rand));
@@ -368,7 +400,7 @@ export class WorldMap implements Grid {
 
   isWalkable(tx: number, ty: number): boolean {
     const t = this.get(tx, ty);
-    return t === Tile.Grass || t === Tile.Dirt;
+    return t === Tile.Grass || t === Tile.Dirt || t === Tile.Paved;
   }
 
   /** Tiles the hero can walk up to and interact with. */
@@ -395,7 +427,7 @@ export class WorldMap implements Grid {
   }
 
   /** Wobbly road between two points, clearing obstacles on the way so every camp is reachable. */
-  private carveRoad(a: Point, b: Point, rand: () => number): void {
+  private carveRoad(a: Point, b: Point, rand: () => number, skipStart = 0): void {
     let x = a.x;
     let y = a.y;
     for (let guard = 0; guard < 400; guard++) {
@@ -408,6 +440,8 @@ export class WorldMap implements Grid {
       y += dy / d + (dx / d) * wobble * 0.5;
       const tx = Math.floor(x);
       const ty = Math.floor(y);
+      // Roads from the start begin at the sanctuary's edge, leaving the plaza intact.
+      if (Math.hypot(x - a.x, y - a.y) < skipStart) continue;
       for (let oy = -1; oy <= 1; oy++)
         for (let ox = -1; ox <= 1; ox++) if (!this.isWalkable(tx + ox, ty + oy)) this.set(tx + ox, ty + oy, Tile.Grass);
       this.set(tx, ty, Tile.Dirt);

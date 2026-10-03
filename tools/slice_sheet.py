@@ -1,5 +1,5 @@
 """
-Slice art-source/units-sheet.png and art-source/environment-sheet.png into game-ready atlases
+Slice art-source/units-sheet.png and art-source/elven-sheet.png into game-ready atlases
 in src/assets/sprites/.
 
 The sheet has three panels (archer, boar, skeleton) on a baked-in grey/white checkerboard.
@@ -231,97 +231,107 @@ def arrow():
     print('arrow', px.shape[1], 'x', px.shape[0])
 
 
-# --- Environment sheet ------------------------------------------------------------------------
-ENV_SRC = os.path.join(ROOT, 'art-source', 'environment-sheet.png')
+# --- Elven environment sheet (dark background) -------------------------------------------------
+ELVEN_SRC = os.path.join(ROOT, 'art-source', 'elven-sheet.png')
 
-# Props: name -> (x0, y0, x1, y1) box on the sheet. Every sprite pixel inside the box is kept.
-ENV_PROPS = {
-    'oak_big_0': (22, 18, 178, 192), 'oak_big_1': (180, 18, 318, 192), 'oak_big_2': (324, 18, 462, 192),
-    'oak_big_3': (468, 18, 616, 192),
-    'pine_0': (622, 26, 724, 188), 'pine_1': (730, 22, 842, 188), 'pine_2': (848, 26, 946, 188),
-    'pine_3': (952, 26, 1034, 144), 'pine_4': (1050, 34, 1122, 140),
-    'dead_0': (1140, 20, 1218, 142), 'dead_1': (1236, 20, 1314, 142), 'dead_2': (1320, 56, 1376, 138),
-    'log_0': (1384, 80, 1506, 134), 'log_1': (1258, 812, 1394, 894),
-    'pine_small_0': (968, 150, 1018, 202), 'pine_small_1': (1034, 150, 1086, 202),
-    'stump_0': (1102, 162, 1154, 200), 'stump_1': (1170, 154, 1228, 202), 'stump_2': (1402, 162, 1446, 200),
-    'stump_3': (1466, 154, 1506, 202), 'stump_big': (1406, 818, 1512, 898),
-    'oak_small_0': (24, 196, 116, 312), 'oak_small_1': (130, 192, 224, 312), 'oak_small_2': (238, 200, 316, 304),
-    'oak_small_3': (330, 208, 398, 296), 'oak_small_4': (412, 198, 498, 310),
-    **{f'bush_{i}': (512 + 92 * (i % 5) - (i % 5 > 1) * 0, 198 if i < 5 else 262, 588 + 92 * (i % 5), 256 if i < 5 else 324) for i in range(10)},
-    'tuft_0': (966, 214, 1022, 262), 'tuft_1': (1038, 214, 1094, 262), 'tuft_2': (1110, 214, 1168, 262),
-    'tuft_3': (966, 270, 1022, 316), 'tuft_4': (1038, 270, 1094, 318), 'tuft_5': (1104, 270, 1150, 316),
-    'tuft_6': (1168, 270, 1236, 320), 'tuft_7': (1468, 264, 1514, 310),
-    'reeds_0': (1188, 214, 1250, 266), 'reeds_1': (1264, 218, 1326, 266), 'reeds_2': (1340, 218, 1394, 266),
-    'flower_0': (1246, 282, 1284, 318), 'flower_1': (1298, 282, 1336, 320), 'flower_2': (1348, 282, 1380, 320),
-    'flower_3': (1390, 282, 1422, 320), 'flower_4': (1434, 288, 1462, 320),
-    'boulder_0': (22, 324, 152, 466), 'boulder_1': (160, 336, 274, 438), 'boulder_2': (290, 326, 404, 438),
-    'rock_0': (422, 338, 520, 422), 'rock_1': (540, 352, 618, 412), 'rock_2': (640, 358, 716, 412),
-    'rock_3': (734, 346, 826, 422),
-    'pebble_0': (30, 462, 66, 490), 'pebble_1': (146, 444, 200, 490), 'pebble_2': (230, 444, 292, 490),
-    'pebble_3': (318, 444, 384, 490), 'pebble_4': (708, 440, 766, 482), 'pebble_5': (784, 448, 818, 478),
-    'lily_0': (1370, 342, 1418, 388), 'lily_1': (1336, 400, 1374, 442), 'lily_2': (1386, 400, 1418, 442),
-    'signpost': (22, 794, 86, 898), 'fence_0': (104, 808, 216, 866), 'fence_1': (234, 812, 326, 868),
-    'lamppost': (382, 794, 440, 900), 'crate': (470, 808, 532, 876), 'barrel': (552, 804, 614, 878),
-    'cart': (630, 796, 732, 880), 'sack': (752, 816, 800, 876), 'firewood': (818, 820, 894, 886),
-    'tomb': (24, 914, 86, 994), 'pillar_0': (112, 880, 178, 998), 'wall_0': (190, 904, 282, 980),
-    'wall_1': (300, 892, 390, 1000), 'pillar_1': (416, 906, 474, 992), 'wall_2': (488, 892, 586, 1000),
-    'arch': (610, 888, 732, 1000), 'pillar_2': (752, 916, 818, 994), 'wall_3': (836, 932, 916, 992),
-    'clover_0': (950, 862, 1040, 898), 'clover_1': (1068, 862, 1128, 902), 'leaves': (1160, 858, 1232, 906),
-    'twigs': (944, 920, 1030, 948), 'branch': (1246, 164, 1322, 196),
-    'mushroom_0': (1058, 914, 1094, 952), 'mushroom_1': (1096, 930, 1120, 952), 'mushroom_2': (1124, 920, 1156, 952),
+ELVEN_PROPS = {
+    # trees
+    'oak_0': (438, 8, 562, 158), 'oak_1': (444, 158, 526, 256), 'oak_2': (528, 122, 636, 214), 'oak_3': (640, 150, 738, 258),
+    'autumn_0': (564, 4, 662, 122), 'pine_0': (656, 10, 712, 130), 'pine_1': (712, 14, 762, 128),
+    'violet_giant': (722, 4, 1012, 284), 'violet_0': (972, 8, 1034, 66),
+    'violet_1': (1066, 190, 1146, 286), 'violet_2': (1336, 186, 1420, 268),
+    # bushes / shrubs
+    'bush_0': (524, 206, 578, 258), 'bush_autumn_0': (586, 204, 640, 258), 'bush_1': (446, 258, 492, 326),
+    'bush_violet': (494, 258, 556, 326), 'bush_2': (558, 262, 614, 326), 'bush_3': (616, 248, 670, 328),
+    'bush_4': (672, 272, 714, 306), 'bush_5': (716, 274, 758, 306), 'bush_flower': (444, 326, 550, 422),
+    'bush_autumn_1': (674, 316, 754, 376), 'bush_6': (552, 330, 614, 384),
+    # wood
+    'log_0': (582, 388, 702, 468), 'stump_0': (702, 426, 746, 462), 'log_1': (816, 546, 948, 634),
+    'stump_moss': (684, 470, 812, 568), 'mushrooms': (786, 616, 864, 702),
+    # stones
+    'runestone_0': (752, 330, 838, 448), 'runestone_1': (840, 280, 914, 414), 'runestone_2': (916, 316, 998, 430),
+    'rock_0': (606, 506, 702, 642), 'rock_1': (812, 446, 908, 548), 'rock_2': (866, 644, 952, 708),
+    'rubble': (960, 666, 1094, 712),
+    # crystals (searchable)
+    'crystal_0': (748, 546, 814, 618), 'crystal_1': (504, 588, 554, 642), 'crystal_2': (892, 824, 946, 884),
+    # ruins
+    'ruin_pillar': (504, 704, 562, 794), 'ruin_wall': (508, 762, 606, 892), 'ruin_arch': (602, 702, 744, 894),
+    'ruin_block': (564, 704, 608, 758), 'elf_pillar_0': (750, 720, 810, 864), 'elf_pillar_1': (818, 710, 874, 864),
+    'runestone_3': (874, 742, 942, 862), 'rune_slab': (444, 774, 502, 892),
+    # elven structures
+    'shrine': (1068, 0, 1422, 302), 'statue': (1412, 2, 1536, 278), 'spire_lamp': (1002, 60, 1066, 318),
+    'arch_gate': (1082, 304, 1378, 506), 'crystal_pillar': (1382, 294, 1452, 502), 'banner_pole': (1458, 286, 1536, 528),
+    'banner_pole_1': (1004, 320, 1076, 500), 'moonwell': (1164, 424, 1358, 618),
+    'pedestal_0': (906, 438, 946, 532), 'pedestal_orb': (946, 450, 988, 514), 'pedestal_1': (988, 438, 1032, 530),
+    'bench': (1034, 510, 1132, 568), 'altar': (954, 528, 1042, 662), 'market_stall': (1374, 524, 1536, 678),
+    'banner_small': (1046, 576, 1096, 666), 'lamp_post': (1098, 572, 1152, 702),
+    'signpost': (942, 718, 1014, 832), 'fence_0': (1016, 724, 1112, 788), 'lantern_post': (1122, 678, 1226, 836),
+    'cart': (1220, 686, 1398, 834), 'crates': (1396, 706, 1452, 782), 'barrel': (1474, 750, 1524, 828),
+    'crate': (1396, 780, 1446, 832), 'sack': (1440, 776, 1486, 832), 'well': (948, 792, 1064, 894),
+    'pot': (1066, 806, 1114, 858), 'sacks': (1098, 832, 1172, 894),
+    'fence_1': (1190, 838, 1280, 894), 'fence_2': (1294, 838, 1390, 894), 'fence_3': (1404, 838, 1514, 894),
+    # water decor
+    'reeds': (444, 704, 502, 772),
 }
-# Ground textures: plain crops (no masking), tiled by the game.
-ENV_GROUND = {
-    'ground_grass_0': (24, 520, 122, 618), 'ground_grass_1': (150, 520, 268, 618), 'ground_grass_2': (296, 520, 392, 648),
-    'ground_grass_3': (24, 646, 122, 772), 'ground_grass_4': (296, 676, 392, 772), 'ground_grass_5': (1052, 516, 1124, 592),
-    'ground_grass_6': (1146, 516, 1220, 592), 'ground_grass_7': (1146, 610, 1220, 686),
-    'ground_dirt': (1412, 566, 1518, 606), 'ground_water': (1085, 380, 1140, 440),
+# Pieces of neighbours that fall inside a prop's box.
+ELVEN_EXCLUDE = {'arch_gate': [(1186, 416, 1274, 506)]}
+# Small flowers / sprouts in this region become decor automatically (flower_N).
+ELVEN_DECOR_REGION = (444, 452, 780, 702)
+ELVEN_GROUND = {
+    'ground_grass_0': (12, 506, 108, 540), 'ground_grass_1': (358, 262, 430, 296), 'ground_grass_2': (272, 12, 344, 84),
+    'ground_dirt': (196, 190, 236, 246), 'ground_stone': (104, 350, 166, 400), 'ground_plaza': (190, 350, 252, 400),
+    'ground_water': (140, 630, 205, 680),
+}
+# Glowing effects, kept unmasked for additive blending.
+ELVEN_FX = {
+    'fx_moon': (824, 902, 898, 1006), 'fx_runes': (234, 902, 332, 1006), 'fx_crescent': (438, 904, 510, 1002),
+    'fx_portal': (902, 898, 1016, 1006), 'fx_burst': (1018, 898, 1146, 1006), 'fx_well': (118, 900, 226, 1006),
 }
 
 
-def slice_env():
-    rgba = np.array(Image.open(ENV_SRC).convert('RGBA')).astype(np.float32)
-    rgb = rgba[..., :3]
-    sat = rgb.max(axis=2) - rgb.min(axis=2)
+def elven_mask(rgb):
+    bg = np.array([32.0, 36.0, 41.0])
+    d = np.sqrt(((rgb - bg) ** 2).sum(axis=2))
     lum = rgb.mean(axis=2)
-    sprite = ((sat > 32) | (lum < 150)) & (rgba[..., 3] >= 128)
-    holes = ndimage.binary_fill_holes(sprite) & ~sprite
+    # Glow halos are dim, blue-tinted and close to the background: treat them as background.
+    halo = (lum < 70) & (rgb[..., 2] > rgb[..., 0] + 14) & (d < 60)
+    m = (d > 16) & ~halo
+    m = ndimage.binary_opening(m, iterations=1)
+    holes = ndimage.binary_fill_holes(m) & ~m
     lab, n = ndimage.label(holes)
     if n:
         sizes = ndimage.sum(holes, lab, range(1, n + 1))
-        sprite |= np.isin(lab, np.nonzero(sizes < 120)[0] + 1)
-    images = {}
-    for name, (x0, y0, x1, y1) in ENV_PROPS.items():
-        m = sprite[y0:y1, x0:x1]
-        # Drop specks that aren't part of the prop (stray neighbours at the box edge).
-        lab, n = ndimage.label(m)
-        if n > 1:
-            sizes = ndimage.sum(m, lab, range(1, n + 1))
-            m = np.isin(lab, np.nonzero(sizes >= max(12, sizes.max() * 0.04))[0] + 1)
-        px = to_pixel_art(rgb[y0:y1, x0:x1], m.astype(np.float32), SCALE)
-        on = np.nonzero(px[..., 3])
-        images[name] = px[on[0].min(): on[0].max() + 1, on[1].min(): on[1].max() + 1]
-    for name, (x0, y0, x1, y1) in ENV_GROUND.items():
-        crop = Image.fromarray(rgb[y0:y1, x0:x1].astype(np.uint8))
-        crop = crop.resize((round((x1 - x0) / SCALE), round((y1 - y0) / SCALE)), Image.BOX)
-        arr = np.zeros((crop.height, crop.width, 4), np.uint8)
-        arr[..., :3] = np.array(crop)
-        arr[..., 3] = 255
-        images[name] = arr
-    # Shelf-pack into one atlas, tallest first, 1px gutters.
-    W = 1024
+        m |= np.isin(lab, np.nonzero(sizes < 80)[0] + 1)
+    return m
+
+
+def cut(rgb, m, box, scale, exclude=()):
+    x0, y0, x1, y1 = box
+    sub = m[y0:y1, x0:x1].copy()
+    for ex0, ey0, ex1, ey1 in exclude:
+        sub[max(0, ey0 - y0): max(0, ey1 - y0), max(0, ex0 - x0): max(0, ex1 - x0)] = False
+    lab, n = ndimage.label(sub)
+    if n > 1:
+        sizes = ndimage.sum(sub, lab, range(1, n + 1))
+        sub = np.isin(lab, np.nonzero(sizes >= max(10, sizes.max() * 0.03))[0] + 1)
+    px = to_pixel_art(rgb[y0:y1, x0:x1], sub.astype(np.float32), scale)
+    on = np.nonzero(px[..., 3])
+    return px[on[0].min(): on[0].max() + 1, on[1].min(): on[1].max() + 1]
+
+
+def pack_atlas(images, name, width=1024):
+    """Shelf-pack images into one atlas PNG + Phaser JSON hash."""
     order = sorted(images, key=lambda k: -images[k].shape[0])
     x = y = shelf = 0
     pos = {}
     for k in order:
         h, w = images[k].shape[:2]
-        if x + w > W:
+        if x + w > width:
             x, y, shelf = 0, y + shelf + 1, 0
         pos[k] = (x, y)
         x += w + 1
         shelf = max(shelf, h)
-    H = y + shelf
-    sheet = np.zeros((H, W, 4), np.uint8)
+    sheet = np.zeros((y + shelf, width, 4), np.uint8)
     frames = {}
     for k, (fx, fy) in pos.items():
         h, w = images[k].shape[:2]
@@ -330,10 +340,47 @@ def slice_env():
             'frame': {'x': fx, 'y': fy, 'w': w, 'h': h}, 'rotated': False, 'trimmed': False,
             'spriteSourceSize': {'x': 0, 'y': 0, 'w': w, 'h': h}, 'sourceSize': {'w': w, 'h': h},
         }
-    Image.fromarray(sheet).save(os.path.join(OUT, 'env.png'))
-    with open(os.path.join(OUT, 'env.json'), 'w') as f:
-        json.dump({'frames': frames, 'meta': {'image': 'env.png', 'size': {'w': W, 'h': H}, 'scale': '1'}}, f, indent=1)
-    print('env', len(frames), 'frames', f'{W}x{H}')
+    Image.fromarray(sheet).save(os.path.join(OUT, f'{name}.png'))
+    with open(os.path.join(OUT, f'{name}.json'), 'w') as f:
+        json.dump({'frames': frames, 'meta': {'image': f'{name}.png', 'size': {'w': width, 'h': sheet.shape[0]}, 'scale': '1'}}, f, indent=1)
+    print(name, len(frames), 'frames', f'{width}x{sheet.shape[0]}')
+
+
+def slice_elven():
+    rgb = np.array(Image.open(ELVEN_SRC).convert('RGB')).astype(np.float32)
+    m = elven_mask(rgb)
+    images = {name: cut(rgb, m, box, SCALE, ELVEN_EXCLUDE.get(name, ())) for name, box in ELVEN_PROPS.items()}
+    # Auto decor: every small blob in the flower field.
+    x0, y0, x1, y1 = ELVEN_DECOR_REGION
+    sub = m[y0:y1, x0:x1]
+    lab, _ = ndimage.label(ndimage.binary_dilation(sub, iterations=2))
+    k = 0
+    for sl in ndimage.find_objects(lab):
+        if sl is None:
+            continue
+        h, w = sl[0].stop - sl[0].start, sl[1].stop - sl[1].start
+        if not (18 <= h <= 60 and 16 <= w <= 60):
+            continue
+        box = (x0 + sl[1].start, y0 + sl[0].start, x0 + sl[1].stop, y0 + sl[0].stop)
+        images[f'flower_{k}'] = cut(rgb, m, box, SCALE)
+        k += 1
+    for name, (gx0, gy0, gx1, gy1) in ELVEN_GROUND.items():
+        crop = Image.fromarray(rgb[gy0:gy1, gx0:gx1].astype(np.uint8))
+        crop = crop.resize((round((gx1 - gx0) / SCALE), round((gy1 - gy0) / SCALE)), Image.BOX)
+        arr = np.zeros((crop.height, crop.width, 4), np.uint8)
+        arr[..., :3] = np.array(crop)
+        arr[..., 3] = 255
+        images[name] = arr
+    for name, (fx0, fy0, fx1, fy1) in ELVEN_FX.items():
+        crop = Image.fromarray(rgb[fy0:fy1, fx0:fx1].astype(np.uint8))
+        crop = crop.resize((round((fx1 - fx0) / SCALE), round((fy1 - fy0) / SCALE)), Image.BOX)
+        arr = np.zeros((crop.height, crop.width, 4), np.uint8)
+        # Additive blending: subtract the background so it adds nothing.
+        arr[..., :3] = np.clip(np.array(crop).astype(np.float32) - np.array([32, 36, 41]), 0, 255).astype(np.uint8)
+        arr[..., 3] = 255
+        images[name] = arr
+    pack_atlas(images, 'elven')
+    print('  decor flowers:', k)
 
 
 def main():
@@ -344,7 +391,7 @@ def main():
     for name, spec in SHEETS.items():
         pack(name, spec, rgb, mask)
     arrow()
-    slice_env()
+    slice_elven()
 
 
 if __name__ == '__main__':

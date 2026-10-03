@@ -1,13 +1,16 @@
 /**
- * Catalogue of environment props from art-source/environment-sheet.png (frames in the 'env' atlas).
+ * Catalogue of environment props from art-source/elven-sheet.png (frames in the 'elven' atlas).
  *
  * - kind 'tree'  blocks movement and arrows (trees, bushes, stumps).
- * - kind 'block' blocks movement only (boulders, ruins, logs, village props).
- * - kind 'rock'  blocks movement and can be searched for potions.
+ * - kind 'block' blocks movement only (stones, ruins, logs, elven structures, village props).
+ * - kind 'rock'  blocks movement and can be searched for potions (rocks and crystals).
  * - w/h is the footprint in tiles, anchored at the bottom-left tile and growing right and up.
+ *   `solid` lists which footprint columns block, for props you can walk under (the arch gate).
  *
- * Decor (tufts, flowers, pebbles, lily pads...) never blocks and is baked into the ground.
+ * Decor (flowers, reeds) never blocks and is baked into the ground.
  */
+
+export const ENV_ATLAS = 'elven';
 
 export type PropKind = 'tree' | 'block' | 'rock';
 
@@ -15,52 +18,58 @@ export interface PropDef {
   kind: PropKind;
   w: number;
   h: number;
+  solid?: number[];
 }
 
 const tree = (w = 1, h = 1): PropDef => ({ kind: 'tree', w, h });
 const block = (w = 1, h = 1): PropDef => ({ kind: 'block', w, h });
+const rock = (): PropDef => ({ kind: 'rock', w: 1, h: 1 });
 
 export const PROPS: Record<string, PropDef> = {
-  oak_big_0: tree(), oak_big_1: tree(), oak_big_2: tree(), oak_big_3: tree(),
-  oak_small_0: tree(), oak_small_1: tree(), oak_small_2: tree(), oak_small_3: tree(), oak_small_4: tree(),
-  pine_0: tree(), pine_1: tree(), pine_2: tree(), pine_3: tree(), pine_4: tree(),
-  pine_small_0: tree(), pine_small_1: tree(),
-  dead_0: tree(), dead_1: tree(), dead_2: tree(),
-  bush_0: tree(), bush_1: tree(), bush_2: tree(), bush_3: tree(), bush_4: tree(),
-  bush_5: tree(), bush_6: tree(), bush_7: tree(), bush_8: tree(), bush_9: tree(),
-  stump_0: tree(), stump_1: tree(), stump_2: tree(), stump_3: tree(), stump_big: block(2, 1),
-  log_0: block(2, 1), log_1: block(2, 1),
-  boulder_0: block(2, 2), boulder_1: block(2, 1), boulder_2: block(2, 1),
-  rock_0: { kind: 'rock', w: 1, h: 1 }, rock_1: { kind: 'rock', w: 1, h: 1 },
-  rock_2: { kind: 'rock', w: 1, h: 1 }, rock_3: { kind: 'rock', w: 1, h: 1 },
-  tomb: block(), pillar_0: block(), pillar_1: block(), pillar_2: block(),
-  wall_0: block(), wall_1: block(), wall_2: block(), wall_3: block(), arch: block(2, 1),
-  signpost: block(), lamppost: block(), crate: block(), barrel: block(), sack: block(),
-  cart: block(2, 1), firewood: block(), fence_0: block(2, 1), fence_1: block(),
+  oak_0: tree(), oak_1: tree(), oak_2: tree(), oak_3: tree(), autumn_0: tree(),
+  pine_0: tree(), pine_1: tree(), violet_0: tree(), violet_1: tree(), violet_2: tree(),
+  violet_giant: tree(3, 2),
+  bush_0: tree(), bush_1: tree(), bush_2: tree(), bush_3: tree(), bush_4: tree(), bush_5: tree(), bush_6: tree(),
+  bush_flower: tree(), bush_violet: tree(), bush_autumn_0: tree(), bush_autumn_1: tree(),
+  stump_0: tree(), mushrooms: block(), stump_moss: block(2, 1), log_0: block(2, 1), log_1: block(2, 1),
+  runestone_0: block(), runestone_1: block(), runestone_2: block(), runestone_3: block(), rune_slab: block(),
+  rock_2: block(), rubble: block(2, 1),
+  rock_0: rock(), rock_1: rock(), crystal_0: rock(), crystal_1: rock(), crystal_2: rock(),
+  ruin_pillar: block(), ruin_block: block(), ruin_wall: block(2, 1), ruin_arch: block(2, 1),
+  elf_pillar_0: block(), elf_pillar_1: block(),
+  shrine: block(5, 2), statue: block(2, 1), moonwell: block(3, 2), arch_gate: { kind: 'block', w: 4, h: 1, solid: [0, 3] },
+  spire_lamp: block(), crystal_pillar: block(), banner_pole: block(), banner_pole_1: block(), banner_small: block(),
+  lamp_post: block(), lantern_post: block(), pedestal_0: block(), pedestal_1: block(), pedestal_orb: block(),
+  altar: block(), bench: block(), market_stall: block(2, 1), cart: block(2, 1), well: block(2, 1),
+  signpost: block(), crates: block(), crate: block(), barrel: block(), sack: block(), sacks: block(), pot: block(),
+  fence_0: block(), fence_1: block(), fence_2: block(), fence_3: block(),
 };
 
 export const GROUPS = {
-  oakBig: ['oak_big_0', 'oak_big_1', 'oak_big_2', 'oak_big_3'],
-  oakSmall: ['oak_small_0', 'oak_small_1', 'oak_small_2', 'oak_small_3', 'oak_small_4'],
-  pine: ['pine_0', 'pine_1', 'pine_2', 'pine_3', 'pine_4'],
-  pineSmall: ['pine_small_0', 'pine_small_1'],
-  dead: ['dead_0', 'dead_1', 'dead_2'],
-  bush: ['bush_0', 'bush_1', 'bush_2', 'bush_3', 'bush_4', 'bush_5', 'bush_6', 'bush_7', 'bush_8', 'bush_9'],
-  stump: ['stump_0', 'stump_1', 'stump_2', 'stump_3'],
-  wood: ['log_0', 'log_1', 'stump_big'],
-  boulder: ['boulder_0', 'boulder_1', 'boulder_2'],
-  rock: ['rock_0', 'rock_1', 'rock_2', 'rock_3'],
-  ruins: ['tomb', 'pillar_0', 'pillar_1', 'pillar_2', 'wall_0', 'wall_1', 'wall_2', 'wall_3'],
-  supplies: ['crate', 'barrel', 'sack'],
+  oak: ['oak_0', 'oak_1', 'oak_2', 'oak_3'],
+  autumn: ['autumn_0', 'bush_autumn_0', 'bush_autumn_1', 'oak_1'],
+  pine: ['pine_0', 'pine_1', 'pine_0', 'oak_3'],
+  violet: ['violet_0', 'violet_1', 'violet_2', 'bush_violet'],
+  bush: ['bush_0', 'bush_1', 'bush_2', 'bush_3', 'bush_4', 'bush_5', 'bush_6', 'bush_flower'],
+  stump: ['stump_0', 'mushrooms', 'stump_moss'],
+  wood: ['log_0', 'log_1', 'stump_moss'],
+  stone: ['runestone_0', 'runestone_1', 'runestone_2', 'rock_2', 'rubble'],
+  /** searchable for potions */
+  rock: ['rock_0', 'rock_1', 'crystal_0', 'crystal_1', 'crystal_2'],
+  crystal: ['crystal_0', 'crystal_1', 'crystal_2'],
+  ruins: ['ruin_pillar', 'ruin_block', 'ruin_wall', 'ruin_arch', 'elf_pillar_0', 'elf_pillar_1', 'runestone_3', 'rune_slab'],
+  shrineProps: ['pedestal_0', 'pedestal_1', 'pedestal_orb', 'altar', 'crystal_pillar', 'banner_small'],
+  supplies: ['crates', 'crate', 'barrel', 'sack', 'sacks', 'pot'],
   // decor
-  tuft: ['tuft_0', 'tuft_1', 'tuft_2', 'tuft_3', 'tuft_4', 'tuft_5', 'tuft_6', 'tuft_7'],
-  flower: ['flower_0', 'flower_1', 'flower_2', 'flower_3', 'flower_4'],
-  clover: ['clover_0', 'clover_1'],
-  pebble: ['pebble_0', 'pebble_1', 'pebble_2', 'pebble_3', 'pebble_4', 'pebble_5'],
-  mushroom: ['mushroom_0', 'mushroom_1', 'mushroom_2'],
-  litter: ['leaves', 'twigs', 'branch'],
-  lily: ['lily_0', 'lily_1', 'lily_2'],
-  reeds: ['reeds_0', 'reeds_1', 'reeds_2'],
+  flower: Array.from({ length: 13 }, (_, i) => `flower_${i}`),
+  reeds: ['reeds'],
 } as const;
 
-export const GRASS_FRAMES = Array.from({ length: 8 }, (_, i) => `ground_grass_${i}`);
+export const GRASS_FRAMES = ['ground_grass_0', 'ground_grass_1', 'ground_grass_0', 'ground_grass_1', 'ground_grass_2'];
+
+/** Tiles a prop's footprint blocks, as [dx, dy-up] offsets from its anchor. */
+export function footprint(def: PropDef): Array<[number, number]> {
+  const out: Array<[number, number]> = [];
+  for (let dy = 0; dy < def.h; dy++) for (let dx = 0; dx < def.w; dx++) if (!def.solid || def.solid.includes(dx)) out.push([dx, dy]);
+  return out;
+}

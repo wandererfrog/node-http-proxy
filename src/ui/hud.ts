@@ -296,6 +296,7 @@ export class Hud {
       [Tile.Rock]: '#7a808c',
       [Tile.Chest]: '#ffd84a',
       [Tile.Block]: '#5a5e68',
+      [Tile.Paved]: '#a8a4b8',
     };
     for (let y = 0; y < this.map.height; y++)
       for (let x = 0; x < this.map.width; x++) {

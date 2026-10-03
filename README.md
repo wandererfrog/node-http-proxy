@@ -8,8 +8,7 @@ Unit art (archer, boars, skeletons) comes from `art-source/units-sheet.png`.
 Units face 8 directions: five drawn views (front, front ¾, side, back ¾, back), with the left half mirrored.
 The atlases are sliced at 2x density and drawn at half size, so the detail survives on phone screens.
 The arrow comes from the older concept sheet, `art-source/sprite-sheet.png`.
-The world (ground textures, trees, rocks, ponds, ruins, village props, flowers) comes from `art-source/environment-sheet.png`.
-It's sliced into the `env` atlas by the same script.
+The world uses the elven tileset in `art-source/elven-sheet.png`: trees, crystals, rune stones, ruins, the shrine, the moonwell, banners and village props. It's sliced into the `elven` atlas by the same script.
 HUD icons, the chest and effects are drawn in code (`src/art/sprites.ts`).
 
 ### Re-slicing the sprite sheet
@@ -90,22 +89,29 @@ Abilities level up WC3-style: a skill point per hero level, and basic abilities 
 
 ## World generation
 
-Every game builds a new random map (`src/world/map.ts`, seeded, so a seed always gives the same map).
+Every game builds a new random map (`src/world/map.ts`, seeded, so a seed always gives the same map), in a Night Elf style.
 
 **Biomes come from noise layers:**
-- **Forests:** oak woods and pine woods, with bushes and young trees along their edges.
-- **Rocky areas:** boulders, searchable rocks and dead trees.
-- **Ponds:** muddy banks, reeds and lily pads.
-- **Open meadows:** flowers, tufts, clover; mushrooms and fallen leaves near trees.
+- **Woods:** green oak woods, pine stands, autumn groves, and fey woods of violet trees. One or two giant violet trees stand as landmarks.
+- **Rocky areas:** rune stones and rubble, with blue and purple crystal clusters.
+- **Ponds:** muddy banks and reeds.
+- **Meadows:** wildflowers, thicker near the trees.
+
+**The elven sanctuary at the start** is a paved plaza with:
+- The shrine and a **moonwell**: standing in its glowing circle restores health and mana.
+- Moon banners, lamps, a statue and a crystal pillar.
+- An arch gate you walk under, a market stall and a cart.
+
+Roads leave from the sanctuary's edge to every camp.
 
 **Props** (`src/world/props.ts`) have footprints:
 - Trees block arrows.
-- Boulders, ruins and logs only block movement.
-- Rocks can be searched.
+- Stones, ruins and structures only block movement.
+- Rocks and crystals can be searched for potions.
 
-**Camps are dressed to match their occupants.** Skeletons live among ruins, boars among logs and stumps, and treasure camps sit by a stone arch with crates and barrels. The start is a small outpost with a signpost, lantern and cart. Dressing is removed again if it would ever cut a camp off from the road network.
+**Camps are dressed to match their occupants.** Skeletons live among ruins and rune stones, boars among logs and mushrooms, and treasure camps have a ruined arch, altars, pedestals and crystals.
 
-**Ground is baked at load** into chunk textures (`src/art/ground.ts`). The sheet's grass squares are laid in a jittered grid, and dirt and water show through noisy masks so roads and ponds get ragged pixel edges. Prop shadows and small ground details are painted in too.
+**Ground is generated at load** (`src/art/ground.ts`). Grass, dirt and water use colours sampled from the sheet with noise and small marks, so there are no tile seams. The plaza uses the sheet's stone tiles. Rain of Arrows and level-ups use the sheet's glowing glyphs.
 
 ## Creeps
 
@@ -133,8 +139,8 @@ src/
   entities/Projectile.ts  homing and skillshot arrows
   abilities/              Ability base class and the Ranger kit
   world/map.ts            seeded map generation (biomes, props, decor, camps, roads)
-  world/props.ts          environment prop catalogue (footprints, blocking kind, groups)
-  art/ground.ts           bakes ground chunks from the environment sheet
+  world/props.ts          elven prop catalogue (footprints, blocking kind, groups)
+  art/ground.ts           bakes ground chunks (generated grass/dirt/water, stone plaza, shadows, decor)
   world/pathfinding.ts    A*, line of walk, path smoothing
   art/                    terrain/props/icons drawn in code, atlas animation setup
   assets/sprites/         unit atlases generated from art-source/ by tools/slice_sheet.py

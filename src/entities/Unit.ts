@@ -33,6 +33,8 @@ export interface World {
   fireVolleyArrow(from: Unit, angle: number, range: number, damage: number): void;
   enemiesInRadius(of: Unit, x: number, y: number, r: number): Unit[];
   fallingArrows(x: number, y: number, radius: number, count: number): void;
+  /** A glowing spell glyph on the ground (additive), sized to `radius` px, for `duration` seconds. */
+  glyph(key: string, x: number, y: number, radius: number, duration: number): void;
   floatText(x: number, y: number, text: string, color: string, big?: boolean): void;
   burst(x: number, y: number, color: number, count?: number): void;
   /** Break a searchable rock and hand out its loot. */

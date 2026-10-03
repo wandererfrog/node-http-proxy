@@ -6,8 +6,8 @@ import archer from '../src/assets/sprites/archer.json';
 import boar from '../src/assets/sprites/boar.json';
 import skeleton from '../src/assets/sprites/skeleton.json';
 import boarAlpha from '../src/assets/sprites/boar_alpha.json';
-import env from '../src/assets/sprites/env.json';
-import { GRASS_FRAMES, GROUPS, PROPS } from '../src/world/props';
+import env from '../src/assets/sprites/elven.json';
+import { GRASS_FRAMES, GROUPS, PROPS, footprint } from '../src/world/props';
 
 describe('WorldMap', () => {
   it.each([1, 2, 3, 42, 1337, 99999])('seed %i: lots of camps, all reachable, with guarded treasure', (seed) => {
@@ -48,11 +48,10 @@ describe('environment props', () => {
     for (const [anchor, p] of m.props) {
       const def = PROPS[p.key];
       expect(def, p.key).toBeDefined();
-      for (let dy = 0; dy < def.h; dy++)
-        for (let dx = 0; dx < def.w; dx++) {
-          expect(m.isWalkable(p.tx + dx, p.ty - dy)).toBe(false);
-          expect(m.propAt(p.tx + dx, p.ty - dy)).toBe(anchor);
-        }
+      for (const [dx, dy] of footprint(def)) {
+        expect(m.isWalkable(p.tx + dx, p.ty - dy)).toBe(false);
+        expect(m.propAt(p.tx + dx, p.ty - dy)).toBe(anchor);
+      }
     }
     for (const d of m.decor) {
       const t = m.get(Math.floor(d.x / 16), Math.floor(d.y / 16));
@@ -60,10 +59,24 @@ describe('environment props', () => {
     }
   });
 
+  it.each([3, 31, 4096])('seed %i: the start is an elven sanctuary with a moonwell and the shrine', (seed) => {
+    const m = new WorldMap(96, 96, seed);
+    const keys = new Set([...m.props.values()].map((p) => p.key));
+    expect(keys.has('moonwell')).toBe(true);
+    expect(keys.has('shrine')).toBe(true);
+    expect(m.moonwell).not.toBeNull();
+    expect(m.get(Math.floor(m.spawn.x), Math.floor(m.spawn.y))).toBe(Tile.Paved);
+    expect(m.allCampsReachable()).toBe(true);
+    // The hero can walk from the healing circle out to every camp (covered above) and under the arch gate.
+    const gate = [...m.props.values()].find((p) => p.key === 'arch_gate');
+    if (gate) expect(m.isWalkable(gate.tx + 1, gate.ty)).toBe(true);
+  });
+
   it('every prop and ground frame exists in the env atlas', () => {
     for (const key of Object.keys(PROPS)) expect(env.frames).toHaveProperty(key);
     for (const list of Object.values(GROUPS)) for (const key of list) expect(env.frames).toHaveProperty(key);
-    for (const key of [...GRASS_FRAMES, 'ground_dirt', 'ground_water', 'firewood']) expect(env.frames).toHaveProperty(key);
+    for (const key of [...GRASS_FRAMES, 'ground_dirt', 'ground_water', 'ground_plaza', 'ground_stone', 'rubble', 'fx_moon', 'fx_runes', 'fx_burst'])
+      expect(env.frames).toHaveProperty(key);
   });
 
   it('clearing one tile of a multi-tile prop removes the whole prop', () => {

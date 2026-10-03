@@ -1,12 +1,13 @@
 import type Phaser from 'phaser';
 import { TILE, Tile, WorldMap } from '../world/map';
-import { GRASS_FRAMES, PROPS } from '../world/props';
+import { ENV_ATLAS, GRASS_FRAMES, PROPS, footprint } from '../world/props';
 
 /**
  * Bakes the ground into chunk textures from the environment sheet:
- *  - grass: crops of the sheet's grass squares in a jittered grid (variant + flips per cell)
- *  - dirt / water: tiled sheet textures, revealed through a noisy mask so roads and ponds get
- *    ragged pixel edges like the hand-drawn tiles; ponds get a muddy bank and a light rim
+ *  - grass, dirt, water: generated in each texture's palette (sampled from the sheet) with
+ *    value noise and small marks, so there are no tile seams; dirt and water show through a
+ *    noisy mask so roads and ponds get ragged pixel edges; ponds get a muddy bank and a light rim
+ *  - paving: the sheet's stone tiles, tiled with random flips (the plaza)
  *  - soft shadows under props, then non-blocking decor (tufts, flowers, pebbles, lily pads)
  *
  * The ground uses the same 2x texel density as the sprites and is drawn at half scale.
@@ -25,7 +26,7 @@ interface Src {
 }
 
 function frame(scene: Phaser.Scene, name: string): Src {
-  const f = scene.textures.getFrame('env', name);
+  const f = scene.textures.getFrame(ENV_ATLAS, name);
   return { img: f.source.image as CanvasImageSource, x: f.cutX, y: f.cutY, w: f.cutWidth, h: f.cutHeight };
 }
 
@@ -74,6 +75,55 @@ function tileTexture(ctx: CanvasRenderingContext2D, src: Src, cell: number, ox: 
   }
 }
 
+/** The colour tones of some sheet textures, darkest to lightest (luminance percentiles). */
+function tones(srcs: Src[], n: number): Array<[number, number, number]> {
+  const px: Array<[number, number, number]> = [];
+  for (const s of srcs) {
+    const [, ctx] = makeCanvas(s.w, s.h);
+    ctx.drawImage(s.img, s.x, s.y, s.w, s.h, 0, 0, s.w, s.h);
+    const d = ctx.getImageData(0, 0, s.w, s.h).data;
+    for (let i = 0; i < d.length; i += 4) px.push([d[i], d[i + 1], d[i + 2]]);
+  }
+  px.sort((a, b) => a[0] + a[1] + a[2] - (b[0] + b[1] + b[2]));
+  return Array.from({ length: n }, (_, i) => px[Math.floor(((i + 0.5) / n) * 0.8 * px.length + 0.1 * px.length)]);
+}
+
+type Speck = 'blades' | 'ripples' | 'pebbles';
+
+/**
+ * Seamless ground in a texture's own palette: two octaves of value noise pick the tone, plus
+ * small marks (grass blades, water ripples, pebbles). No tiling, so no seams or repeats.
+ */
+function synth(ctx: CanvasRenderingContext2D, ox: number, oy: number, pal: Array<[number, number, number]>, scale: number, salt: number, speck: Speck): void {
+  const { width: W, height: H } = ctx.canvas;
+  const img = ctx.createImageData(W, H);
+  const d = img.data;
+  const n = pal.length;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const gx = ox + x;
+      const gy = oy + y;
+      const v = noise(gx / scale, gy / scale, salt) * 0.6 + noise(gx / (scale / 2.7), gy / (scale / 2.7), salt + 1) * 0.28 + hash(gx, gy, salt + 2) * 0.12;
+      let t = Math.max(0, Math.min(n - 1, Math.floor((v - 0.12) * n * 1.3)));
+      const h = hash(gx, gy, salt + 3);
+      if (speck === 'blades') {
+        // Short dark blades (2px tall) and the odd light tip.
+        if (h < 0.035 || hash(gx, gy + 1, salt + 3) < 0.035) t = 0;
+        else if (h > 0.985) t = n - 1;
+      } else if (speck === 'ripples') {
+        if (hash(Math.floor(gx / 4), gy, salt + 4) < 0.012) t = n - 1;
+      } else if (h < 0.02) t = 0;
+      const c = pal[t];
+      const k = (y * W + x) * 4;
+      d[k] = c[0];
+      d[k + 1] = c[1];
+      d[k + 2] = c[2];
+      d[k + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
 function makeCanvas(w: number, h: number): [HTMLCanvasElement, CanvasRenderingContext2D] {
   const c = document.createElement('canvas');
   c.width = w;
@@ -83,15 +133,29 @@ function makeCanvas(w: number, h: number): [HTMLCanvasElement, CanvasRenderingCo
   return [c, ctx];
 }
 
+/** Props standing on the plaza keep paving under them. */
+function nearPaved(map: WorldMap, i: number): boolean {
+  const x = i % map.width;
+  const y = Math.floor(i / map.width);
+  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (map.get(x + dx, y + dy) === Tile.Paved) return true;
+  return false;
+}
+
 /** Builds the chunk textures and returns where to place them (world px, top-left). */
 export function buildGround(scene: Phaser.Scene, map: WorldMap): Array<{ key: string; x: number; y: number }> {
   const grass = GRASS_FRAMES.map((n) => frame(scene, n));
   const dirt = frame(scene, 'ground_dirt');
   const water = frame(scene, 'ground_water');
+  const stone = [frame(scene, 'ground_plaza'), frame(scene, 'ground_stone')];
+  const grassPal = tones(grass, 6);
+  const dirtPal = tones([dirt], 5);
+  const waterPal = tones([water], 5);
   const { width, height } = map;
   const isDirt = new Float32Array(width * height);
   const isWater = new Float32Array(width * height);
+  const isPaved = new Float32Array(width * height);
   for (let i = 0; i < width * height; i++) {
+    isPaved[i] = map.tiles[i] === Tile.Paved || (map.tiles[i] === Tile.Block && nearPaved(map, i)) ? 1 : 0;
     isDirt[i] = map.tiles[i] === Tile.Dirt ? 1 : 0;
     isWater[i] = map.tiles[i] === Tile.Water ? 1 : 0;
   }
@@ -119,13 +183,16 @@ export function buildGround(scene: Phaser.Scene, map: WorldMap): Array<{ key: st
       const ox = ctx0 * T;
       const oy = cty * T;
       const [canvas, ctx] = makeCanvas(W, H);
-      tileTexture(ctx, grass[0], 40, ox, oy, 11, grass);
+      synth(ctx, ox, oy, grassPal, 9, 11, 'blades');
 
       // Dirt and water through noisy masks, only where a tile nearby needs it.
       const [, dctx] = makeCanvas(W, H);
-      tileTexture(dctx, dirt, 36, ox, oy, 23);
+      synth(dctx, ox, oy, dirtPal, 6, 23, 'pebbles');
       const [, wctx] = makeCanvas(W, H);
-      tileTexture(wctx, water, 26, ox, oy, 37);
+      synth(wctx, ox, oy, waterPal, 12, 37, 'ripples');
+      const [, sctx] = makeCanvas(W, H);
+      tileTexture(sctx, stone[0], 28, ox, oy, 41, stone);
+      const spx = sctx.getImageData(0, 0, W, H).data;
       const base = ctx.getImageData(0, 0, W, H);
       const dpx = dctx.getImageData(0, 0, W, H).data;
       const wpx = wctx.getImageData(0, 0, W, H).data;
@@ -136,13 +203,15 @@ export function buildGround(scene: Phaser.Scene, map: WorldMap): Array<{ key: st
           const my = cty + ty;
           let nearDirt = false;
           let nearWater = false;
+          let nearStone = false;
           for (let oy2 = -1; oy2 <= 1; oy2++)
             for (let ox2 = -1; ox2 <= 1; ox2++) {
               const t = map.get(mx + ox2, my + oy2);
               if (t === Tile.Dirt) nearDirt = true;
               if (t === Tile.Water) nearWater = true;
+              if (isPaved[(my + oy2) * width + mx + ox2]) nearStone = true;
             }
-          if (!nearDirt && !nearWater) continue;
+          if (!nearDirt && !nearWater && !nearStone) continue;
           for (let y = ty * T; y < (ty + 1) * T; y++) {
             for (let x = tx * T; x < (tx + 1) * T; x++) {
               const gx = ox + x;
@@ -164,6 +233,15 @@ export function buildGround(scene: Phaser.Scene, map: WorldMap): Array<{ key: st
                   px[k] = dark ? 92 : 128;
                   px[k + 1] = dark ? 62 : 88;
                   px[k + 2] = dark ? 36 : 52;
+                  continue;
+                }
+              }
+              if (nearStone) {
+                const f = field(isPaved, gx, gy) + n * 0.35;
+                if (f > 0.5) {
+                  px[k] = spx[k];
+                  px[k + 1] = spx[k + 1];
+                  px[k + 2] = spx[k + 2];
                   continue;
                 }
               }
@@ -190,13 +268,19 @@ export function buildGround(scene: Phaser.Scene, map: WorldMap): Array<{ key: st
       ctx.fillStyle = 'rgba(16, 32, 12, 0.28)';
       for (const p of map.props.values()) {
         const def = PROPS[p.key];
-        const cx = (p.tx + def.w / 2) * T - ox;
-        const cy = (p.ty + 1) * T - 4 - oy;
-        const rx = def.w * T * 0.42;
-        if (cx + rx < 0 || cx - rx > W || cy + 8 < 0 || cy - 8 > H) continue;
-        ctx.beginPath();
-        ctx.ellipse(cx, cy, rx, T * 0.18, 0, 0, Math.PI * 2);
-        ctx.fill();
+        // One soft shadow per solid column group (an arch gate gets one under each pillar).
+        for (const [dx, dy] of footprint(def)) {
+          if (dy !== 0) continue;
+          const span = def.solid ? 1 : def.w;
+          if (!def.solid && dx !== 0) continue;
+          const cx = (p.tx + dx + span / 2) * T - ox;
+          const cy = (p.ty + 1) * T - 4 - oy;
+          const rx = span * T * 0.42;
+          if (cx + rx < 0 || cx - rx > W || cy + 8 < 0 || cy - 8 > H) continue;
+          ctx.beginPath();
+          ctx.ellipse(cx, cy, rx, T * 0.18, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
       // Decor, anchored bottom-centre.
       for (const d of map.decor) {

@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { buildAllTextures, portraitDataUrl } from '../art/sprites';
 import { DENSITY, buildGround } from '../art/ground';
-import { PROPS } from '../world/props';
+import { ENV_ATLAS, PROPS } from '../world/props';
 import { ATLASES, IMAGES } from '../assets';
 import { Ability } from '../abilities/Ability';
 import { Camp, Creep } from '../entities/Creep';
@@ -40,6 +40,10 @@ interface TouchState {
 
 const DEPTH_GROUND_FX = -100000;
 const DEPTH_OVERLAY = 1e7;
+/** px around the moonwell's healing circle */
+const MOONWELL_RADIUS = TILE * 2.2;
+/** Drawn size of the healing circle glyph (px across). */
+const MOONWELL_GLYPH = TILE * 2.6;
 const MIN_ZOOM = 1.5;
 const MAX_ZOOM = 6;
 
@@ -52,6 +56,7 @@ export class GameScene extends Phaser.Scene implements World {
   private rocks = new Map<number, Phaser.GameObjects.Image>();
   /** Trees, culled to the camera view so the renderer skips the thousands off-screen. */
   private props: Phaser.GameObjects.Image[] = [];
+  private wellGlow: Phaser.GameObjects.Image | null = null;
   private lastCull = { x: Infinity, y: Infinity, zoom: 0 };
   /** Treasure chests by tile index. */
   private chests = new Map<number, Chest>();
@@ -134,6 +139,17 @@ export class GameScene extends Phaser.Scene implements World {
       usePotion: (id) => this.drink(id),
     });
 
+    if (this.map.moonwell) {
+      // The healing circle in front of the moonwell, where the hero starts.
+      const w = this.map.moonwell;
+      this.wellGlow = this.add
+        .image(w.x * TILE, (w.y + 1.5) * TILE, ENV_ATLAS, 'fx_runes')
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setDepth(DEPTH_GROUND_FX + 1)
+        .setAlpha(0.2);
+      this.wellGlow.setScale(MOONWELL_GLYPH / this.wellGlow.width);
+    }
+
     this.setupInput();
     this.scale.on('resize', () => this.applyZoom());
     this.hud.toast('Tap to move · tap enemies to attack · tap rocks to search them for potions', 'info');
@@ -147,7 +163,7 @@ export class GameScene extends Phaser.Scene implements World {
       const def = PROPS[p.key];
       const bottom = (p.ty + 1) * TILE;
       const img = this.add
-        .image((p.tx + def.w / 2) * TILE, bottom + 1, 'env', p.key)
+        .image((p.tx + def.w / 2) * TILE, bottom + 1, ENV_ATLAS, p.key)
         .setOrigin(0.5, 1)
         .setScale(1 / DENSITY)
         .setDepth(bottom - 3);
@@ -169,7 +185,7 @@ export class GameScene extends Phaser.Scene implements World {
       this.tweens.add({ targets: glint, alpha: 1, scale: 1.4, yoyo: true, repeat: -1, repeatDelay: 1400, duration: 260 });
       this.chests.set(ty * this.map.width + tx, { img, glint, camp, level: spec.level, opened: false });
     } else {
-      this.add.image(x, y + 5, 'env', 'firewood').setOrigin(0.5, 1).setScale(0.35).setDepth(y + 4);
+      this.add.image(x, y + 4, ENV_ATLAS, 'rubble').setOrigin(0.5, 1).setScale(0.28).setDepth(y + 3);
       const flame = this.add.image(x, y - 1, 'spark').setTint(0xff9a3a).setScale(2).setDepth(y + 5);
       this.tweens.add({ targets: flame, scaleX: 1.4, scaleY: 2.6, alpha: 0.7, yoyo: true, repeat: -1, duration: 220 });
     }
@@ -206,6 +222,7 @@ export class GameScene extends Phaser.Scene implements World {
         if (this.hero.gainXp(target.xpValue)) {
           this.hud.toast(`Level ${this.hero.level}! New skill point`, 'good');
           this.burst(this.hero.x, this.hero.y - 8, 0xffd84a, 14);
+          this.glyph('fx_burst', this.hero.x, this.hero.y - 12, 22, 1.2);
         }
       }
       this.hero.kills++;
@@ -271,6 +288,13 @@ export class GameScene extends Phaser.Scene implements World {
     this.floatText(x, y - 12, `+ ${def.name}`, id === 'hp_potion' ? '#ff8a8a' : '#8fb8ff', true);
     const icon = this.add.image(x, y - 6, 'spark').setTint(id === 'hp_potion' ? 0xff4a4a : 0x4a7aff).setScale(2).setDepth(DEPTH_OVERLAY);
     this.tweens.add({ targets: icon, x: this.hero.x, y: this.hero.y - 10, duration: 350, ease: 'Quad.easeIn', onComplete: () => icon.destroy() });
+  }
+
+  glyph(key: string, x: number, y: number, radius: number, duration: number): void {
+    const img = this.add.image(x, y, ENV_ATLAS, key).setBlendMode(Phaser.BlendModes.ADD).setDepth(DEPTH_GROUND_FX + 1);
+    img.setScale((radius * 2) / img.width).setAlpha(0);
+    this.tweens.add({ targets: img, alpha: 0.9, duration: 250 });
+    this.tweens.add({ targets: img, alpha: 0, delay: Math.max(0, duration * 1000 - 400), duration: 400, onComplete: () => img.destroy() });
   }
 
   fireArrow(from: Unit, target: Unit, damage: number, fire: boolean): void {
@@ -635,6 +659,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.arrows = this.arrows.filter((a) => !a.done);
 
     this.updateRespawns(dt);
+    this.updateMoonwell(dt);
     this.updateCamera(dt);
     this.cullProps();
     this.drawMarkers(dt);
@@ -643,6 +668,21 @@ export class GameScene extends Phaser.Scene implements World {
 
     const cam = this.cameras.main;
     this.hud.update(this.units, { x: cam.worldView.x, y: cam.worldView.y, w: cam.worldView.width, h: cam.worldView.height }, this.cameraLocked);
+  }
+
+  /** Standing by the moonwell restores health and mana, like a Night Elf moon well. */
+  private updateMoonwell(dt: number): void {
+    const w = this.map.moonwell;
+    const h = this.hero;
+    if (!w || !this.wellGlow) return;
+    const near = !h.dead && Math.hypot(h.x - w.x * TILE, h.y - (w.y + 1.5) * TILE) < MOONWELL_RADIUS;
+    if (near) {
+      h.hp = Math.min(h.maxHp, h.hp + 45 * dt);
+      h.mana = Math.min(h.maxMana, h.mana + 25 * dt);
+      if (Math.random() < dt * 6) this.burst(h.x + (Math.random() - 0.5) * 10, h.y - 4, 0x8fc8ff, 1);
+    }
+    const target = near ? 0.45 : 0.2 + Math.sin(this.time.now / 600) * 0.06;
+    this.wellGlow.setAlpha(this.wellGlow.alpha + (target - this.wellGlow.alpha) * Math.min(1, dt * 4));
   }
 
   private updateRespawns(dt: number): void {
