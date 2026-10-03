@@ -844,7 +844,7 @@ export class GameScene extends Phaser.Scene implements World {
     const dt = Math.min(0.05, deltaMs / 1000);
 
     for (const u of this.units) u.update(dt);
-    Unit.separate(this.units, this.map);
+    Unit.separate(this.units, this.map, dt);
     for (const a of this.arrows) a.update(dt);
     this.arrows = this.arrows.filter((a) => !a.done);
 

@@ -102,6 +102,8 @@ export class Unit {
   protected engaged: Unit | null = null;
 
   protected path: Point[] = [];
+  /** Locked walking direction for the current path segment (see followPath). */
+  private heading: number | null = null;
   private pathGoal: Point | null = null;
   private repathT = 0;
   private stuckT = 0;
@@ -186,6 +188,7 @@ export class Unit {
     this.order = order;
     this.engaged = null;
     this.path = [];
+    this.heading = null;
     this.pathGoal = null;
     this.moving = false;
     if (order.type === 'move' || order.type === 'attackMove') this.repath(order.x, order.y);
@@ -215,12 +218,15 @@ export class Unit {
     );
     this.repathT = REPATH_INTERVAL;
     this.stuckT = 0;
+    this.heading = null;
     this.pathGoal = { x, y };
     if (!p) {
       this.path = [];
       return false;
     }
     this.path = p.map((q) => ({ x: q.x * TILE, y: q.y * TILE }));
+    // Lock the first segment's heading now, so the first walking frame already goes straight.
+    this.heading = Math.atan2(this.path[0].y - this.y, this.path[0].x - this.x);
     return true;
   }
 
@@ -247,7 +253,15 @@ export class Unit {
       this.path.shift();
       return this.path.length === 0 ? ((this.moving = false), true) : this.followPath(dt);
     }
-    const off = this.turnToward(Math.atan2(dy, dx), dt);
+    // Heading is the direction to the waypoint, but we only re-aim when the unit has been pushed
+    // well off its line (more than a body width); small displacements from separation are absorbed
+    // rather than steered against, so the unit walks straight instead of weaving.
+    const want = Math.atan2(dy, dx);
+    if (this.heading === null || Math.abs(angleDiff(this.heading, want)) > 0.35 || d < this.stats.radius * 2) this.heading = want;
+    // Turn toward the heading every frame. The unit starts walking once it is roughly facing the
+    // way, but keeps turning while it walks so it ends up facing exactly along its line of travel
+    // (otherwise it would walk slightly sideways for the whole trip).
+    const off = this.turnToward(this.heading, dt);
     if (off > WALK_FACING_TOLERANCE) {
       this.moving = false;
       return false;
@@ -259,14 +273,15 @@ export class Unit {
       this.x = wp.x;
       this.y = wp.y;
       this.path.shift();
+      this.heading = null;
       step -= d;
       if (this.path.length === 0) {
         this.moving = false;
         return true;
       }
     } else {
-      this.x += (dx / d) * step;
-      this.y += (dy / d) * step;
+      this.x += Math.cos(this.heading) * step;
+      this.y += Math.sin(this.heading) * step;
     }
     // Stuck detection (e.g. body-blocked by other units): re-plan after a moment of no progress.
     const progressed = Math.hypot(this.x - before.x, this.y - before.y);
@@ -446,7 +461,9 @@ export class Unit {
   }
 
   /** Separation so units don't stack. Pushes are cancelled if they'd shove a body into a wall. */
-  static separate(units: Unit[], map: WorldMap): void {
+  static separate(units: Unit[], map: WorldMap, dt = 1 / 60): void {
+    // Overlaps resolve over a few frames instead of in one: no more flinging units apart.
+    const maxPush = 60 * dt;
     for (let i = 0; i < units.length; i++) {
       const a = units[i];
       if (a.dead || !a.solid) continue;
@@ -459,7 +476,7 @@ export class Unit {
         const d2 = dx * dx + dy * dy;
         if (d2 >= min * min) continue;
         const d = Math.sqrt(d2) || 0.01;
-        const push = (min - d) / 2;
+        const push = Math.min((min - d) / 2, maxPush);
         const nx = d2 === 0 ? 1 : dx / d;
         const ny = d2 === 0 ? 0 : dy / d;
         // Units standing still (or attacking) are "heavier" than walking ones, so walkers flow around them.
