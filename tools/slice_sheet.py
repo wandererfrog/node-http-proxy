@@ -281,79 +281,135 @@ def arrow():
 
 
 # --- Elven environment sheet (dark background) -------------------------------------------------
-ELVEN_SRC = os.path.join(ROOT, 'art-source', 'elven-sheet.png')
+ELVEN_SRC = os.path.join(ROOT, 'art-source', 'elven-sheet-2.png')
 
+# Props: name -> (x0, y0, x1, y1) box on the sheet (boxes found automatically from the alpha
+# channel, then named by hand). Opaque pixels inside the box are kept; the sheet's soft shadows
+# and glow halos are semi-transparent and get dropped.
 ELVEN_PROPS = {
-    # trees
-    'oak_0': (438, 8, 562, 158), 'oak_1': (444, 158, 526, 256), 'oak_2': (528, 122, 636, 214), 'oak_3': (640, 150, 738, 258),
-    'autumn_0': (564, 4, 662, 122), 'pine_0': (656, 10, 712, 130), 'pine_1': (712, 14, 762, 128),
-    'violet_giant': (722, 4, 1012, 284), 'violet_0': (972, 8, 1034, 66),
-    'violet_1': (1066, 190, 1146, 286), 'violet_2': (1336, 186, 1420, 268),
-    # bushes / shrubs
-    'bush_0': (524, 206, 578, 258), 'bush_autumn_0': (586, 204, 640, 258), 'bush_1': (446, 258, 492, 326),
-    'bush_violet': (494, 258, 556, 326), 'bush_2': (558, 262, 614, 326), 'bush_3': (616, 248, 670, 328),
-    'bush_4': (672, 272, 714, 306), 'bush_5': (716, 274, 758, 306), 'bush_flower': (444, 326, 550, 422),
-    'bush_autumn_1': (674, 316, 754, 376), 'bush_6': (552, 330, 614, 384),
-    # wood
-    'log_0': (582, 388, 702, 468), 'stump_0': (702, 426, 746, 462), 'log_1': (816, 546, 948, 634),
-    'stump_moss': (684, 470, 812, 568), 'mushrooms': (786, 616, 864, 702),
-    # stones
-    'runestone_0': (752, 330, 838, 448), 'runestone_1': (840, 280, 914, 414), 'runestone_2': (916, 316, 998, 430),
-    'rock_0': (606, 506, 702, 642), 'rock_1': (812, 446, 908, 548), 'rock_2': (866, 644, 952, 708),
-    'rubble': (960, 666, 1094, 712),
-    # crystals (searchable)
-    'crystal_0': (748, 546, 814, 618), 'crystal_1': (504, 588, 554, 642), 'crystal_2': (892, 824, 946, 884),
-    # ruins
-    'ruin_pillar': (504, 704, 562, 794), 'ruin_wall': (508, 762, 606, 892), 'ruin_arch': (602, 702, 744, 894),
-    'ruin_block': (564, 704, 608, 758), 'elf_pillar_0': (750, 720, 810, 864), 'elf_pillar_1': (818, 710, 874, 864),
-    'runestone_3': (874, 742, 942, 862), 'rune_slab': (444, 774, 502, 892),
-    # elven structures
-    'shrine': (1068, 0, 1422, 302), 'statue': (1412, 2, 1536, 278), 'spire_lamp': (1002, 60, 1066, 318),
-    'arch_gate': (1082, 304, 1378, 506), 'crystal_pillar': (1382, 294, 1452, 502), 'banner_pole': (1458, 286, 1536, 528),
-    'banner_pole_1': (1004, 320, 1076, 500), 'moonwell': (1164, 424, 1358, 618),
-    'pedestal_0': (906, 438, 946, 532), 'pedestal_orb': (946, 450, 988, 514), 'pedestal_1': (988, 438, 1032, 530),
-    'bench': (1034, 510, 1132, 568), 'altar': (954, 528, 1042, 662), 'market_stall': (1374, 524, 1536, 678),
-    'banner_small': (1046, 576, 1096, 666), 'lamp_post': (1098, 572, 1152, 702),
-    'signpost': (942, 718, 1014, 832), 'fence_0': (1016, 724, 1112, 788), 'lantern_post': (1122, 678, 1226, 836),
-    'cart': (1220, 686, 1398, 834), 'crates': (1396, 706, 1452, 782), 'barrel': (1474, 750, 1524, 828),
-    'crate': (1396, 780, 1446, 832), 'sack': (1440, 776, 1486, 832), 'well': (948, 792, 1064, 894),
-    'pot': (1066, 806, 1114, 858), 'sacks': (1098, 832, 1172, 894),
-    'fence_1': (1190, 838, 1280, 894), 'fence_2': (1294, 838, 1390, 894), 'fence_3': (1404, 838, 1514, 894),
-    # water decor
-    'reeds': (444, 704, 502, 772),
+    'oak_0': (534, 17, 670, 178),
+    'oak_1': (1356, 7, 1512, 176),
+    'oak_2': (542, 189, 620, 280),
+    'oak_3': (855, 178, 968, 282),
+    'oak_4': (985, 208, 1059, 278),
+    'oak_5': (1096, 201, 1167, 279),
+    'blossom': (634, 189, 723, 282),
+    'autumn_0': (685, 13, 806, 171),
+    'autumn_1': (741, 177, 832, 281),
+    'pine_0': (814, 12, 920, 174),
+    'pine_1': (1201, 8, 1295, 180),
+    'pine_2': (1297, 62, 1359, 177),
+    'pine_3': (1173, 183, 1245, 279),
+    'violet_giant': (926, 8, 1190, 208),
+    'violet_0': (1264, 188, 1380, 282),
+    'violet_1': (1397, 186, 1516, 283),
+    'bush_0': (773, 295, 845, 362),
+    'bush_1': (857, 297, 924, 360),
+    'bush_2': (1010, 286, 1073, 356),
+    'bush_3': (1088, 294, 1155, 357),
+    'bush_flower_0': (549, 287, 653, 359),
+    'bush_flower_1': (676, 289, 757, 362),
+    'bush_autumn': (1175, 290, 1251, 354),
+    'log_0': (1401, 293, 1510, 363),
+    'log_1': (867, 432, 990, 499),
+    'stump_0': (924, 368, 1011, 422),
+    'mushrooms': (610, 430, 678, 492),
+    'runestone_0': (1283, 368, 1367, 498),
+    'runestone_1': (1440, 380, 1519, 510),
+    'runestone_2': (1373, 358, 1443, 498),
+    'rock_2': (677, 451, 753, 534),
+    'rock_3': (762, 429, 850, 513),
+    'rock_4': (688, 531, 814, 600),
+    'rubble': (895, 501, 975, 588),
+    'ruin_block': (830, 507, 915, 598),
+    'rock_0': (1035, 361, 1105, 422),
+    'rock_1': (1240, 382, 1296, 439),
+    'crystal_0': (1184, 373, 1234, 437),
+    'crystal_1': (1290, 503, 1358, 594),
+    'crystal_2': (1374, 507, 1438, 589),
+    'crystal_3': (1456, 534, 1505, 592),
+    'ruin_pillar': (602, 507, 669, 601),
+    'ruin_wall': (1003, 428, 1069, 507),
+    'ruin_arch': (1060, 440, 1191, 617),
+    'elf_pillar_0': (1197, 458, 1260, 589),
+    'rune_slab': (987, 514, 1045, 613),
+    'stone_gate': (710, 622, 850, 782),
+    'shrine': (1171, 600, 1428, 832),
+    'statue': (1084, 633, 1173, 833),
+    'statue_1': (1413, 608, 1520, 857),
+    'moonwell': (602, 616, 701, 771),
+    'arch_gate': (95, 612, 360, 770),
+    'spire_lamp': (1001, 620, 1080, 825),
+    'crystal_pillar': (842, 615, 892, 751),
+    'banner_pole': (14, 603, 85, 768),
+    'banner_pole_1': (373, 615, 440, 782),
+    'banner_small_0': (906, 608, 963, 753),
+    'banner_small_1': (964, 649, 1022, 778),
+    'lamp_post_0': (461, 620, 518, 768),
+    'lamp_post_1': (514, 617, 588, 798),
+    'lamp_small': (544, 503, 594, 601),
+    'lantern_post': (482, 903, 556, 1006),
+    'pedestal_0': (174, 823, 210, 898),
+    'altar': (576, 769, 699, 837),
+    'bench_0': (147, 778, 207, 814),
+    'bench_1': (216, 772, 331, 819),
+    'market_stall': (12, 775, 137, 905),
+    'market_stall_1': (358, 782, 496, 913),
+    'signpost': (780, 772, 864, 832),
+    'fence_0': (880, 761, 971, 830),
+    'fence_1': (20, 917, 164, 984),
+    'fence_2': (568, 895, 688, 958),
+    'crates': (759, 837, 803, 911),
+    'crate_0': (217, 840, 261, 890),
+    'crate_1': (283, 841, 338, 897),
+    'crate_small': (138, 843, 163, 885),
+    'barrel_0': (510, 826, 572, 901),
+    'barrel_1': (254, 920, 311, 995),
+    'barrel_2': (321, 912, 374, 985),
+    'sack': (184, 927, 247, 990),
+    'pot_0': (593, 839, 632, 885),
+    'pot_1': (648, 839, 682, 886),
+    'planter_0': (697, 821, 744, 885),
+    'planter_1': (621, 956, 666, 1002),
+    'chest_closed': (383, 920, 463, 995),
+    'flowers_0': (548, 369, 625, 426),
+    'plant_0': (652, 375, 707, 426),
+    'flowers_1': (728, 368, 784, 429),
+    'flowers_2': (824, 368, 900, 423),
+    'flowers_3': (544, 435, 588, 490),
+    'flowers_4': (943, 299, 991, 356),
+    'grass_0': (1266, 289, 1314, 353),
+    'reeds': (1338, 288, 1382, 352),
 }
-ELVEN_DECOR_NAMES = {'reeds'}
-# Pieces of neighbours that fall inside a prop's box.
-ELVEN_EXCLUDE = {'arch_gate': [(1186, 416, 1274, 506)]}
-# Small flowers / sprouts in this region become decor automatically (flower_N).
-ELVEN_DECOR_REGION = (444, 452, 780, 702)
+ELVEN_EXCLUDE = {}
+ELVEN_DECOR_NAMES = ['flowers_0', 'flowers_1', 'flowers_2', 'flowers_3', 'flowers_4', 'grass_0', 'plant_0', 'reeds']
+# Small flowers and leaves in the bottom-right corner become decor automatically (flower_N).
+ELVEN_DECOR_REGION = (1380, 865, 1536, 1012)
+# Ground textures: plain crops (no masking), tiled by the game.
 ELVEN_GROUND = {
-    'ground_grass_0': (12, 506, 108, 540), 'ground_grass_1': (358, 262, 430, 296), 'ground_grass_2': (272, 12, 344, 84),
-    'ground_dirt': (196, 190, 236, 246), 'ground_stone': (104, 350, 166, 400), 'ground_plaza': (190, 350, 252, 400),
-    'ground_water': (140, 630, 205, 680),
+    'ground_grass_0': (24, 20, 100, 100), 'ground_grass_1': (128, 20, 204, 100), 'ground_grass_2': (440, 20, 518, 100),
+    'ground_dirt': (126, 124, 216, 212), 'ground_stone': (234, 220, 312, 280), 'ground_plaza': (342, 306, 420, 372),
+    'ground_water': (136, 545, 196, 596),
 }
 # Glowing effects, kept unmasked for additive blending.
 ELVEN_FX = {
-    'fx_moon': (824, 902, 898, 1006), 'fx_runes': (234, 902, 332, 1006), 'fx_crescent': (438, 904, 510, 1002),
-    'fx_portal': (902, 898, 1016, 1006), 'fx_burst': (1018, 898, 1146, 1006), 'fx_well': (118, 900, 226, 1006),
+    'fx_runes': (830, 843, 898, 904),
+    'fx_crystal': (949, 843, 994, 905),
+    'fx_moon': (1011, 849, 1089, 999),
+    'fx_pillar_0': (1104, 848, 1179, 997),
+    'fx_pillar_1': (1181, 843, 1225, 905),
+    'fx_crescent': (1348, 843, 1371, 886),
+    'fx_beam': (697, 924, 777, 1005),
+    'fx_portal': (793, 914, 896, 1009),
+    'fx_burst': (912, 917, 995, 1001),
+    'fx_fountain_0': (1196, 902, 1272, 998),
+    'fx_fountain_1': (1310, 905, 1367, 1005),
 }
 
 
-def elven_mask(rgb, strict=False):
-    bg = np.array([32.0, 36.0, 41.0])
-    d = np.sqrt(((rgb - bg) ** 2).sum(axis=2))
-    lum = rgb.mean(axis=2)
-    # Glow halos are dim, blue-tinted and close to the background: treat them as background.
-    # Glowing props (crystals) get a stricter cut: only clearly bright or saturated pixels stay.
-    halo = (lum < 70) & (rgb[..., 2] > rgb[..., 0] + 14) & (d < 60)
-    m = ((d > 75) | (lum > 110)) if strict else ((d > 16) & ~halo)
-    m = ndimage.binary_opening(m, iterations=1)
-    holes = ndimage.binary_fill_holes(m) & ~m
-    lab, n = ndimage.label(holes)
-    if n:
-        sizes = ndimage.sum(holes, lab, range(1, n + 1))
-        m |= np.isin(lab, np.nonzero(sizes < 80)[0] + 1)
-    return m
+def elven_mask(rgba, strict=False):
+    """Opaque pixels only: the sheet's drop shadows and glows are semi-transparent."""
+    return rgba[..., 3] > (200 if strict else 128)
 
 
 def cut(rgb, m, box, scale, exclude=()):
@@ -401,20 +457,26 @@ def pack_atlas(images, name, width=1024):
 # Props are sliced finer than units (fewer source px per texel) to come out bigger in game.
 ELVEN_SCALE = 1.25
 # Buildings and the landmark tree are bigger again.
-ELVEN_BIG = {'shrine', 'statue', 'arch_gate', 'moonwell', 'market_stall', 'cart', 'violet_giant', 'well'}
+ELVEN_BIG = {'shrine', 'statue', 'statue_1', 'arch_gate', 'stone_gate', 'moonwell', 'market_stall', 'market_stall_1', 'violet_giant'}
 ELVEN_BIG_SCALE = 1.6
+# Per-prop overrides: this sheet draws some structures smaller, so they are cut finer.
+ELVEN_SCALES = {
+    'shrine': 1.0, 'moonwell': 1.0, 'statue': 1.15, 'statue_1': 1.15, 'arch_gate': 1.2, 'stone_gate': 1.15,
+    'market_stall': 1.15, 'market_stall_1': 1.15, 'violet_giant': 1.3, 'spire_lamp': 1.15, 'chest_closed': 1.4,
+}
 # Ground detail stays small.
 ELVEN_DECOR_SCALE = 2.2
 
 
 def slice_elven():
-    rgb = np.array(Image.open(ELVEN_SRC).convert('RGB')).astype(np.float32)
-    m = elven_mask(rgb)
-    m_strict = elven_mask(rgb, strict=True)
-    glowing = {'crystal_0', 'crystal_1', 'crystal_2'}
+    rgba = np.array(Image.open(ELVEN_SRC).convert('RGBA')).astype(np.float32)
+    rgb = rgba[..., :3]
+    m = elven_mask(rgba)
+    m_strict = elven_mask(rgba, strict=True)
+    glowing = {'crystal_0', 'crystal_1', 'crystal_2', 'crystal_3'}
     images = {
         name: cut(rgb, m_strict if name in glowing else m, box,
-                  ELVEN_BIG_SCALE if name in ELVEN_BIG else ELVEN_DECOR_SCALE if name in ELVEN_DECOR_NAMES else ELVEN_SCALE,
+                  ELVEN_SCALES.get(name, ELVEN_BIG_SCALE if name in ELVEN_BIG else ELVEN_DECOR_SCALE if name in ELVEN_DECOR_NAMES else ELVEN_SCALE),
                   ELVEN_EXCLUDE.get(name, ()))
         for name, box in ELVEN_PROPS.items()
     }
@@ -432,7 +494,21 @@ def slice_elven():
         box = (x0 + sl[1].start, y0 + sl[0].start, x0 + sl[1].stop, y0 + sl[0].stop)
         images[f'flower_{k}'] = cut(rgb, m, box, ELVEN_DECOR_SCALE)
         k += 1
-    for name, (gx0, gy0, gx1, gy1) in ELVEN_GROUND.items():
+    for name, box in ELVEN_GROUND.items():
+        # Shrink the crop until every pixel is opaque: the tiles have transparent gutters whose
+        # hidden colours would otherwise leak into the ground palette.
+        gx0, gy0, gx1, gy1 = box
+        alpha = rgba[..., 3]
+        while gx1 - gx0 > 8 and gy1 - gy0 > 8:
+            sub = alpha[gy0:gy1, gx0:gx1]
+            if sub.min() >= 250:
+                break
+            edges = [sub[0].min(), sub[-1].min(), sub[:, 0].min(), sub[:, -1].min()]
+            k = int(np.argmin(edges))
+            if k == 0: gy0 += 1
+            elif k == 1: gy1 -= 1
+            elif k == 2: gx0 += 1
+            else: gx1 -= 1
         crop = Image.fromarray(rgb[gy0:gy1, gx0:gx1].astype(np.uint8))
         crop = crop.resize((round((gx1 - gx0) / SCALE), round((gy1 - gy0) / SCALE)), Image.BOX)
         arr = np.zeros((crop.height, crop.width, 4), np.uint8)
@@ -443,8 +519,9 @@ def slice_elven():
         crop = Image.fromarray(rgb[fy0:fy1, fx0:fx1].astype(np.uint8))
         crop = crop.resize((round((fx1 - fx0) / SCALE), round((fy1 - fy0) / SCALE)), Image.BOX)
         arr = np.zeros((crop.height, crop.width, 4), np.uint8)
-        # Additive blending: subtract the background so it adds nothing.
-        arr[..., :3] = np.clip(np.array(crop).astype(np.float32) - np.array([32, 36, 41]), 0, 255).astype(np.uint8)
+        # Additive blending: premultiply by alpha so transparent areas add nothing.
+        a = np.array(Image.fromarray(rgba[fy0:fy1, fx0:fx1, 3].astype(np.uint8)).resize(crop.size, Image.BOX)).astype(np.float32) / 255
+        arr[..., :3] = (np.array(crop).astype(np.float32) * a[..., None]).astype(np.uint8)
         arr[..., 3] = 255
         images[name] = arr
     pack_atlas(images, 'elven')

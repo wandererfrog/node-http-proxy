@@ -8,7 +8,7 @@ Unit art (archer, boars, skeletons) comes from `art-source/units-sheet.png`.
 Units face 8 directions: five drawn views (front, front ¾, side, back ¾, back), with the left half mirrored.
 The atlases are sliced at 2x density and drawn at half size, so the detail survives on phone screens.
 The arrow comes from the older concept sheet, `art-source/sprite-sheet.png`.
-The world uses the elven tileset in `art-source/elven-sheet.png`: trees, crystals, rune stones, ruins, the shrine, the moonwell, banners and village props. It's sliced into the `elven` atlas by the same script.
+The world uses the elven tileset in `art-source/elven-sheet-2.png` (transparent, well spaced): trees, crystals, rune stones, ruins, the shrine, the moonwell, banners and village props. The script finds every sprite from the alpha channel, and `ELVEN_PROPS` names the boxes; it's sliced into the `elven` atlas.
 HUD icons, the chest and effects are drawn in code (`src/art/sprites.ts`).
 
 ### Re-slicing the sprite sheet
@@ -19,7 +19,7 @@ python3 tools/slice_sheet.py                     # writes src/assets/sprites/
 python3 tools/slice_sheet.py --contact /tmp/out  # labelled contact sheets for choosing frames
 ```
 
-The sheet's checkerboard background is baked into the pixels, so the slicer removes it by colour.
+The sheet's drop shadows and glows are semi-transparent, so keeping only opaque pixels drops them.
 Some columns face a different way from their neighbours (the idle and walk side frames face left, the attack frames right), so `picks` in the script maps each game frame to a sheet row/column, and the slicer checks each side/diagonal frame's facing from a marker (the archer's skin, the boar's tusks) and mirrors it to face right. The skeleton's facings are set by hand.
 
 ## Run it

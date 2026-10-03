@@ -215,8 +215,8 @@ export class WorldMap implements Grid {
     const sx = Math.floor(this.spawn.x);
     const sy = Math.floor(this.spawn.y);
     const core: Array<[string, number, number]> = [
-      ['moonwell', sx - 2, sy - 2],
-      ['shrine', sx - 3, sy - 5],
+      ['moonwell', sx - 1, sy - 2],
+      ['shrine', sx - 4, sy - 5],
     ];
     for (const [key, x, y] of core) {
       const a = this.placeProp(x, y, key, false, true);
@@ -225,11 +225,11 @@ export class WorldMap implements Grid {
     }
     const dressing: Array<[string, number, number]> = [
       ['banner_pole', sx - 4, sy - 1], ['banner_pole_1', sx + 3, sy - 1],
-      ['spire_lamp', sx - 4, sy + 3], ['lamp_post', sx + 3, sy + 3],
+      ['spire_lamp', sx - 4, sy + 3], ['lamp_post_1', sx + 3, sy + 3],
       ['statue', sx + 4, sy - 4], ['crystal_pillar', sx - 5, sy - 4],
       ['arch_gate', sx - 3, sy + 6],
-      ['market_stall', sx - 8, sy + 1], ['barrel', sx - 8, sy + 2],
-      ['cart', sx + 5, sy + 1], ['sacks', sx + 5, sy + 3], ['bench', sx - 1, sy + 4],
+      ['market_stall', sx - 9, sy + 1], ['barrel_0', sx - 9, sy + 2],
+      ['market_stall_1', sx + 5, sy + 1], ['sack', sx + 5, sy + 3], ['bench_1', sx - 1, sy + 4], ['lamp_post_0', sx + 6, sy + 3],
     ];
     for (const [key, x, y] of dressing) {
       const a = this.placeProp(x, y, key, false, true);
@@ -246,8 +246,8 @@ export class WorldMap implements Grid {
       if (Math.hypot(x - this.spawn.x, y - this.spawn.y) < 16) continue;
       if (this.camps.some((c) => Math.hypot(c.x - x, c.y - y) < 8)) continue;
       if (this.get(x, y) === Tile.Water) continue;
-      this.clearCircle(x + 0.5, y, 4.5);
-      if (this.placeProp(x - 2, y, 'violet_giant') >= 0) placed++;
+      this.clearCircle(x + 0.5, y, 5);
+      if (this.placeProp(x - 3, y, 'violet_giant') >= 0) placed++;
     }
   }
 

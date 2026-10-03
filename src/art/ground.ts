@@ -50,7 +50,7 @@ function noise(x: number, y: number, salt: number): number {
 }
 
 /** Fill a canvas by tiling a source texture in cells, with a deterministic flip per cell. */
-function tileTexture(ctx: CanvasRenderingContext2D, src: Src, cell: number, ox: number, oy: number, salt: number, variants?: Src[]): void {
+function tileTexture(ctx: CanvasRenderingContext2D, src: Src, cell: number, ox: number, oy: number, salt: number, variants?: Src[], whole = false): void {
   const { width, height } = ctx.canvas;
   const startX = Math.floor(ox / cell);
   const startY = Math.floor(oy / cell);
@@ -60,10 +60,10 @@ function tileTexture(ctx: CanvasRenderingContext2D, src: Src, cell: number, ox: 
       const fx = hash(cx, cy, salt + 1) < 0.5;
       const fy = hash(cx, cy, salt + 2) < 0.5;
       // A random cell-sized window from the source, so repeats don't line up.
-      const sw = Math.min(cell, s.w);
-      const sh = Math.min(cell, s.h);
-      const sx = s.x + Math.floor(hash(cx, cy, salt + 3) * (s.w - sw + 1));
-      const sy = s.y + Math.floor(hash(cx, cy, salt + 4) * (s.h - sh + 1));
+      const sw = whole ? s.w : Math.min(cell, s.w);
+      const sh = whole ? s.h : Math.min(cell, s.h);
+      const sx = whole ? s.x : s.x + Math.floor(hash(cx, cy, salt + 3) * (s.w - sw + 1));
+      const sy = whole ? s.y : s.y + Math.floor(hash(cx, cy, salt + 4) * (s.h - sh + 1));
       const dx = cx * cell - ox;
       const dy = cy * cell - oy;
       ctx.save();
@@ -191,7 +191,8 @@ export function buildGround(scene: Phaser.Scene, map: WorldMap): Array<{ key: st
       const [, wctx] = makeCanvas(W, H);
       synth(wctx, ox, oy, waterPal, 12, 37, 'ripples');
       const [, sctx] = makeCanvas(W, H);
-      tileTexture(sctx, stone[0], 28, ox, oy, 41, stone);
+      // Paving: whole stone tiles (not random windows) so the slab pattern lines up.
+      tileTexture(sctx, stone[0], 32, ox, oy, 41, stone, true);
       const spx = sctx.getImageData(0, 0, W, H).data;
       const base = ctx.getImageData(0, 0, W, H);
       const dpx = dctx.getImageData(0, 0, W, H).data;
