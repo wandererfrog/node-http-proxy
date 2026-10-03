@@ -15,7 +15,7 @@ import { ENV_ATLAS, GRASS_FRAMES, PROPS, footprint } from '../world/props';
 
 export const DENSITY = 2; // texels per world pixel
 const T = TILE * DENSITY; // texels per tile
-const CHUNK_TILES = 32;
+const CHUNK_TILES = 16;
 
 interface Src {
   img: CanvasImageSource;
@@ -34,6 +34,20 @@ function hash(x: number, y: number, salt: number): number {
   let h = (x * 374761393 + y * 668265263 + salt * 2147483647) | 0;
   h = Math.imul(h ^ (h >>> 13), 1274126177);
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
+/**
+ * A square of ground baked into one texture. Chunks are built on demand (the scene builds the ones
+ * near the camera first and the rest as you approach them), so a big map doesn't stall the start.
+ */
+export interface GroundChunk {
+  key: string;
+  /** World px, top-left. */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  build(): void;
 }
 
 /** Smooth value noise in [0, 1). */
@@ -167,18 +181,19 @@ function propShadows(ctx: CanvasRenderingContext2D, map: WorldMap, ox: number, o
  * them, a lit ledge on top of that face, stone rims where the wall meets floor at its sides, and
  * shadow cast onto the floor at the foot of every wall.
  */
-function buildDungeonGround(scene: Phaser.Scene, map: WorldMap): Array<{ key: string; x: number; y: number }> {
+function buildDungeonGround(scene: Phaser.Scene, map: WorldMap): GroundChunk[] {
   const stone = [frame(scene, 'ground_plaza'), frame(scene, 'ground_stone')];
   const brickPal = tones([stone[1]], 6).map(([r, g, b]) => [r * 0.5, g * 0.48, b * 0.56] as [number, number, number]);
   const { width, height } = map;
   const wall = (x: number, y: number) => map.get(x, y) === Tile.Wall;
   const FACE = 18; // texels of brick face at the bottom of a wall tile with floor below
   const RIM = 3;
-  const out: Array<{ key: string; x: number; y: number }> = [];
+  const out: GroundChunk[] = [];
   for (let cty = 0; cty < height; cty += CHUNK_TILES) {
     for (let ctx0 = 0; ctx0 < width; ctx0 += CHUNK_TILES) {
       const tw = Math.min(CHUNK_TILES, width - ctx0);
       const th = Math.min(CHUNK_TILES, height - cty);
+      out.push({ key: `ground_${ctx0}_${cty}`, x: ctx0 * TILE, y: cty * TILE, w: tw * TILE, h: th * TILE, build: () => {
       const W = tw * T;
       const H = th * T;
       const ox = ctx0 * T;
@@ -257,14 +272,14 @@ function buildDungeonGround(scene: Phaser.Scene, map: WorldMap): Array<{ key: st
       const key = `ground_${ctx0}_${cty}`;
       if (scene.textures.exists(key)) scene.textures.remove(key);
       scene.textures.addCanvas(key, canvas);
-      out.push({ key, x: ctx0 * TILE, y: cty * TILE });
+      } });
     }
   }
   return out;
 }
 
 /** Builds the chunk textures and returns where to place them (world px, top-left). */
-export function buildGround(scene: Phaser.Scene, map: WorldMap): Array<{ key: string; x: number; y: number }> {
+export function buildGround(scene: Phaser.Scene, map: WorldMap): GroundChunk[] {
   if (map.kind === 'dungeon') return buildDungeonGround(scene, map);
   const grass = GRASS_FRAMES.map((n) => frame(scene, n));
   const dirt = frame(scene, 'ground_dirt');
@@ -296,11 +311,12 @@ export function buildGround(scene: Phaser.Scene, map: WorldMap): Array<{ key: st
     return a + (b - a) * fy;
   };
 
-  const out: Array<{ key: string; x: number; y: number }> = [];
+  const out: GroundChunk[] = [];
   for (let cty = 0; cty < height; cty += CHUNK_TILES) {
     for (let ctx0 = 0; ctx0 < width; ctx0 += CHUNK_TILES) {
       const tw = Math.min(CHUNK_TILES, width - ctx0);
       const th = Math.min(CHUNK_TILES, height - cty);
+      out.push({ key: `ground_${ctx0}_${cty}`, x: ctx0 * TILE, y: cty * TILE, w: tw * TILE, h: th * TILE, build: () => {
       const W = tw * T;
       const H = th * T;
       const ox = ctx0 * T;
@@ -308,18 +324,29 @@ export function buildGround(scene: Phaser.Scene, map: WorldMap): Array<{ key: st
       const [canvas, ctx] = makeCanvas(W, H);
       synth(ctx, ox, oy, grassPal, 9, 11, 'blades');
 
-      // Dirt and water through noisy masks, only where a tile nearby needs it.
-      const [, dctx] = makeCanvas(W, H);
-      synth(dctx, ox, oy, dirtPal, 6, 23, 'pebbles');
-      const [, wctx] = makeCanvas(W, H);
-      synth(wctx, ox, oy, waterPal, 12, 37, 'ripples');
-      const [, sctx] = makeCanvas(W, H);
+      // Dirt, water and paving through noisy masks, only where a tile nearby needs it, and only
+      // generated at all if the chunk (plus a one-tile margin) has any of them: most chunks are grass.
+      let hasDirt = false;
+      let hasWater = false;
+      let hasStone = false;
+      for (let y = cty - 1; y <= cty + th; y++)
+        for (let x = ctx0 - 1; x <= ctx0 + tw; x++) {
+          const t = map.get(x, y);
+          if (t === Tile.Dirt) hasDirt = true;
+          else if (t === Tile.Water) hasWater = true;
+          if (x >= 0 && y >= 0 && x < width && y < height && isPaved[y * width + x]) hasStone = true;
+        }
+      const layer = (on: boolean, paint: (c: CanvasRenderingContext2D) => void): Uint8ClampedArray | null => {
+        if (!on) return null;
+        const [, c] = makeCanvas(W, H);
+        paint(c);
+        return c.getImageData(0, 0, W, H).data;
+      };
+      const dpx = layer(hasDirt, (c) => synth(c, ox, oy, dirtPal, 6, 23, 'pebbles'));
+      const wpx = layer(hasWater, (c) => synth(c, ox, oy, waterPal, 12, 37, 'ripples'));
       // Paving: whole stone tiles (not random windows) so the slab pattern lines up.
-      tileTexture(sctx, stone[0], 32, ox, oy, 41, stone, true);
-      const spx = sctx.getImageData(0, 0, W, H).data;
+      const spx = layer(hasStone, (c) => tileTexture(c, stone[0], 32, ox, oy, 41, stone, true));
       const base = ctx.getImageData(0, 0, W, H);
-      const dpx = dctx.getImageData(0, 0, W, H).data;
-      const wpx = wctx.getImageData(0, 0, W, H).data;
       const px = base.data;
       for (let ty = 0; ty < th; ty++) {
         for (let tx = 0; tx < tw; tx++) {
@@ -336,6 +363,9 @@ export function buildGround(scene: Phaser.Scene, map: WorldMap): Array<{ key: st
               if (isPaved[(my + oy2) * width + mx + ox2]) nearStone = true;
             }
           if (!nearDirt && !nearWater && !nearStone) continue;
+          if (!dpx) nearDirt = false;
+          if (!wpx) nearWater = false;
+          if (!spx) nearStone = false;
           for (let y = ty * T; y < (ty + 1) * T; y++) {
             for (let x = tx * T; x < (tx + 1) * T; x++) {
               const gx = ox + x;
@@ -346,9 +376,9 @@ export function buildGround(scene: Phaser.Scene, map: WorldMap): Array<{ key: st
                 const f = field(isWater, gx, gy) + n * 0.45;
                 if (f > 0.5) {
                   const rim = f < 0.56;
-                  px[k] = rim ? 143 : wpx[k];
-                  px[k + 1] = rim ? 196 : wpx[k + 1];
-                  px[k + 2] = rim ? 240 : wpx[k + 2];
+                  px[k] = rim ? 143 : wpx![k];
+                  px[k + 1] = rim ? 196 : wpx![k + 1];
+                  px[k + 2] = rim ? 240 : wpx![k + 2];
                   continue;
                 }
                 if (f > 0.38) {
@@ -363,18 +393,18 @@ export function buildGround(scene: Phaser.Scene, map: WorldMap): Array<{ key: st
               if (nearStone) {
                 const f = field(isPaved, gx, gy) + n * 0.35;
                 if (f > 0.5) {
-                  px[k] = spx[k];
-                  px[k + 1] = spx[k + 1];
-                  px[k + 2] = spx[k + 2];
+                  px[k] = spx![k];
+                  px[k + 1] = spx![k + 1];
+                  px[k + 2] = spx![k + 2];
                   continue;
                 }
               }
               if (nearDirt) {
                 const f = field(isDirt, gx, gy) + n * 0.5;
                 if (f > 0.5) {
-                  px[k] = dpx[k];
-                  px[k + 1] = dpx[k + 1];
-                  px[k + 2] = dpx[k + 2];
+                  px[k] = dpx![k];
+                  px[k + 1] = dpx![k + 1];
+                  px[k + 2] = dpx![k + 2];
                 } else if (f > 0.44) {
                   // Darker grass lip along road edges.
                   px[k] = px[k] * 0.78;
@@ -402,7 +432,7 @@ export function buildGround(scene: Phaser.Scene, map: WorldMap): Array<{ key: st
       const key = `ground_${ctx0}_${cty}`;
       if (scene.textures.exists(key)) scene.textures.remove(key);
       scene.textures.addCanvas(key, canvas);
-      out.push({ key, x: ctx0 * TILE, y: cty * TILE });
+      } });
     }
   }
   return out;

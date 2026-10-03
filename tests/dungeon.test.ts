@@ -46,10 +46,10 @@ describe('dungeon maps', () => {
 });
 
 describe('dungeon entrances in the overworld', () => {
-  it.each([1, 42, 777])('seed %i: three gates, far from the start, all reachable', (seed) => {
-    const m = new WorldMap(96, 96, seed);
+  it.each([1, 42, 777])('seed %i: four gates on the 128x128 overworld, far from the start, all reachable', (seed) => {
+    const m = new WorldMap(128, 128, seed);
     const enters = m.portals.filter((p) => p.kind === 'enter');
-    expect(enters.length).toBe(3);
+    expect(enters.length).toBe(4);
     for (const p of enters) {
       const i = p.tiles[0];
       const tx = i % m.width;

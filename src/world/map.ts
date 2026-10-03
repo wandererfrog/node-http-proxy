@@ -80,7 +80,7 @@ export interface CampSpec {
 
 /** Camp level from distance to the spawn (tiles). */
 export function campLevel(dist: number): number {
-  return Math.max(1, Math.min(8, 1 + Math.floor((dist - 10) / 6)));
+  return Math.max(1, Math.min(12, 1 + Math.floor((dist - 10) / 5)));
 }
 
 /**
@@ -287,11 +287,12 @@ export class WorldMap implements Grid {
   }
 
   /**
-   * Dungeon entrances: three stone gates far from the start, each with a road to its doorway.
+   * Dungeon entrances: stone gates far from the start, each with a road to its doorway.
    * Walking into the gate's opening (the two middle tiles) goes down. Deeper ones are tougher.
    */
   private placeEntrances(rand: () => number): void {
-    const want = 3;
+    // One gate per ~4,000 tiles: three on a small map, four on the 128x128 overworld.
+    const want = Math.min(DUNGEON_NAMES.length, Math.max(3, Math.round((this.width * this.height) / 4000)));
     for (let tries = 0; tries < 600 && this.portals.length < want; tries++) {
       const tx = 8 + Math.floor(rand() * (this.width - 20));
       const ty = 10 + Math.floor(rand() * (this.height - 20));

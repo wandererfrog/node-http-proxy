@@ -13,20 +13,21 @@ describe('talent tree', () => {
   it('opens tiers as points are spent', () => {
     const t = new Talents();
     t.points = 9;
-    expect(t.blocked('quickDraw')).toMatch(/Requires 3 points/);
+    expect(t.blocked('quickDraw')).toMatch(/Requires 2 points/);
     expect(t.learn('sharpshooter')).toBe(true);
     expect(t.learn('sharpshooter')).toBe(true);
+    expect(t.learn('quickDraw')).toBe(true); // tier 2 open at 2 spent
+    expect(t.blocked('trueshotAura')).toMatch(/Requires 4 points/); // 3 spent
     expect(t.learn('sharpshooter')).toBe(true);
     expect(t.learn('sharpshooter')).toBe(false); // max rank 3
-    expect(t.learn('quickDraw')).toBe(true); // tier 2 open at 3 spent
-    expect(t.blocked('trueshotAura')).toMatch(/Requires 6 points/);
+    expect(t.blocked('trueshotAura')).toBeNull(); // 4 spent: tier 3 open
   });
 
-  it('Deadeye needs Trueshot Aura as well as 8 points', () => {
+  it('Deadeye needs Trueshot Aura as well as 6 points', () => {
     const t = new Talents();
-    t.points = 9;
-    for (const id of ['sharpshooter', 'sharpshooter', 'sharpshooter', 'hardiness', 'hardiness', 'hardiness', 'quickDraw', 'quickDraw'] as const) expect(t.learn(id)).toBe(true);
-    expect(t.spent).toBe(8);
+    t.points = 7;
+    for (const id of ['sharpshooter', 'sharpshooter', 'sharpshooter', 'hardiness', 'hardiness', 'hardiness'] as const) expect(t.learn(id)).toBe(true);
+    expect(t.spent).toBe(6);
     expect(t.blocked('deadeye')).toBe('Requires Trueshot Aura');
     expect(t.learn('trueshotAura')).toBe(true);
     expect(t.blocked('deadeye')).toBe('No talent points');

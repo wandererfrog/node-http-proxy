@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GEAR_SLOTS, INVENTORY_SIZE, Inventory, MAX_TIER, TIERS, gearIcon, makeGear, rollGear } from '../src/entities/items';
+import { GEAR_SLOTS, INVENTORY_SIZE, Inventory, MAX_TIER, TIERS, gearIcon, gearValue, makeGear, requiredLevel, rollGear } from '../src/entities/items';
 import { mulberry32 } from '../src/world/map';
 import items from '../src/assets/sprites/items.json';
 
@@ -19,16 +19,30 @@ describe('gear', () => {
     expect(TIERS).toHaveLength(6);
   });
 
-  it('drops better tiers from higher-level creeps, and chests never drop junk', () => {
+  it('drops follow rarity: mostly Common, Rare and up are rare, Legendary almost never', () => {
     const rand = mulberry32(5);
-    const avg = (level: number, min = 0, bias = 0) => {
-      let s = 0;
-      for (let i = 0; i < 400; i++) s += rollGear(level, rand, min, bias).tier;
-      return s / 400;
+    const share = (level: number) => {
+      const n = 20000;
+      const counts = Array(6).fill(0);
+      for (let i = 0; i < n; i++) counts[rollGear(level, rand).tier]++;
+      return counts.map((c) => c / n);
     };
-    expect(avg(1)).toBeLessThan(1);
-    expect(avg(8)).toBeGreaterThan(avg(1) + 1.5);
+    const l1 = share(1);
+    expect(l1[0]).toBeGreaterThan(0.5);
+    expect(l1[3] + l1[4] + l1[5]).toBeLessThan(0.07);
+    expect(l1[5]).toBeLessThan(0.006);
+    // Deeper creeps tilt the odds up, but Common is still the most likely.
+    const l10 = share(10);
+    expect(l10[3] + l10[4] + l10[5]).toBeGreaterThan(l1[3] + l1[4] + l1[5]);
+    expect(l10[0]).toBeGreaterThan(l10[1]);
+    // Chests never drop junk.
     for (let i = 0; i < 100; i++) expect(rollGear(3, rand, 2, 1.5).tier).toBeGreaterThanOrEqual(2);
+  });
+
+  it('needs the right level to wear, and sells for more when rarer', () => {
+    expect(requiredLevel(makeGear('bow', 0, 1))).toBe(1);
+    expect(requiredLevel(makeGear('bow', 0, 7))).toBe(6);
+    expect(gearValue(makeGear('ring', 4, 5))).toBeGreaterThan(gearValue(makeGear('ring', 1, 5)));
   });
 });
 

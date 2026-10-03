@@ -1,6 +1,6 @@
 /**
  * The Ranger's talent tree (one tree, WoW style): ten talents in four tiers. A talent point comes
- * with every hero level from 2 (9 by level 10, against 21 ranks, so you choose). A tier opens once
+ * every second hero level (levels 2, 4, ... 20: ten points against 21 ranks, so you choose). A tier opens once
  * enough points are spent in the tree, and Deadeye also needs Trueshot Aura, drawn as an arrow
  * between them like WoW's prerequisites.
  */
@@ -33,7 +33,7 @@ export interface TalentDef {
 }
 
 /** Points that must be spent in the tree before each tier opens. */
-export const TIER_POINTS = [0, 3, 6, 8];
+export const TIER_POINTS = [0, 2, 4, 6];
 
 /** Per-rank values, in one place for the hero's stats and the descriptions. */
 export const TALENT_VALUES = {

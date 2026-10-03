@@ -1,11 +1,11 @@
 import Phaser from 'phaser';
 import { AuraName, buildAllTextures, frameDataUrl, iconDataUrl, portraitDataUrl } from '../art/sprites';
-import { DENSITY, buildGround } from '../art/ground';
+import { DENSITY, GroundChunk, buildGround } from '../art/ground';
 import { ENV_ATLAS, PROPS } from '../world/props';
 import { ATLASES, IMAGES } from '../assets';
 import { Ability } from '../abilities/Ability';
 import { Camp, Creep } from '../entities/Creep';
-import { CREEP_GEAR_DROP, CREEP_POTION_DROP } from '../entities/balance';
+import { CREEP_GEAR_DROP, CREEP_GOLD_DROP, CREEP_POTION_DROP, creepGold } from '../entities/balance';
 import { Gear, GearSlot, ITEMS, ItemId, TIERS, TOMES, TOME_IDS, rollGear } from '../entities/items';
 import { Hero, HeroState } from '../entities/Hero';
 import { TALENT_BY_ID } from '../entities/talents';
@@ -41,9 +41,11 @@ interface RunState {
   worldSeed: number;
   /** Chests opened and rocks searched, as `${mapId}:${key}`, so they stay looted when you come back. */
   looted: Set<string>;
+  /** Dungeon camps cleared, as `${mapId}:c${index}`: dungeon monsters never come back. */
+  cleared: Set<string>;
 }
 
-const OVERWORLD_SIZE = 96;
+const OVERWORLD_SIZE = 128;
 const DUNGEON_W = 64;
 const DUNGEON_H = 56;
 /** Radius (world px) of the hero's own pool of light in a dungeon. */
@@ -149,7 +151,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.dpr = (this.game.registry.get('dpr') as number) ?? 1;
     let run = this.registry.get('run') as RunState | undefined;
     if (!run || data.newGame) {
-      run = { worldSeed: (Math.random() * 1e9) | 0, looted: new Set() };
+      run = { worldSeed: (Math.random() * 1e9) | 0, looted: new Set(), cleared: new Set() };
       this.registry.set('run', run);
     }
     this.run = run;
@@ -173,7 +175,8 @@ export class GameScene extends Phaser.Scene implements World {
 
     const worldW = this.map.width * TILE;
     const worldH = this.map.height * TILE;
-    for (const g of buildGround(this, this.map)) this.add.image(g.x, g.y, g.key).setOrigin(0, 0).setScale(1 / DENSITY).setDepth(-1e6);
+    // Ground chunks are baked on demand: the ones around the start now, the rest as the camera nears them.
+    this.groundPending = buildGround(this, this.map);
     this.placeProps();
 
     this.fxGfx = this.add.graphics().setDepth(DEPTH_GROUND_FX);
@@ -195,7 +198,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.hero = new Hero(this, start.x, start.y);
     if (data.hero) this.hero.restore(data.hero);
     this.units.push(this.hero);
-    for (const spec of this.map.camps) this.spawnCamp(spec);
+    this.map.camps.forEach((spec, i) => this.spawnCamp(spec, i, this.map.kind === 'dungeon' && run.cleared.has(`${this.mapId}:c${i}`)));
     for (const [key, chest] of this.chests) {
       if (!run.looted.has(`${this.mapId}:${key}`)) continue;
       chest.opened = true;
@@ -213,6 +216,10 @@ export class GameScene extends Phaser.Scene implements World {
     this.userZoom = Phaser.Math.Clamp(Math.min(window.innerWidth, window.innerHeight) / 165, 2.3, 4.6);
     this.applyZoom();
     cam.centerOn(this.hero.x, this.hero.y);
+    // The camera's worldView updates on its next render, so describe the first view around the hero.
+    const vw = this.scale.width / cam.zoom;
+    const vh = this.scale.height / cam.zoom;
+    this.updateGround(Infinity, new Phaser.Geom.Rectangle(this.hero.x - vw / 2, this.hero.y - vh / 2, vw, vh));
 
     this.hud = new Hud(document.getElementById('ui')!, this.hero, this.map, portraitDataUrl(this), (frame) => this.itemIcon(frame), {
       abilityTap: (i) => this.onAbilityTap(i),
@@ -293,6 +300,28 @@ export class GameScene extends Phaser.Scene implements World {
   private darkness: Phaser.GameObjects.Image | null = null;
   private darkTex: Phaser.Textures.CanvasTexture | null = null;
   private lightGlows: Array<{ img: Phaser.GameObjects.Image; radius: number; phase: number; flicker: boolean }> = [];
+
+  private groundPending: GroundChunk[] = [];
+
+  /**
+   * Bake ground chunks that are in (or within a chunk of) the camera view, nearest first: up to
+   * `budget` of them (all of them at the start, one per frame while walking).
+   */
+  private updateGround(budget = 1, view?: Phaser.Geom.Rectangle): void {
+    if (this.groundPending.length === 0) return;
+    const v = view ?? this.cameras.main.worldView;
+    const margin = TILE * 16;
+    const cx = v.centerX;
+    const cy = v.centerY;
+    const near = this.groundPending
+      .filter((c) => c.x < v.right + margin && c.x + c.w > v.x - margin && c.y < v.bottom + margin && c.y + c.h > v.y - margin)
+      .sort((a, b) => Math.hypot(a.x + a.w / 2 - cx, a.y + a.h / 2 - cy) - Math.hypot(b.x + b.w / 2 - cx, b.y + b.h / 2 - cy));
+    for (const c of near.slice(0, budget)) {
+      c.build();
+      this.add.image(c.x, c.y, c.key).setOrigin(0, 0).setScale(1 / DENSITY).setDepth(-1e6);
+      this.groundPending.splice(this.groundPending.indexOf(c), 1);
+    }
+  }
 
   /** The scene object survives restart: clear everything the last map left behind. */
   private resetState(): void {
@@ -467,10 +496,12 @@ export class GameScene extends Phaser.Scene implements World {
     }
   }
 
-  private spawnCamp(spec: CampSpec): void {
+  /** A camp and its creeps; `cleared` (dungeon camps already beaten this run) spawns no creeps. */
+  private spawnCamp(spec: CampSpec, index: number, cleared = false): void {
     const x = spec.x * TILE;
     const y = spec.y * TILE;
     const camp = new Camp(x, y);
+    camp.index = index;
     if (spec.treasure) {
       // The chest sits on the centre tile (which the map marks as blocked); guards stand around it.
       const tx = Math.floor(spec.x);
@@ -485,6 +516,10 @@ export class GameScene extends Phaser.Scene implements World {
       this.tweens.add({ targets: flame, scaleX: 1.4, scaleY: 2.6, alpha: 0.7, yoyo: true, repeat: -1, duration: 220 });
     }
     const n = spec.members.length;
+    if (cleared) {
+      this.camps.push(camp);
+      return;
+    }
     spec.members.forEach((k, i) => {
       // A lone creep stands at the fire; packs spread around it. Alphas lead from the front (below).
       const a = (i / n) * Math.PI * 2 + 0.5;
@@ -517,17 +552,19 @@ export class GameScene extends Phaser.Scene implements World {
       this.fxOnce('ground_death_1', target.x, target.y + 2, { life: 0.9, scale: FX_SCALE * (target.stats.scale ?? 1), originY: 0.75, grow: 0.15 });
       if (!this.hero.dead) {
         this.floatText(this.hero.x, this.hero.y - 26, `+${target.xpValue} xp`, '#c28cff');
-        if (this.hero.gainXp(target.xpValue)) {
-          this.hud.toast(`Level ${this.hero.level}! New skill point`, 'good');
-          this.levelUpFx();
-        }
+        if (this.hero.gainXp(target.xpValue)) this.onLevelUp();
       }
       this.hero.kills++;
       if (Math.random() < CREEP_POTION_DROP) this.giveLoot(target.x, target.y, Math.random() < 0.6 ? 'hp_potion' : 'mp_potion');
+      if (Math.random() < CREEP_GOLD_DROP || target.kind === 'alphaBoar') this.giveGold(target.x, target.y - 4, creepGold(target.level) * (target.kind === 'alphaBoar' ? 4 : 1));
       // Gear scaled to the creep's level; alpha boars always carry something better.
       if (target.kind === 'alphaBoar') this.giveGear(target.x, target.y, rollGear(target.level, Math.random, 1, 1));
       else if (Math.random() < CREEP_GEAR_DROP) this.giveGear(target.x, target.y, rollGear(target.level));
-      if (target.camp.cleared) target.camp.respawnT = 45;
+      if (target.camp.cleared) {
+        // Overworld camps come back after a while; dungeon monsters stay dead for the run.
+        if (this.map.kind === 'dungeon') this.run.cleared.add(`${this.mapId}:c${target.camp.index}`);
+        else target.camp.respawnT = 45;
+      }
     } else if (isHero) {
       this.hud.toast('Sylva has fallen!', 'warn');
       this.setTargeting(null);
@@ -578,7 +615,8 @@ export class GameScene extends Phaser.Scene implements World {
     this.time.delayedCall(500, () => this.giveLoot(x + 4, y, Math.random() < 0.5 ? 'hp_potion' : 'mp_potion'));
     const xp = 40 * chest.level;
     this.floatText(this.hero.x, this.hero.y - 34, `+${xp} xp`, '#c28cff');
-    if (this.hero.gainXp(xp)) this.hud.toast(`Level ${this.hero.level}! New skill point`, 'good');
+    if (this.hero.gainXp(xp)) this.onLevelUp();
+    this.giveGold(x, y - 6, 15 * chest.level);
   }
 
   private readonly iconCache = new Map<string, string>();
@@ -1085,6 +1123,20 @@ export class GameScene extends Phaser.Scene implements World {
     this.followers.push({ obj: spr, unit, dy: 1 });
   }
 
+  private onLevelUp(): void {
+    const h = this.hero;
+    const talent = h.level % 2 === 0 ? ' and a talent point' : '';
+    this.hud.toast(`Level ${h.level}! A skill point${talent}`, 'good');
+    this.levelUpFx();
+  }
+
+  /** Coins for the hero, with a little gold number where they dropped. */
+  giveGold(x: number, y: number, amount: number): void {
+    if (this.hero.dead || amount <= 0) return;
+    this.hero.gold += amount;
+    this.floatText(x, y - 10, `+${amount}g`, '#ffd84a');
+  }
+
   /** Level up: the gold column of light around the hero, with the precision aura at its feet. */
   private levelUpFx(): void {
     const h = this.hero;
@@ -1127,6 +1179,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.trueshotAura.setVisible(this.hero.hasTrueshotAura && !this.hero.dead).setPosition(this.hero.x, this.hero.y + 1);
     this.checkPortals();
     this.updateCamera(dt);
+    this.updateGround();
     this.cullProps();
     this.drawMarkers(dt);
     this.drawBars();
@@ -1163,6 +1216,7 @@ export class GameScene extends Phaser.Scene implements World {
       this.burst(h.x, h.y - 8, 0x7dff6a, 14);
       this.hud.toast('Sylva returns!', 'good');
     }
+    if (this.map.kind === 'dungeon') return;
     for (const camp of this.camps) {
       if (!camp.cleared) continue;
       camp.respawnT -= dt;

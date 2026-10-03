@@ -136,7 +136,7 @@ export class RainOfArrows extends Ability {
   readonly preview: Preview = { shape: 'circle', radius: 40 };
 
   requiredHeroLevel(nextLevel: number): number {
-    return nextLevel * 4;
+    return nextLevel * 6;
   }
   manaCost(): number {
     return [0, 125, 175][this.level];

@@ -30,10 +30,15 @@ export function creepDamage(base: [number, number], level: number): [number, num
 }
 
 export function creepXp(kind: CreepKind, level: number): number {
-  return Math.round((kind === 'alphaBoar' ? 2.5 : 1) * (20 + 15 * level));
+  return Math.round((kind === 'alphaBoar' ? 2.5 : 1) * (16 + 9 * level));
 }
 
 /** Chance a dying creep drops a potion. */
-export const CREEP_POTION_DROP = 0.15;
+export const CREEP_POTION_DROP = 0.12;
 /** Chance a dying creep drops a piece of gear (alpha boars always do). */
-export const CREEP_GEAR_DROP = 0.12;
+export const CREEP_GEAR_DROP = 0.07;
+/** Chance a dying creep drops some gold, and how much. */
+export const CREEP_GOLD_DROP = 0.6;
+export function creepGold(level: number, rand: () => number = Math.random): number {
+  return Math.max(1, Math.round(level * (1.5 + rand() * 1.5)));
+}

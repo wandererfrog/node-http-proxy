@@ -135,6 +135,16 @@ export function makeGear(slot: GearSlot, tier: number, level: number): Gear {
   return { slot, tier, level, name: `${TIER_NAMES[slot][tier]} ${SLOT_NAMES[slot]}`, icon: gearIcon(slot, tier), stats };
 }
 
+/** Hero level needed to wear a piece: one below its item level (never below 1). */
+export function requiredLevel(g: Gear): number {
+  return Math.max(1, g.level - 1);
+}
+
+/** What the vendor pays for a piece (gold); buying from the vendor costs four times this. */
+export function gearValue(g: Gear): number {
+  return Math.round((4 + g.level * 2) * [1, 1.6, 2.6, 4, 6, 9][g.tier]);
+}
+
 export function addStats(a: GearStats, b: GearStats): GearStats {
   const out = { ...a };
   for (const k of Object.keys(b) as Array<keyof GearStats>) out[k] = Math.round((a[k] + b[k]) * 10) / 10;
@@ -155,15 +165,18 @@ export function describeStats(s: GearStats): string[] {
   return lines;
 }
 
+/** Base odds of each quality, WoW style: most drops are Common, a Legendary is a rare event. */
+export const RARITY_WEIGHTS = [60, 26, 9, 3.5, 1.2, 0.3];
+
 /**
- * Random gear for a drop from something of `level`. Tier odds follow a bell around a centre
- * that climbs with level (about one tier per two levels); `bias` shifts it (chests), and
- * `minTier` sets a floor.
+ * Random gear for a drop from something of `level`. Quality follows RARITY_WEIGHTS; higher levels
+ * tilt the odds slightly up (+4% per level per tier step), `bias` tilts them more (chests, alpha
+ * boars), and `minTier` sets a floor.
  */
 export function rollGear(level: number, rand: () => number = Math.random, minTier = 0, bias = 0): Gear {
   const slot = GEAR_SLOTS[Math.floor(rand() * GEAR_SLOTS.length)];
-  const centre = (level - 1) * 0.45 + bias;
-  const weights = TIERS.map((_, t) => (t < minTier ? 0 : Math.exp(-((t - centre) ** 2) / 1.3)));
+  const tilt = (1 + 0.04 * (level - 1)) * (1 + bias);
+  const weights = TIERS.map((_, t) => (t < minTier ? 0 : RARITY_WEIGHTS[t] * tilt ** t));
   const total = weights.reduce((a, b) => a + b, 0);
   let r = rand() * total;
   let tier = minTier;

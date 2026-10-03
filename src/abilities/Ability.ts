@@ -36,9 +36,9 @@ export abstract class Ability {
   abstract castRange(): number;
   abstract describe(level: number): string;
 
-  /** WC3 rule: normal abilities need hero level 1/3/5, ultimates 6 (here scaled to 4/8). */
+  /** Normal abilities open their ranks at hero level 1/4/7 (the ultimate overrides this: 6/12). */
   requiredHeroLevel(nextLevel: number): number {
-    return nextLevel * 2 - 1;
+    return nextLevel * 3 - 2;
   }
 
   canLearn(hero: Hero): boolean {

@@ -327,6 +327,11 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .char-card hr { border: 0; height: 2px; background: #2a2a3a; margin: 4px 0; }
 .card-stats div { color: #fff; }
 .card-note { margin-top: 4px; color: #1eff00; }
+.card-req { margin-top: 2px; color: #fff; }
+.card-req.bad { color: #ff2020; }
+.card-sell { margin-top: 2px; color: #fff; display: flex; align-items: center; gap: 3px; }
+.card-sell b { font-weight: 500; color: var(--wow-gold); }
+.coin { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #ffd84a; box-shadow: inset -2px -2px 0 #b8861a, 0 0 0 1px #000; }
 .card-compare .muted { color: #a8a8b8; }
 .card-compare .up { color: #1eff00; }
 .card-compare .down { color: #ff2020; }

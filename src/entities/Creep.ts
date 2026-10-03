@@ -31,6 +31,8 @@ const LEASH = 11 * TILE;
 export class Camp {
   readonly creeps: Creep[] = [];
   respawnT = 0;
+  /** Index in the map's camp list (dungeon camps are remembered as cleared by it). */
+  index = -1;
   constructor(readonly x: number, readonly y: number) {}
 
   get cleared(): boolean {

@@ -77,7 +77,8 @@ npm run build      # static build in dist/ (relative paths, so it works from any
 All tuning lives in `src/entities/balance.ts`:
 - **Kill speed:** a creep of your level dies in 2–3 arrows. Creep health scales with the hero's damage at that level (checked by `tests/balance.test.ts`).
 - **Kiting:** a melee creep charging from max range eats 2–3 arrows before it reaches you. Creeps move at 30–34 px/s, the archer fires every 1.1s from 96px.
-- **Creep levels:** camps get tougher the further they are from the start. The level shows next to each creep's health bar: green = lower than you, yellow = same, orange/red = higher.
+- **Levelling:** the cap is level 20. Going up a level takes about 9 same-level kills at first and over 35 near the cap (`src/entities/xp.ts`); quests add XP on top.
+- **Creep levels:** camps get tougher the further they are from the start (up to level 12 in the overworld; dungeons go deeper). The level shows next to each creep's health bar: green = lower than you, yellow = same, orange/red = higher.
 
 ## No saving
 
@@ -109,7 +110,7 @@ Nine slots: bow, quiver, helmet, armour, gloves, boots, cloak, ring, amulet. Eac
 
 Armour takes a flat amount off every hit (a hit always does at least 1). Attack speed shortens the time between arrows.
 
-**Drops:** creeps drop gear 12% of the time, scaled to their level; alpha boars always drop something a tier up; treasure chests give a Moonsteel-or-better piece. Open the character page (portrait, bag button or C). It's a pixel-art take on the World of Warcraft character frame: gold bevelled frames, inset stone slots and buttons drawn as pixel art at boot (`src/ui/pixelFrame.ts`), the bundled Pixelify Sans font, the round portrait with the level badge, **Attributes** on the left, the nine **Equipped** slots on the right (empty ones show a faint silhouette), and a **24-slot Backpack** below. Gear moves by **drag and drop**: drag a piece from the backpack onto Equipped (anywhere on it; it goes to its own slot) to wear it, drag a worn piece into the backpack to take it off (onto a piece of the same kind to swap them), and drag between backpack slots to rearrange. Valid places glow while you drag. The backpack holds gear only: **potions go on the belt** (the 1 / 2 buttons), up to 9 of each. Tap any item for its WoW-style tooltip card: name and quality in the rarity colour (Common, Uncommon, Fine, Rare, Epic, Legendary), its bonuses, how it compares with what you wear (green better, red worse), and **Wear** / **Take off**. With a mouse, hovering previews the card. The card sits beside the panel when there's room and at the bottom on portrait phones. Belts, daggers, food and materials are sliced but not used yet.
+**Drops and rarity:** creeps drop gear 7% of the time (alpha boars always), potions 12% and gold 60%. Quality follows WoW-style odds: Common 60%, Uncommon 26%, Fine 9%, Rare 3.5%, Epic 1.2%, Legendary 0.3%; higher-level creeps tilt the odds a little (+4% per level per quality step), alpha boars and treasure chests a lot (chests are Fine or better). Every piece **requires a level** (its item level − 1), so loot from a deep dungeon has to wait, and has a **sell price** for the village vendor. Open the character page (portrait, bag button or C). It's a pixel-art take on the World of Warcraft character frame: gold bevelled frames, inset stone slots and buttons drawn as pixel art at boot (`src/ui/pixelFrame.ts`), the bundled Pixelify Sans font, the round portrait with the level badge, **Attributes** on the left, the nine **Equipped** slots on the right (empty ones show a faint silhouette), and a **24-slot Backpack** below. Gear moves by **drag and drop**: drag a piece from the backpack onto Equipped (anywhere on it; it goes to its own slot) to wear it, drag a worn piece into the backpack to take it off (onto a piece of the same kind to swap them), and drag between backpack slots to rearrange. Valid places glow while you drag. The backpack holds gear only: **potions go on the belt** (the 1 / 2 buttons), up to 9 of each. Tap any item for its WoW-style tooltip card: name and quality in the rarity colour (Common, Uncommon, Fine, Rare, Epic, Legendary), its bonuses, how it compares with what you wear (green better, red worse), and **Wear** / **Take off**. With a mouse, hovering previews the card. The card sits beside the panel when there's room and at the bottom on portrait phones. Belts, daggers, food and materials are sliced but not used yet.
 
 ## The Ranger's kit
 
@@ -118,13 +119,13 @@ Armour takes a flat amount off every hit (a hit always does at least 1). Attack 
 | Q | **Searing Arrows** | Autocast toggle. Attacks become fire arrows (the concept sheet's fire infusion) that burst into flame on hit. +12/22/32 damage for 8 mana each. |
 | W | **Volley** | A cone of 5/7/9 arrows. Each one hits the first enemy in its path, so point-blank shots do huge burst damage. |
 | E | **Tumble** | A short dash that stops at obstacles. Your next attack within 4s fires instantly for 150/175/200% damage. |
-| R | **Rain of Arrows** (ultimate, hero level 4/8) | Mark a wide area with the rune circle (0.35s), then 6 quick waves of sky arrows (one every 0.3s, each falling in 0.24s): each wave drops one arrow onto every enemy inside the circle, and the damage lands with the arrow. The circle's rim is drawn exactly at the hit radius (40px, 2.5 tiles), so what you see is what gets hit. The hero channels in the focus aura. Any new order cancels it. |
+| R | **Rain of Arrows** (ultimate, hero level 6/12) | Mark a wide area with the rune circle (0.35s), then 6 quick waves of sky arrows (one every 0.3s, each falling in 0.24s): each wave drops one arrow onto every enemy inside the circle, and the damage lands with the arrow. The circle's rim is drawn exactly at the hit radius (40px, 2.5 tiles), so what you see is what gets hit. The hero channels in the focus aura. Any new order cancels it. |
 
-Abilities level up WC3-style: a skill point per hero level, and basic abilities need hero level 1/3/5.
+Abilities level up WC3-style: a skill point per hero level; basic abilities open their ranks at hero level 1/4/7, the ultimate at 6/12.
 
 ## Talents
 
-Buffs come from a WoW-style talent tree, **Marksmanship** (`src/entities/talents.ts`): ten talents in four tiers. You get a talent point every level from 2 (9 by level 10, against 21 ranks, so you choose). A tier opens once enough points are spent in the tree (0 / 3 / 6 / 8), and Deadeye also needs Trueshot Aura (the gold arrow). Open it from the character page's **Talents** tab (or N); unspent points show as a gold badge on the tab and the bag button. Tap a talent for its card (current and next rank, what's missing) and **Learn**; **Reset** refunds every point.
+Buffs come from a WoW-style talent tree, **Marksmanship** (`src/entities/talents.ts`): ten talents in four tiers. You get a talent point **every second level** (levels 2, 4, … 20: ten points against 21 ranks, so you choose). A tier opens once enough points are spent in the tree (0 / 2 / 4 / 6), and Deadeye also needs Trueshot Aura (the gold arrow). Open it from the character page's **Talents** tab (or N); unspent points show as a gold badge on the tab and the bag button. Tap a talent for its card (current and next rank, what's missing) and **Learn**; **Reset** refunds every point.
 
 | Tier | Talent | Ranks | Effect per rank |
 |---|---|---|---|
@@ -139,11 +140,11 @@ Buffs come from a WoW-style talent tree, **Marksmanship** (`src/entities/talents
 | 3 | Rain Storm | 2 | Rain of Arrows +1 wave |
 | 4 | Deadeye | 1 | 15% chance for double damage (big gold numbers); needs Trueshot Aura |
 
-**Test mode:** the hero currently starts with all 9 talent points (as well as every ability maxed), so the whole tree can be tried at level 1.
+The test mode (every ability maxed, all talent points from the start) is gone: abilities and talents are earned.
 
 ## Dungeons
 
-The overworld has **three dungeon entrances**: stone gates far from the start (with rocks behind them and a road to the door), each labelled with its name and creep level. Walk into a gate's doorway to go down. Every floor is generated (`src/world/dungeon.ts`), fixed by the world seed so each entrance always has the same floors:
+The overworld (128 × 128 tiles) has **four dungeon entrances**: stone gates far from the start (with rocks behind them and a road to the door), each labelled with its name and creep level. Walk into a gate's doorway to go down. Every floor is generated (`src/world/dungeon.ts`), fixed by the world seed so each entrance always has the same floors:
 
 1. **Rooms:** up to 11 non-overlapping rooms: plain halls, pillared halls (two rows of pillars) and caves (noisy ellipses).
 2. **Corridors:** a minimum spanning tree over the room centres plus a few extra links for loops; L-shaped and two tiles wide.
@@ -152,7 +153,7 @@ The overworld has **three dungeon entrances**: stone gates far from the start (w
 
 The look is old top-down Zelda: dark stone floor, walls as a dark mass with a brick face where floor lies below them (3/4 view), a lit ledge, stone rims and shadow at the foot of each wall. It's **dark**: a pool of light around the hero, warm flickering torches, blue crystals, and the portal's glow. The minimap shows the floor plan, and doorways as purple dots.
 
-Travelling restarts the scene with the new map and carries the hero over (level, XP, abilities, talents, gear, backpack, potions, health and mana). Chests opened and rocks searched stay looted for the rest of the run, on every map. Dying in a dungeon brings you back in its start room.
+Travelling restarts the scene with the new map and carries the hero over (level, XP, abilities, talents, gear, backpack, potions, health and mana). Chests opened and rocks searched stay looted for the rest of the run, on every map. Dying in a dungeon brings you back in its start room. **Dungeon monsters don't respawn**: a cleared room stays cleared for the rest of the run (overworld camps still come back after 45s away).
 
 ## World generation
 

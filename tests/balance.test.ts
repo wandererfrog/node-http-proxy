@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { creepMaxHp, heroDamage } from '../src/entities/balance';
+import { creepMaxHp, creepXp, heroDamage } from '../src/entities/balance';
+import { MAX_LEVEL, xpForLevel } from '../src/entities/xp';
 import { Inventory } from '../src/entities/items';
 
 describe('combat balance', () => {
   it.each(['skeleton', 'boar'] as const)('a same-level %s dies in 2-3 average hero hits', (kind) => {
-    for (let level = 1; level <= 10; level++) {
+    for (let level = 1; level <= 20; level++) {
       const [a, b] = heroDamage(level);
       const hits = Math.ceil(creepMaxHp(kind, level) / ((a + b) / 2));
       expect(hits).toBeGreaterThanOrEqual(2);
@@ -25,6 +26,17 @@ describe('combat balance', () => {
       expect(hits).toBeGreaterThanOrEqual(2);
       expect(hits).toBeLessThanOrEqual(3);
     }
+  });
+});
+
+describe('levelling pace', () => {
+  it('takes about 9 same-level kills for level 2, and more for every level after', () => {
+    expect(MAX_LEVEL).toBe(20);
+    const kills = (l: number) => (xpForLevel(l + 1) - xpForLevel(l)) / creepXp('skeleton', l);
+    expect(kills(1)).toBeGreaterThanOrEqual(8.5);
+    expect(kills(1)).toBeLessThanOrEqual(10);
+    for (let l = 2; l < MAX_LEVEL; l++) expect(kills(l)).toBeGreaterThan(kills(l - 1));
+    expect(kills(19)).toBeGreaterThan(30);
   });
 });
 

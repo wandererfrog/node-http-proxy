@@ -1,5 +1,5 @@
 import { Hero, MAX_LEVEL, xpForLevel } from '../entities/Hero';
-import { EMPTY_STATS, Gear, GearSlot, GearStats, INVENTORY_SIZE, SLOT_NAMES, TIERS, describeStats, gearIcon } from '../entities/items';
+import { EMPTY_STATS, Gear, GearSlot, GearStats, INVENTORY_SIZE, SLOT_NAMES, TIERS, describeStats, gearIcon, gearValue, requiredLevel } from '../entities/items';
 import { statIconUrl } from '../art/sprites';
 import { applyUiArt } from './pixelFrame';
 import { TALENTS, TALENT_BY_ID, TIER_POINTS, TalentId } from '../entities/talents';
@@ -573,6 +573,9 @@ export class CharacterPage {
     el('hr', '', c);
     const statsBox = el('div', 'card-stats', c);
     for (const line of describeStats(g.stats)) el('div', '', statsBox).textContent = line;
+    const req = requiredLevel(g);
+    if (req > 1) el('div', this.hero.level < req ? 'card-req bad' : 'card-req', c).textContent = `Requires level ${req}`;
+    el('div', 'card-sell', c).innerHTML = `Sell price: <b>${gearValue(g)}</b><i class="coin"></i>`;
     const worn = sel.kind === 'worn';
     if (worn) {
       el('div', 'card-note', c).textContent = 'Equipped';
@@ -653,7 +656,7 @@ export class CharacterPage {
 
     for (const [slot, b] of this.gearSlots) this.renderSlot(b, h.equipment[slot] ?? null);
     h.inventory.slots.forEach((s, i) => this.renderSlot(this.bagSlots[i], s?.gear ?? null));
-    const used = `${h.inventory.slots.filter(Boolean).length} / ${h.inventory.slots.length}`;
+    const used = `${h.gold}g · ${h.inventory.slots.filter(Boolean).length} / ${h.inventory.slots.length}`;
     if (this.bagCount.textContent !== used) this.bagCount.textContent = used;
     // Talents: ranks, which can take a point, and the points left (also on the tab badge).
     const tal = h.talents;

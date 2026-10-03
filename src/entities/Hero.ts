@@ -3,7 +3,7 @@ import { SearingArrows, rangerKit } from '../abilities/rangerAbilities';
 import { TILE } from '../world/map';
 import { PROPS } from '../world/props';
 import { heroDamage } from './balance';
-import { EMPTY_STATS, Gear, GearSlot, GearStats, Inventory, ItemId, TOMES, TomeId, addStats } from './items';
+import { EMPTY_STATS, Gear, GearSlot, GearStats, Inventory, ItemId, TOMES, TomeId, addStats, requiredLevel } from './items';
 import { Order, Unit, World } from './Unit';
 import { TALENT_VALUES as TV, TalentId, Talents } from './talents';
 import type { InvEntry } from './items';
@@ -16,6 +16,7 @@ export interface HeroState {
   abilities: Array<{ level: number; autocast?: boolean }>;
   bonus: { hp: number; mana: number; damage: number; speed: number };
   kills: number;
+  gold: number;
   equipment: Partial<Record<GearSlot, Gear>>;
   bag: (InvEntry | null)[];
   potions: Record<ItemId, number>;
@@ -42,6 +43,8 @@ export class Hero extends Unit {
   /** Sum of worn gear stats, recomputed on equip. */
   gear: GearStats = { ...EMPTY_STATS };
   kills = 0;
+  /** Money for the village vendor: dropped by creeps, found in chests, paid by quests. */
+  gold = 0;
   /** Permanent bonuses from tomes. */
   readonly bonus = { hp: 0, mana: 0, damage: 0, speed: 0 };
   private potionCd = 0;
@@ -73,12 +76,6 @@ export class Hero extends Unit {
       spriteScale: 0.5,
     }, x, y);
     this.mana = this.maxMana;
-    // TEST MODE: every ability maxed from the start. Remove when the abilities are signed off.
-    for (const ab of this.abilities) ab.level = ab.maxLevel;
-    (this.abilities[0] as SearingArrows).autocast = true;
-    this.skillPoints = 0;
-    // TEST MODE: all nine talent points (one per level up to 10) to try the tree. Remove with the above.
-    this.talents.points = 9;
   }
 
   get maxHp(): number {
@@ -113,6 +110,8 @@ export class Hero extends Unit {
   equipFromBag(index: number): string | null {
     const entry = this.inventory.slots[index];
     if (!entry) return 'Nothing to equip';
+    const req = requiredLevel(entry.gear);
+    if (this.level < req) return `Requires level ${req}`;
     const worn = this.equipment[entry.gear.slot];
     this.equipment[entry.gear.slot] = entry.gear;
     this.inventory.slots[index] = worn ? { kind: 'gear', gear: worn } : null;
@@ -202,7 +201,8 @@ export class Hero extends Unit {
     while (this.level < MAX_LEVEL && this.xp >= xpForLevel(this.level + 1)) {
       this.level++;
       this.skillPoints++;
-      this.talents.points++;
+      // A talent point every second level.
+      if (this.level % 2 === 0) this.talents.points++;
       this.hp = Math.min(this.maxHp, this.hp + 45);
       this.mana = Math.min(this.maxMana, this.mana + 18);
       leveled = true;
@@ -262,6 +262,7 @@ export class Hero extends Unit {
       abilities: this.abilities.map((a) => ({ level: a.level, autocast: a instanceof SearingArrows ? a.autocast : undefined })),
       bonus: { ...this.bonus },
       kills: this.kills,
+      gold: this.gold,
       equipment: copy(this.equipment),
       bag: copy(this.inventory.slots),
       potions: { ...this.inventory.potions },
@@ -284,6 +285,7 @@ export class Hero extends Unit {
     });
     Object.assign(this.bonus, s.bonus);
     this.kills = s.kills;
+    this.gold = s.gold ?? 0;
     for (const k of Object.keys(this.equipment) as GearSlot[]) delete this.equipment[k];
     Object.assign(this.equipment, s.equipment);
     s.bag.forEach((e, i) => (this.inventory.slots[i] = e));
