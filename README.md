@@ -124,7 +124,14 @@ Every game builds a new random map (`src/world/map.ts`, seeded, so a seed always
 
 Roads leave from the sanctuary's edge to every camp.
 
-**Scale:** the hero is about 27px tall; trees are 40–60px, the shrine 110px. The slicer cuts the environment finer than the units (`ELVEN_SCALE`, `ELVEN_BIG_SCALE`) to get there.
+**Scale:** the hero is 22px tall (1.4 tiles) and everything is sized against it, matching the reference mockup:
+- Big trees ~3 heroes, young trees and bushes ~1.2, the giant violet tree 3.5.
+- Rune stones ~2, boulders ~1.2, searchable rocks ~1.
+- Shrine ~5, moonwell ~2.6, statues ~3, gates ~3.
+- Market stalls ~1.5 heroes tall, lamp posts and banners ~1.7–2, barrels and crates ~0.8.
+- Ponds are small pools (10–40 tiles); roads are 2–3 tiles (~3 heroes) wide.
+
+The slicer cuts each prop at its own scale (`ELVEN_SCALES` in `tools/slice_sheet.py`); the default zoom is ~15% closer than before so the hero fills more of a phone screen.
 
 **Props** (`src/world/props.ts`) have footprints:
 - Trees block arrows, but only their trunk tile; the canopy overhangs.

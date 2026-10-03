@@ -165,7 +165,7 @@ export class WorldMap implements Grid {
           else this.blockTile(x, y);
           continue;
         }
-        if (lakes(x / 9 + 100, y / 9 + 100) > 0.78) {
+        if (lakes(x / 4.5 + 100, y / 4.5 + 100) > 0.84) {
           this.tiles[i] = Tile.Water;
           continue;
         }
@@ -351,8 +351,8 @@ export class WorldMap implements Grid {
         const b = this.biome[y * width + x];
         const r = rand();
         if (t === Tile.Grass) {
-          const meadow = b.forest < 0.6 ? 0.04 : 0;
-          if (r < 0.02 + meadow || (r < 0.06 && nearTree(x, y))) add(pickFrom(rand, GROUPS.flower), x, y);
+          const meadow = b.forest < 0.6 ? 0.09 : 0;
+          if (r < 0.03 + meadow || (r < 0.08 && nearTree(x, y))) add(pickFrom(rand, GROUPS.flower), x, y);
         } else if (t === Tile.Water) {
           const shore = [this.get(x - 1, y), this.get(x + 1, y), this.get(x, y - 1), this.get(x, y + 1)].some((n) => n !== Tile.Water);
           if (shore && r < 0.2) add(pickFrom(rand, GROUPS.reeds), x, y);
@@ -458,7 +458,8 @@ export class WorldMap implements Grid {
       for (let oy = -1; oy <= 1; oy++)
         for (let ox = -1; ox <= 1; ox++) if (!this.isWalkable(tx + ox, ty + oy)) this.set(tx + ox, ty + oy, Tile.Grass);
       this.set(tx, ty, Tile.Dirt);
-      if (rand() < 0.5) this.set(tx + 1, ty, Tile.Dirt);
+      this.set(tx + 1, ty, Tile.Dirt);
+      if (rand() < 0.5) this.set(tx - 1, ty, Tile.Dirt);
     }
   }
 

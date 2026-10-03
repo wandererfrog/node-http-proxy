@@ -462,8 +462,12 @@ ELVEN_BIG_SCALE = 1.6
 # Per-prop overrides: this sheet draws some structures smaller, so they are cut finer.
 ELVEN_SCALES = {
     # Structures stay big.
-    'shrine': 1.0, 'moonwell': 1.0, 'statue': 1.15, 'statue_1': 1.15, 'arch_gate': 1.2, 'stone_gate': 1.15,
+    'shrine': 1.0, 'moonwell': 1.35, 'statue': 1.5, 'statue_1': 1.5, 'arch_gate': 1.2, 'stone_gate': 1.15,
     'violet_giant': 1.3,
+    # Stones and ruins read ~15% big against the hero.
+    'runestone_0': 1.45, 'runestone_1': 1.45, 'runestone_2': 1.45, 'rock_2': 1.45, 'rock_3': 1.45, 'rock_4': 1.45,
+    'rubble': 1.45, 'ruin_block': 1.45, 'ruin_pillar': 1.45, 'ruin_wall': 1.45, 'ruin_arch': 1.5, 'rune_slab': 1.45,
+    'elf_pillar_0': 1.85, 'crystal_pillar': 2.0,
     # Human-scale props: a stall is ~1.5 heroes wide, a lamp post ~2 heroes tall.
     'market_stall': 1.9, 'market_stall_1': 1.9, 'spire_lamp': 1.9, 'lamp_post_0': 1.9, 'lamp_post_1': 1.9,
     'lantern_post': 1.9, 'lamp_small': 1.9, 'banner_pole': 1.8, 'banner_pole_1': 1.8, 'banner_small_0': 1.8,

@@ -118,7 +118,7 @@ export class GameScene extends Phaser.Scene implements World {
     cam.setBounds(0, 0, worldW, worldH);
     cam.setBackgroundColor('#1f4a24');
     cam.setRoundPixels(true);
-    this.userZoom = Phaser.Math.Clamp(Math.min(window.innerWidth, window.innerHeight) / 190, 2, 4);
+    this.userZoom = Phaser.Math.Clamp(Math.min(window.innerWidth, window.innerHeight) / 165, 2.3, 4.6);
     this.applyZoom();
     cam.centerOn(this.hero.x, this.hero.y);
 
