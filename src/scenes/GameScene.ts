@@ -42,6 +42,8 @@ const DEPTH_GROUND_FX = -100000;
 const DEPTH_OVERLAY = 1e7;
 /** px around the moonwell's healing circle */
 const MOONWELL_RADIUS = TILE * 2.2;
+/** The sky arrow's shaft sits right of centre in its frame (x 25-43 of 53px). */
+const ARROW_SHAFT_X = 34 / 53;
 /** Drawn size of the healing circle glyph (px across). */
 const MOONWELL_GLYPH = TILE * 2.6;
 const MIN_ZOOM = 1.5;
@@ -360,10 +362,10 @@ export class GameScene extends Phaser.Scene implements World {
 
   /** The magical ground mark: the leafy ring grows in, then holds with a slow pulse. */
   skyMark(x: number, y: number, radius: number, duration: number): void {
-    // The ring art is ~76px wide with a little margin; normal blend so the mark reads as a clear
-    // outline on the grass rather than an additive wash.
-    const mark = this.add.sprite(x, y + 2, 'sky', 'skymark_0').setAlpha(0.85).setDepth(DEPTH_GROUND_FX + 1);
-    mark.setScale((radius * 2 * 1.08) / mark.width);
+    // Drawn at hero scale (the art is 2x density) and centred on the cast point; the ability's radius
+    // is sized to this art, so the ring is never stretched. Normal blend keeps it a clear outline.
+    void radius;
+    const mark = this.add.sprite(x, y, 'sky', 'skymark_0').setScale(0.5).setAlpha(0.9).setDepth(DEPTH_GROUND_FX + 1);
     mark.play('sky_mark_in');
     mark.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => mark.play('sky_mark_loop'));
     this.tweens.add({ targets: mark, alpha: 0, delay: Math.max(0, duration * 1000 - 400), duration: 400, onComplete: () => mark.destroy() });
@@ -372,13 +374,13 @@ export class GameScene extends Phaser.Scene implements World {
   /** One sky arrow falling onto (gx, gy); `onLand` fires when it hits and the burst plays. */
   private skyArrow(gx: number, gy: number, delay: number, onLand?: () => void): void {
     this.time.delayedCall(delay, () => {
-      const arrow = this.add.sprite(gx, gy - 110, 'sky', 'skyarrow_0').setOrigin(0.5, 1).setScale(0.45).setAlpha(0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(gy + 2);
+      const arrow = this.add.sprite(gx, gy - 90, 'sky', 'skyarrow_0').setOrigin(ARROW_SHAFT_X, 1).setScale(0.5).setAlpha(0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(gy + 2);
       arrow.play('sky_arrow');
       this.tweens.add({
-        targets: arrow, y: gy + 4, duration: 420, ease: 'Quad.easeIn',
+        targets: arrow, y: gy + 2, duration: 420, ease: 'Quad.easeIn',
         onComplete: () => {
           arrow.destroy();
-          const hit = this.add.sprite(gx, gy, 'sky', 'skyhit_0').setOrigin(0.5, 0.8).setScale(0.4).setAlpha(0.7).setBlendMode(Phaser.BlendModes.ADD).setDepth(gy + 1);
+          const hit = this.add.sprite(gx, gy, 'sky', 'skyhit_0').setOrigin(0.5, 0.85).setScale(0.5).setAlpha(0.75).setBlendMode(Phaser.BlendModes.ADD).setDepth(gy + 1);
           hit.play('sky_hit');
           hit.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => hit.destroy());
           onLand?.();
@@ -393,7 +395,7 @@ export class GameScene extends Phaser.Scene implements World {
       const delay = Math.random() * 120;
       this.time.delayedCall(delay, () => {
         const start = { x: u.x, y: u.y };
-        const arrow = this.add.sprite(start.x, start.y - 110, 'sky', 'skyarrow_0').setOrigin(0.5, 1).setScale(0.45).setAlpha(0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(start.y + 2);
+        const arrow = this.add.sprite(start.x, start.y - 90, 'sky', 'skyarrow_0').setOrigin(ARROW_SHAFT_X, 1).setScale(0.5).setAlpha(0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(start.y + 2);
         arrow.play('sky_arrow');
         const prog = { t: 0 };
         this.tweens.add({
@@ -401,13 +403,13 @@ export class GameScene extends Phaser.Scene implements World {
           onUpdate: () => {
             const tx = u.dead ? arrow.x : u.x;
             const ty = u.dead ? start.y : u.y;
-            arrow.setPosition(tx, ty - 110 + 114 * prog.t).setDepth(ty + 2);
+            arrow.setPosition(tx, ty - 90 + 92 * prog.t).setDepth(ty + 2);
           },
           onComplete: () => {
             const hx = arrow.x;
-            const hy = arrow.y - 4;
+            const hy = arrow.y - 2;
             arrow.destroy();
-            const hit = this.add.sprite(hx, hy, 'sky', 'skyhit_0').setOrigin(0.5, 0.8).setScale(0.4).setAlpha(0.7).setBlendMode(Phaser.BlendModes.ADD).setDepth(hy + 1);
+            const hit = this.add.sprite(hx, hy, 'sky', 'skyhit_0').setOrigin(0.5, 0.85).setScale(0.5).setAlpha(0.75).setBlendMode(Phaser.BlendModes.ADD).setDepth(hy + 1);
             hit.play('sky_hit');
             hit.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => hit.destroy());
             onLand(u);

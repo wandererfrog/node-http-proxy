@@ -103,7 +103,7 @@ Armour takes a flat amount off every hit (a hit always does at least 1). Attack 
 | Q | **Searing Arrows** | Autocast toggle. Attacks become magic shots: the hero plays the 4-frame cast from `art-source/magic-shot-sheet.png`, fires the animated bolt with its trail, and the hit plays the impact burst. +12/22/32 damage for 8 mana each. |
 | W | **Volley** | A cone of 5/7/9 arrows. Each one hits the first enemy in its path, so point-blank shots do huge burst damage. |
 | E | **Tumble** | A short dash that stops at obstacles. Your next attack within 4s fires instantly for 150/175/200% damage. |
-| R | **Rain of Arrows** (ultimate, hero level 4/8) | Mark an area with the leafy sigil ring (0.45s), then 6 waves of sky arrows: each wave drops one arrow onto every enemy inside the ring, and the damage lands with the arrow. Enemies outside the ring are untouched. Art from `art-source/sky-arrow-sheet.png`. Any new order cancels it. |
+| R | **Rain of Arrows** (ultimate, hero level 4/8) | Mark an area with the leafy sigil ring (0.45s), then 6 waves of sky arrows: each wave drops one arrow onto every enemy inside the ring, and the damage lands with the arrow. The ring is drawn at hero scale (never stretched) and the hit radius (18px) is sized to it, so what you see is what gets hit. Art from `art-source/sky-arrow-sheet.png`. Any new order cancels it. |
 
 Abilities level up WC3-style: a skill point per hero level, and basic abilities need hero level 1/3/5.
 

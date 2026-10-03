@@ -129,8 +129,9 @@ export class RainOfArrows extends Ability {
   readonly maxLevel = 2;
   readonly targeting = 'point' as const;
   readonly castPoint = 0.25;
-  readonly radius = 3 * TILE;
-  readonly preview: Preview = { shape: 'circle', radius: 3 * TILE };
+  /** Matches the sigil ring art drawn at hero scale (37px wide): no stretching, what you see is what gets hit. */
+  readonly radius = 18;
+  readonly preview: Preview = { shape: 'circle', radius: 18 };
 
   requiredHeroLevel(nextLevel: number): number {
     return nextLevel * 4;
