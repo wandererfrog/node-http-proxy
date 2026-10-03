@@ -57,7 +57,7 @@ export interface GearStats {
 
 export const EMPTY_STATS: GearStats = { damage: 0, hp: 0, mana: 0, armor: 0, speed: 0, attackSpeed: 0, hpRegen: 0, manaRegen: 0 };
 
-/** The six quality tiers, matching the colour steps on the icon sheet. */
+/** The six quality tiers. Colours are the rarity colour used in the UI (border, name). */
 export const TIERS = [
   { name: 'Worn', color: '#a97548' },
   { name: 'Woodland', color: '#6cc24a' },
@@ -66,6 +66,22 @@ export const TIERS = [
   { name: 'Gilded', color: '#f2c84b' },
   { name: 'Fey', color: '#c47cff' },
 ] as const;
+
+/**
+ * Display names per slot and tier, matching what the icon actually shows (the sheet's rows
+ * don't all follow the same colour order: quivers go red then blue, rings go copper then jade).
+ */
+const TIER_NAMES: Record<GearSlot, readonly string[]> = {
+  bow: ['Hunting', 'Woodland', 'Carved', 'Moonsteel', 'Fey', 'Verdant'],
+  quiver: ['Plain', 'Crimson', 'Azure', 'Woodland', 'Gilded', 'Fey'],
+  helmet: ['Hooded', 'Leather', 'Studded', 'Iron', 'Gilded', 'Fey'],
+  chest: ['Leather', 'Woodland', 'Iron', 'Moonsteel', 'Gilded', 'Fey'],
+  gloves: ['Leather', 'Worn', 'Woodland', 'Iron', 'Gilded', 'Fey'],
+  boots: ['Leather', 'Iron', 'Woodland', 'Steel', 'Gilded', 'Fey'],
+  cloak: ['Woodland', 'Traveller', 'Azure', 'Crimson', 'Stag', 'Fey'],
+  ring: ['Silver', 'Copper', 'Jade', 'Sapphire', 'Ruby', 'Amethyst'],
+  amulet: ['Silver', 'Leaf', 'Sapphire', 'Ruby', 'Sun', 'Fey'],
+};
 
 export const MAX_TIER = TIERS.length - 1;
 
@@ -82,7 +98,11 @@ const SLOT_BASE: Record<GearSlot, Partial<GearStats>> = {
   amulet: { mana: 20, hp: 20 },
 };
 
-/** Icon frame per slot and tier (the sheet has seven amulets; the fey one is the last). */
+/**
+ * Icon frame per slot and tier. Most rows on the sheet step through the six tier colours in
+ * order. The amulet row has seven (silver, leaf, blue, red, gold, stag, violet): the stag one
+ * is skipped so the violet amulet is the Fey tier like every other slot.
+ */
 export function gearIcon(slot: GearSlot, tier: number): string {
   if (slot === 'amulet') return `amulet_${[0, 1, 2, 3, 4, 6][tier]}`;
   return `${slot}_${tier}`;
@@ -109,7 +129,7 @@ export function makeGear(slot: GearSlot, tier: number, level: number): Gear {
     const scaled = v * k;
     stats[key] = key === 'hpRegen' || key === 'manaRegen' ? Math.round(scaled * 10) / 10 : Math.round(scaled);
   }
-  return { slot, tier, level, name: `${TIERS[tier].name} ${SLOT_NAMES[slot]}`, icon: gearIcon(slot, tier), stats };
+  return { slot, tier, level, name: `${TIER_NAMES[slot][tier]} ${SLOT_NAMES[slot]}`, icon: gearIcon(slot, tier), stats };
 }
 
 export function addStats(a: GearStats, b: GearStats): GearStats {
