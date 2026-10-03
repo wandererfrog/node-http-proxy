@@ -237,50 +237,6 @@ const ICONS: Record<string, { rows: string[]; pal: Palette; bg: string }> = {
       '................',
     ],
   },
-  potion_hp: {
-    bg: '#2a1418',
-    pal: { k: '#1a1c2c', g: '#c8ccd4', c: '#8a5a35', r: '#d0301a', R: '#ff6a5a', w: '#ffffff' },
-    rows: [
-      '................',
-      '......kkkk......',
-      '......kcck......',
-      '......kggk......',
-      '.....kggggk.....',
-      '....kRRrrrrk....',
-      '...kRwRrrrrrk...',
-      '...kRwrrrrrrk...',
-      '...krrrrrrrrk...',
-      '...krrrrrrrrk...',
-      '...krrrrrrrrk...',
-      '....krrrrrrk....',
-      '.....kkkkkk.....',
-      '................',
-      '................',
-      '................',
-    ],
-  },
-  potion_mp: {
-    bg: '#141a2e',
-    pal: { k: '#1a1c2c', g: '#c8ccd4', c: '#8a5a35', r: '#2a5ad0', R: '#6a9aff', w: '#ffffff' },
-    rows: [
-      '................',
-      '......kkkk......',
-      '......kcck......',
-      '......kggk......',
-      '.....kggggk.....',
-      '....kRRrrrrk....',
-      '...kRwRrrrrrk...',
-      '...kRwrrrrrrk...',
-      '...krrrrrrrrk...',
-      '...krrrrrrrrk...',
-      '...krrrrrrrrk...',
-      '....krrrrrrk....',
-      '.....kkkkkk.....',
-      '................',
-      '................',
-      '................',
-    ],
-  },
   bag: {
     bg: '#2a2014',
     pal: { k: '#1a1c2c', b: '#9a5f33', B: '#6b3f22', y: '#e8c170' },
@@ -363,6 +319,14 @@ export function portraitDataUrl(scene: Phaser.Scene, scale = 4): string {
   ctx.fillStyle = '#20301f';
   ctx.fillRect(0, 0, c.width, c.height);
   ctx.drawImage(probe, sx, top - k, w, h, 0, 0, c.width, c.height);
+  return c.toDataURL();
+}
+
+/** A frame of a loaded atlas as a data URL, scaled up with hard pixels, for the DOM HUD. */
+export function frameDataUrl(scene: Phaser.Scene, atlas: string, frameName: string, scale = 2): string {
+  const f = scene.textures.getFrame(atlas, frameName);
+  const [c, ctx] = makeCanvas(f.cutWidth * scale, f.cutHeight * scale);
+  ctx.drawImage(f.source.image as HTMLImageElement, f.cutX, f.cutY, f.cutWidth, f.cutHeight, 0, 0, c.width, c.height);
   return c.toDataURL();
 }
 

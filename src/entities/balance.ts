@@ -35,3 +35,5 @@ export function creepXp(kind: CreepKind, level: number): number {
 
 /** Chance a dying creep drops a potion. */
 export const CREEP_POTION_DROP = 0.15;
+/** Chance a dying creep drops a piece of gear (alpha boars always do). */
+export const CREEP_GEAR_DROP = 0.12;

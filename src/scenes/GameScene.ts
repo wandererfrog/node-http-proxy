@@ -1,12 +1,12 @@
 import Phaser from 'phaser';
-import { buildAllTextures, portraitDataUrl } from '../art/sprites';
+import { buildAllTextures, frameDataUrl, portraitDataUrl } from '../art/sprites';
 import { DENSITY, buildGround } from '../art/ground';
 import { ENV_ATLAS, PROPS } from '../world/props';
 import { ATLASES, IMAGES } from '../assets';
 import { Ability } from '../abilities/Ability';
 import { Camp, Creep } from '../entities/Creep';
-import { CREEP_POTION_DROP } from '../entities/balance';
-import { ITEMS, ItemId, TOMES, TOME_IDS } from '../entities/items';
+import { CREEP_GEAR_DROP, CREEP_POTION_DROP } from '../entities/balance';
+import { Gear, GearSlot, ITEMS, ItemId, TIERS, TOMES, TOME_IDS, rollGear } from '../entities/items';
 import { Hero } from '../entities/Hero';
 import { Arrow } from '../entities/Projectile';
 import { DamageOpts, Unit, World } from '../entities/Unit';
@@ -122,7 +122,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.applyZoom();
     cam.centerOn(this.hero.x, this.hero.y);
 
-    this.hud = new Hud(document.getElementById('ui')!, this.hero, this.map, portraitDataUrl(this), {
+    this.hud = new Hud(document.getElementById('ui')!, this.hero, this.map, portraitDataUrl(this), (frame) => this.itemIcon(frame), {
       abilityTap: (i) => this.onAbilityTap(i),
       abilityAim: (i, dx, dy) => this.onAbilityAim(i, dx, dy),
       abilityAimEnd: (i, cast) => this.onAbilityAimEnd(i, cast),
@@ -137,6 +137,16 @@ export class GameScene extends Phaser.Scene implements World {
       },
       cancelTargeting: () => this.setTargeting(null),
       usePotion: (id) => this.drink(id),
+      equip: (i) => {
+        const g = this.hero.inventory.slots[i];
+        const err = this.hero.equipFromBag(i);
+        if (err) this.hud.toast(err, 'warn');
+        else if (g && g.kind === 'gear') this.hud.toast(`Equipped ${g.gear.name}`, 'good');
+      },
+      unequip: (slot: GearSlot) => {
+        const err = this.hero.unequip(slot);
+        if (err) this.hud.toast(err, 'warn');
+      },
     });
 
     if (this.map.moonwell) {
@@ -208,8 +218,10 @@ export class GameScene extends Phaser.Scene implements World {
 
   damage(target: Unit, amount: number, source: Unit | null, opts: DamageOpts = {}): void {
     if (target.dead) return;
-    target.hp -= amount;
     const isHero = target === this.hero;
+    // Armour takes a flat amount off every hit on the hero; a hit always does at least 1.
+    if (isHero && source) amount = Math.max(1, amount - this.hero.armor);
+    target.hp -= amount;
     this.floatText(target.x, target.y - 18, `${Math.round(amount)}`, isHero ? '#ff6a5a' : (opts.color ?? '#ffffff'), opts.big);
     target.onDamaged(source);
     if (target.hp > 0) return;
@@ -227,6 +239,9 @@ export class GameScene extends Phaser.Scene implements World {
       }
       this.hero.kills++;
       if (Math.random() < CREEP_POTION_DROP) this.giveLoot(target.x, target.y, Math.random() < 0.6 ? 'hp_potion' : 'mp_potion');
+      // Gear scaled to the creep's level; alpha boars always carry something better.
+      if (target.kind === 'alphaBoar') this.giveGear(target.x, target.y, rollGear(target.level, Math.random, 1, 1));
+      else if (Math.random() < CREEP_GEAR_DROP) this.giveGear(target.x, target.y, rollGear(target.level));
       if (target.camp.cleared) target.camp.respawnT = 45;
     } else if (isHero) {
       this.hud.toast('Sylva has fallen!', 'warn');
@@ -271,14 +286,43 @@ export class GameScene extends Phaser.Scene implements World {
     const tome = TOME_IDS[Math.floor(Math.random() * TOME_IDS.length)];
     this.hud.toast(`Treasure! ${this.hero.readTome(tome)}`, 'good');
     this.floatText(x, y - 14, TOMES[tome].name, '#ffd84a', true);
-    this.giveLoot(x - 4, y, 'hp_potion');
-    this.time.delayedCall(250, () => this.giveLoot(x + 4, y, Math.random() < 0.5 ? 'hp_potion' : 'mp_potion'));
+    this.giveGear(x, y + 2, rollGear(chest.level, Math.random, 2, 1.5));
+    this.time.delayedCall(250, () => this.giveLoot(x - 4, y, 'hp_potion'));
+    this.time.delayedCall(500, () => this.giveLoot(x + 4, y, Math.random() < 0.5 ? 'hp_potion' : 'mp_potion'));
     const xp = 40 * chest.level;
     this.floatText(this.hero.x, this.hero.y - 34, `+${xp} xp`, '#c28cff');
     if (this.hero.gainXp(xp)) this.hud.toast(`Level ${this.hero.level}! New skill point`, 'good');
   }
 
-  /** Put an item in the hero's bag with a little pickup flourish. */
+  private readonly iconCache = new Map<string, string>();
+
+  /** Item icon (a frame of the items atlas) as a data URL for the DOM HUD. */
+  private itemIcon(frame: string): string {
+    let url = this.iconCache.get(frame);
+    if (!url) {
+      url = frameDataUrl(this, 'items', frame, 2);
+      this.iconCache.set(frame, url);
+    }
+    return url;
+  }
+
+  /** Drop a piece of gear into the bag, named and coloured by tier. */
+  private giveGear(x: number, y: number, gear: Gear): void {
+    if (this.hero.dead) return;
+    const tier = TIERS[gear.tier];
+    if (!this.hero.inventory.addGear(gear)) {
+      this.hud.toast(`Bag full — ${gear.name} left behind`, 'warn');
+      return;
+    }
+    this.floatText(x, y - 12, gear.name, tier.color, true);
+    this.hud.toast(`Found ${gear.name} — open the bag to wear it`, gear.tier >= 3 ? 'good' : 'info');
+    const colour = Phaser.Display.Color.HexStringToColor(tier.color).color;
+    this.burst(x, y - 4, colour, 8);
+    const icon = this.add.image(x, y - 6, 'spark').setTint(colour).setScale(2.5).setDepth(DEPTH_OVERLAY);
+    this.tweens.add({ targets: icon, x: this.hero.x, y: this.hero.y - 10, duration: 350, ease: 'Quad.easeIn', onComplete: () => icon.destroy() });
+  }
+
+  /** Put a consumable in the hero's bag with a little pickup flourish. */
   private giveLoot(x: number, y: number, id: ItemId): void {
     if (this.hero.dead) return;
     const def = ITEMS[id];

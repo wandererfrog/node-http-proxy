@@ -138,7 +138,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   background: rgba(10, 10, 20, 0.55);
 }
 .char-panel {
-  width: min(560px, 100%); max-height: 100%; overflow: auto;
+  width: min(800px, 100%); max-height: 100%; overflow: auto;
   background: rgba(20, 22, 36, 0.97); border: 3px solid var(--edge); border-radius: 8px;
   box-shadow: 0 4px 0 var(--ink);
 }
@@ -148,7 +148,20 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .char-title b { color: var(--gold); font-weight: normal; }
 .char-title span { font-size: 8px; color: #b8b0a0; }
 .char-close { width: 36px; height: 36px; padding: 0; background: #5a1a14; border: 2px solid #ff4a3a; border-radius: 6px; font-size: 12px; }
-.char-body { display: grid; grid-template-columns: 1fr auto; gap: 16px; padding: 12px; }
+.char-body { display: grid; grid-template-columns: auto 1fr auto; gap: 14px; padding: 10px 12px 12px; }
+.char-head { padding: 6px 10px; }
+.char-portrait { width: 48px; height: 36px; }
+.gear-grid { display: grid; grid-template-columns: repeat(3, 52px); gap: 6px; }
+.gear-slot { border-style: dashed; }
+.gear-slot img { position: relative; z-index: 1; }
+.slot-name {
+  position: absolute; inset: 0; display: grid; place-items: center; padding: 4px;
+  font-size: 6px; line-height: 1.4; text-align: center; color: #666; pointer-events: none;
+}
+.gear-slot img + .count, .gear-slot img ~ .slot-name { display: none; }
+.inv-slot[style*="border-color"] { border-style: solid; }
+.inv-info .muted { color: #8a8a9a; }
+.inv-info b { font-weight: normal; }
 .char-body h3 { margin: 0 0 8px; font-size: 9px; font-weight: normal; color: var(--gold); letter-spacing: 0.08em; text-transform: uppercase; }
 .char-stats dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; font-size: 8px; line-height: 1.4; }
 .char-stats dt { color: #b8b0a0; }
@@ -160,9 +173,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .inv-slot img { width: 100%; height: 100%; image-rendering: pixelated; display: block; }
 .inv-slot .count { position: absolute; right: 3px; bottom: 2px; font-size: 9px; text-shadow: 1px 1px 0 var(--ink), -1px -1px 0 var(--ink); }
-.inv-info { margin-top: 8px; max-width: 168px; font-size: 7px; line-height: 1.6; color: #b8b0a0; min-height: 3.2em; }
+.inv-info { margin-top: 8px; max-width: 168px; font-size: 7px; line-height: 1.7; color: #d8d0c0; min-height: 4.8em; }
+@media (max-width: 700px) {
+  .char-body { grid-template-columns: auto 1fr; }
+  .char-stats { grid-column: 1 / -1; }
+}
 @media (max-width: 520px) {
   .char-body { grid-template-columns: 1fr; }
+  .char-stats { grid-column: auto; }
 }
 .abilities { display: grid; grid-template-columns: repeat(2, var(--btn)); gap: 10px; }
 .ability {

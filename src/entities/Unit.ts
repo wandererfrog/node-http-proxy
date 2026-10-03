@@ -127,6 +127,11 @@ export class Unit {
     return this.stats.speed;
   }
 
+  /** Seconds between attacks; heroes shorten it with gear. */
+  get attackCooldown(): number {
+    return this.stats.attackCooldown;
+  }
+
   get attackRange(): number {
     return this.stats.attackRange;
   }
@@ -315,7 +320,7 @@ export class Unit {
     const off = this.turnToward(Math.atan2(target.y - this.y, target.x - this.x), dt);
     if (off <= ATTACK_FACING_TOLERANCE && this.attackCd <= 0) {
       this.swing = { phase: 'windup', t: this.windupTime(), target };
-      this.attackCd = this.stats.attackCooldown;
+      this.attackCd = this.attackCooldown;
     }
     return true;
   }

@@ -454,6 +454,90 @@ def slice_elven():
     print('  world px:', ' '.join(f'{n}={w}x{h}' for n, (w, h) in sorted(sizes.items())))
 
 
+# --- Item icons -------------------------------------------------------------------------------
+ITEMS_SRC = os.path.join(ROOT, 'art-source', 'items-sheet.png')
+ITEM_SCALE = 2.9  # ~32px icons
+# Categories in reading order (band by band, left to right), with how many cells each has.
+ITEM_CATEGORIES = [
+    ('bow', 6), ('quiver', 6), ('dagger', 6),
+    ('helmet', 6), ('chest', 6), ('gloves', 6),
+    ('boots', 6), ('ring', 6), ('amulet', 7),
+    ('belt', 6), ('cloak', 6), ('potion', 6),
+    ('food', 8), ('material', 8),
+    ('rare', 8), ('quest', 8), ('misc', 8),
+]
+
+
+def item_cells(lum):
+    """
+    Cell boxes on the item sheet: dark grey cells on black. Cells within a category touch
+    (gaps of a few px), categories are separated by wide gaps, so each band's runs are merged
+    into category groups and every group is divided by its known cell count.
+    """
+    on = lum > 10
+
+    def runs(v, minlen):
+        out, start = [], None
+        for i, x in enumerate(v):
+            if x and start is None:
+                start = i
+            if not x and start is not None:
+                if i - start >= minlen:
+                    out.append((start, i))
+                start = None
+        if start is not None and len(v) - start >= minlen:
+            out.append((start, len(v)))
+        return out
+
+    counts = [n for _, n in ITEM_CATEGORIES]
+    boxes = []
+    for y0, y1 in runs(on.mean(axis=1) > 0.02, 60):
+        groups = []
+        for x0, x1 in runs(on[y0:y1].mean(axis=0) > 0.5, 40):
+            if groups and x0 - groups[-1][1] < 15:
+                groups[-1][1] = x1
+            else:
+                groups.append([x0, x1])
+        for gx0, gx1 in groups:
+            n = counts.pop(0)
+            w = (gx1 - gx0) / n
+            for j in range(n):
+                boxes.append((int(gx0 + j * w), y0, int(gx0 + (j + 1) * w), y1))
+    return boxes
+
+
+def slice_items():
+    rgb = np.array(Image.open(ITEMS_SRC).convert('RGB')).astype(np.float32)
+    lum = rgb.mean(axis=2)
+    sat = rgb.max(axis=2) - rgb.min(axis=2)
+    boxes = item_cells(lum)
+    names = [f'{cat}_{i}' for cat, n in ITEM_CATEGORIES for i in range(n)]
+    if len(boxes) != len(names):
+        print(f'  !! items: found {len(boxes)} cells, expected {len(names)}', file=sys.stderr)
+    images = {}
+    for name, (x0, y0, x1, y1) in zip(names, boxes):
+        # Icon = anything that isn't the flat dark cell background; shave the cell's rounded border.
+        pad = 6
+        sub = rgb[y0 + pad: y1 - pad, x0 + pad: x1 - pad]
+        sl = lum[y0 + pad: y1 - pad, x0 + pad: x1 - pad]
+        ss = sat[y0 + pad: y1 - pad, x0 + pad: x1 - pad]
+        m = (sl > 48) | (ss > 24)
+        m = ndimage.binary_opening(m, iterations=1)
+        holes = ndimage.binary_fill_holes(m) & ~m
+        lab, n = ndimage.label(holes)
+        if n:
+            sizes = ndimage.sum(holes, lab, range(1, n + 1))
+            m |= np.isin(lab, np.nonzero(sizes < 60)[0] + 1)
+        lab, n = ndimage.label(m)
+        if n > 1:
+            sizes = ndimage.sum(m, lab, range(1, n + 1))
+            m = np.isin(lab, np.nonzero(sizes >= max(8, sizes.max() * 0.02))[0] + 1)
+        px = to_pixel_art(sub, m.astype(np.float32), ITEM_SCALE)
+        on = np.nonzero(px[..., 3])
+        images[name] = px[on[0].min(): on[0].max() + 1, on[1].min(): on[1].max() + 1]
+    pack_atlas(images, 'items', width=512)
+
+
 def main():
     rgb, mask = load()
     if '--contact' in sys.argv:
@@ -463,6 +547,7 @@ def main():
         pack(name, spec, rgb, mask)
     arrow()
     slice_elven()
+    slice_items()
 
 
 if __name__ == '__main__':

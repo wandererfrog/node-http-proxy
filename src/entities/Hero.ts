@@ -3,7 +3,7 @@ import { SearingArrows, rangerKit } from '../abilities/rangerAbilities';
 import { TILE } from '../world/map';
 import { PROPS } from '../world/props';
 import { heroDamage } from './balance';
-import { Inventory, ItemId, TOMES, TomeId } from './items';
+import { EMPTY_STATS, Gear, GearSlot, GearStats, Inventory, ItemId, TOMES, TomeId, addStats } from './items';
 import { Order, Unit, World } from './Unit';
 
 import { MAX_LEVEL, xpForLevel } from './xp';
@@ -18,6 +18,9 @@ export class Hero extends Unit {
   readonly abilities: Ability[] = rangerKit();
 
   readonly inventory = new Inventory();
+  readonly equipment: Partial<Record<GearSlot, Gear>> = {};
+  /** Sum of worn gear stats, recomputed on equip. */
+  gear: GearStats = { ...EMPTY_STATS };
   kills = 0;
   /** Permanent bonuses from tomes. */
   readonly bonus = { hp: 0, mana: 0, damage: 0, speed: 0 };
@@ -53,13 +56,48 @@ export class Hero extends Unit {
   }
 
   get maxHp(): number {
-    return this.baseMaxHp + (this.level - 1) * 45 + this.bonus.hp;
+    return this.baseMaxHp + (this.level - 1) * 45 + this.bonus.hp + this.gear.hp;
   }
   get maxMana(): number {
-    return this.baseMaxMana + (this.level - 1) * 18 + this.bonus.mana;
+    return this.baseMaxMana + (this.level - 1) * 18 + this.bonus.mana + this.gear.mana;
   }
   get speed(): number {
-    return this.stats.speed + this.bonus.speed;
+    return this.stats.speed + this.bonus.speed + this.gear.speed;
+  }
+  get armor(): number {
+    return this.gear.armor;
+  }
+  get attackCooldown(): number {
+    return this.stats.attackCooldown / (1 + this.gear.attackSpeed / 100);
+  }
+
+  private recomputeGear(): void {
+    let g = { ...EMPTY_STATS };
+    for (const item of Object.values(this.equipment)) if (item) g = addStats(g, item.stats);
+    this.gear = g;
+    this.hp = Math.min(this.hp, this.maxHp);
+    this.mana = Math.min(this.mana, this.maxMana);
+  }
+
+  /** Wear the gear in bag slot `index`; whatever was worn goes back into that slot. */
+  equipFromBag(index: number): string | null {
+    const entry = this.inventory.slots[index];
+    if (!entry || entry.kind !== 'gear') return 'Nothing to equip';
+    const worn = this.equipment[entry.gear.slot];
+    this.equipment[entry.gear.slot] = entry.gear;
+    this.inventory.slots[index] = worn ? { kind: 'gear', gear: worn } : null;
+    this.recomputeGear();
+    return null;
+  }
+
+  /** Take a worn piece off into the bag. */
+  unequip(slot: GearSlot): string | null {
+    const worn = this.equipment[slot];
+    if (!worn) return 'Nothing worn there';
+    if (!this.inventory.addGear(worn)) return 'Bag is full';
+    delete this.equipment[slot];
+    this.recomputeGear();
+    return null;
   }
 
   /** Read a tome: permanent stat boost. Returns the line to show the player. */
@@ -75,15 +113,15 @@ export class Hero extends Unit {
     return `${TOMES[id].name}: ${TOMES[id].effect}`;
   }
   get hpRegen(): number {
-    return 1.2 + this.level * 0.25;
+    return 1.2 + this.level * 0.25 + this.gear.hpRegen;
   }
   get manaRegen(): number {
-    return 1.4 + this.level * 0.2;
+    return 1.4 + this.level * 0.2 + this.gear.manaRegen;
   }
 
   get damageRange(): [number, number] {
     const [a, b] = heroDamage(this.level);
-    return [a + this.bonus.damage, b + this.bonus.damage];
+    return [a + this.bonus.damage + this.gear.damage, b + this.bonus.damage + this.gear.damage];
   }
 
   rollDamage(): number {

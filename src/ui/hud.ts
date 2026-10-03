@@ -3,7 +3,7 @@ import { Hero, MAX_LEVEL, xpForLevel } from '../entities/Hero';
 import type { Unit } from '../entities/Unit';
 import { SearingArrows } from '../abilities/rangerAbilities';
 import { Tile, WorldMap } from '../world/map';
-import { ITEMS, ItemId } from '../entities/items';
+import { GearSlot, ITEMS, ItemId } from '../entities/items';
 import { CharacterPage } from './characterPage';
 
 export type Command = 'attack' | 'stop' | 'hold';
@@ -20,6 +20,8 @@ export interface HudCallbacks {
   minimapTap(fx: number, fy: number): void;
   cancelTargeting(): void;
   usePotion(id: ItemId): void;
+  equip(bagIndex: number): void;
+  unequip(slot: GearSlot): void;
 }
 
 export interface CameraRect {
@@ -73,6 +75,7 @@ export class Hud {
     private readonly hero: Hero,
     private readonly map: WorldMap,
     portraitUrl: string,
+    private readonly icons: (frame: string) => string,
     private readonly cb: HudCallbacks,
   ) {
     this.root = el('div', 'hud', parent);
@@ -99,7 +102,7 @@ export class Hud {
     const xp = el('div', 'bar xp', bars);
     this.xpFill = el('div', 'fill', xp);
     const bag = el('button', 'bag-btn', frame);
-    bag.innerHTML = `<img src="${iconDataUrl('bag', 3)}" alt="">`;
+    bag.innerHTML = `<img src="${this.icons('misc_7')}" alt="">`;
     bag.title = 'Character & inventory (C)';
     bag.setAttribute('aria-label', 'Character and inventory');
     bag.addEventListener('click', () => this.toggleCharacter());
@@ -139,7 +142,7 @@ export class Hud {
     // Potion quick slots beside the attack button (keys 1 and 2).
     (['hp_potion', 'mp_potion'] as ItemId[]).forEach((id, i) => {
       const b = el('button', 'cmd potion', cmds);
-      b.innerHTML = `<img src="${iconDataUrl(ITEMS[id].icon, 3)}" alt=""><span class="hk">${i + 1}</span>`;
+      b.innerHTML = `<img src="${this.icons(ITEMS[id].icon)}" alt=""><span class="hk">${i + 1}</span>`;
       b.title = `${ITEMS[id].name} (${i + 1}): ${ITEMS[id].description}`;
       const count = el('span', 'count', b);
       b.addEventListener('click', (e) => {
@@ -163,7 +166,12 @@ export class Hud {
     });
     this.tooltip = el('div', 'tooltip hidden', this.root);
     this.respawn = el('div', 'respawn hidden', this.root);
-    this.charPage = new CharacterPage(this.root, hero, portraitUrl, (id) => this.cb.usePotion(id), () => this.toggleCharacter(false));
+    this.charPage = new CharacterPage(this.root, hero, portraitUrl, this.icons, {
+      use: (id) => this.cb.usePotion(id),
+      equip: (i) => this.cb.equip(i),
+      unequip: (slot) => this.cb.unequip(slot),
+      close: () => this.toggleCharacter(false),
+    });
   }
 
   private makeAbilityButton(parent: HTMLElement, i: number, icon: string, hotkey: string): AbilityButton {

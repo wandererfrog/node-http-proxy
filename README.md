@@ -70,11 +70,31 @@ All tuning lives in `src/entities/balance.ts`:
 
 ## Items
 
-The hero has six inventory slots, like a WC3 hero. Potions stack up to 9.
-- **Healing Potion:** +220 health.
-- **Mana Potion:** +120 mana.
+Icons come from `art-source/items-sheet.png`, sliced into the `items` atlas (bows, quivers, daggers, armour, rings, amulets, belts, cloaks, potions, food, materials, quest items and misc; 113 icons).
 
-Find them by searching rocks (each rock crumbles and always gives one), or as occasional creep drops.
+The hero has six bag slots, like a WC3 hero. Potions stack up to 9; each piece of gear takes a slot.
+- **Healing Potion:** +220 health. **Mana Potion:** +120 mana. Found by searching rocks and crystals, or as creep drops.
+- **Tomes** (from chests) permanently raise a stat.
+
+### Equipment
+
+Nine slots: bow, quiver, helmet, armour, gloves, boots, cloak, ring, amulet. Each piece comes in six tiers matching the sheet's colour steps (Worn, Woodland, Iron, Moonsteel, Gilded, Fey) and has an item level; stats scale +40% per tier and +10% per level (`src/entities/items.ts`).
+
+| Slot | Gives |
+|---|---|
+| Bow | damage |
+| Quiver | damage, attack speed |
+| Helmet | health, armour |
+| Armour | health, armour |
+| Gloves | attack speed, damage |
+| Boots | move speed, health |
+| Cloak | health regen, move speed |
+| Ring | mana, mana regen |
+| Amulet | mana, health |
+
+Armour takes a flat amount off every hit (a hit always does at least 1). Attack speed shortens the time between arrows.
+
+**Drops:** creeps drop gear 12% of the time, scaled to their level; alpha boars always drop something a tier up; treasure chests give a Moonsteel-or-better piece. Open the bag (portrait, bag button or C) and tap gear to wear it; tap a worn piece to take it off. Belts, daggers, food and materials are sliced but not used yet.
 
 ## The Ranger's kit
 
