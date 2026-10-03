@@ -671,6 +671,62 @@ def slice_magic():
     pack_atlas(images, 'magic', width=512)
 
 
+# --- Hunter sky-arrow sheet (Rain of Arrows: cast, falling arrows, ground mark, impact, scatter) ---
+SKY_SRC = os.path.join(ROOT, 'art-source', 'sky-arrow-sheet.png')
+# Each strip: (y0, y1, x0, x1, frame count). Frames are evenly spaced across the strip; the sparse
+# effect frames break into fragments if segmented, so even columns are used instead.
+SKY_STRIPS = {
+    'skycast': (40, 150, 14, 1160, 10),
+    'skyarrow': (175, 345, 40, 1520, 14),
+    'skymark': (395, 515, 14, 1520, 10),
+    'skyhit': (535, 680, 14, 1520, 10),
+    'skyscatter': (720, 790, 14, 1520, 10),
+}
+SKY_SCALE = 2.0
+
+
+def sky_mask(rgb):
+    """Everything that isn't the baked-in checkerboard (neutral greys)."""
+    sat = rgb.max(axis=2) - rgb.min(axis=2)
+    lum = rgb.mean(axis=2)
+    return (sat > 28) | (lum < 110)
+
+
+def slice_sky():
+    rgb = np.array(Image.open(SKY_SRC).convert('RGB')).astype(np.float32)
+    m = sky_mask(rgb)
+    images = {}
+    for name, (y0, y1, x0, x1, n) in SKY_STRIPS.items():
+        w = (x1 - x0) / n
+        for i in range(n):
+            bx0, bx1 = int(x0 + i * w), int(x0 + (i + 1) * w)
+            sub = rgb[y0:y1, bx0:bx1]
+            sm = m[y0:y1, bx0:bx1]
+            if name == 'skycast':
+                # Solid sprite: clean outline, drop stray specks.
+                lab, k = ndimage.label(sm)
+                if k > 1:
+                    sizes = ndimage.sum(sm, lab, range(1, k + 1))
+                    sm = np.isin(lab, np.nonzero(sizes >= max(10, sizes.max() * 0.03))[0] + 1)
+                px = to_pixel_art(sub, sm.astype(np.float32), SKY_SCALE)
+            else:
+                # Glowing effect: soft alpha from brightness/saturation, premultiplied for additive blending.
+                sl = sub.mean(axis=2)
+                ss = sub.max(axis=2) - sub.min(axis=2)
+                a = np.clip(ss / 110 + np.maximum(sl - 175, 0) / 80, 0, 1)
+                a[~sm] = 0
+                nw, nh = round(sub.shape[1] / SKY_SCALE), round(sub.shape[0] / SKY_SCALE)
+                pre = Image.fromarray(np.clip(sub * a[..., None], 0, 255).astype(np.uint8)).resize((nw, nh), Image.BOX)
+                px = np.zeros((nh, nw, 4), np.uint8)
+                px[..., :3] = np.array(pre)
+                px[..., 3] = 255
+            if name == 'skycast':
+                on = np.nonzero(px[..., 3])
+                px = px[on[0].min(): on[0].max() + 1, on[1].min(): on[1].max() + 1]
+            images[f'{name}_{i}'] = px
+    pack_atlas(images, 'sky', width=1024)
+
+
 def main():
     rgb, mask = load()
     if '--contact' in sys.argv:
@@ -682,6 +738,7 @@ def main():
     slice_elven()
     slice_items()
     slice_magic()
+    slice_sky()
 
 
 if __name__ == '__main__':

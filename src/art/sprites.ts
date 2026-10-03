@@ -24,8 +24,19 @@ export function registerMagicAnims(scene: Phaser.Scene): void {
   scene.anims.create({ key: 'magic_impact', frames: frames('impact', 8), frameRate: 18, repeat: 0 });
 }
 
+/** Sky-arrow animations from art-source/sky-arrow-sheet.png (Rain of Arrows). */
+export function registerSkyAnims(scene: Phaser.Scene): void {
+  const frames = (name: string, n: number, from = 0) => Array.from({ length: n }, (_, i) => ({ key: 'sky', frame: `${name}_${from + i}` }));
+  scene.anims.create({ key: 'sky_arrow', frames: frames('skyarrow', 14), frameRate: 28, repeat: 0 });
+  scene.anims.create({ key: 'sky_mark_in', frames: frames('skymark', 10), frameRate: 20, repeat: 0 });
+  scene.anims.create({ key: 'sky_mark_loop', frames: frames('skymark', 2, 8), frameRate: 4, repeat: -1, yoyo: true });
+  scene.anims.create({ key: 'sky_hit', frames: frames('skyhit', 10), frameRate: 18, repeat: 0 });
+  scene.anims.create({ key: 'sky_scatter', frames: frames('skyscatter', 10), frameRate: 12, repeat: -1 });
+}
+
 export function registerUnitAnims(scene: Phaser.Scene): void {
   registerMagicAnims(scene);
+  registerSkyAnims(scene);
   for (const key of UNIT_SHEETS) {
     for (const f of FACINGS) {
       scene.anims.create({

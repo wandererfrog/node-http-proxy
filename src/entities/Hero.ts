@@ -225,6 +225,14 @@ export class Hero extends Unit {
     return searing.level > 0 && searing.autocast && this.mana >= searing.manaCost();
   }
 
+  /** Sky-arrow cast pose while channelling Rain of Arrows: raise the bow, then hold, mirrored by facing. */
+  private channelFrame(): string | null {
+    if (!this.channel) return null;
+    const t = this.channel.t;
+    const i = t < 0.15 ? 5 : t < 0.3 ? 6 : t < 0.45 ? 7 : t < 0.6 ? 8 : 9;
+    return `skycast_${i}`;
+  }
+
   /** Magic-shot cast frames follow the swing: frames 0-2 over the windup, 3 on release. */
   private castFrame(): string | null {
     if (!this.swing || !this.searingReady) return null;
@@ -236,8 +244,9 @@ export class Hero extends Unit {
   }
 
   protected syncSprite(dt: number): void {
-    const cast = this.castFrame();
-    this.frameOverride = cast ? { atlas: 'magic', frame: cast } : null;
+    const chan = this.channelFrame();
+    const cast = chan ? null : this.castFrame();
+    this.frameOverride = chan ? { atlas: 'sky', frame: chan } : cast ? { atlas: 'magic', frame: cast } : null;
     super.syncSprite(dt);
   }
 

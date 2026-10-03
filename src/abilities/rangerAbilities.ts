@@ -156,15 +156,16 @@ export class RainOfArrows extends Ability {
     let waves = 0;
     const dmg = this.waveDamage();
     const world = hero.world;
-    world.glyph('fx_moon', x, y, this.radius, 3.2);
+    world.skyMark(x, y, this.radius, 3.2);
     return {
       duration: 3,
       update: (dt) => {
         t += dt;
-        world.fallingArrows(x, y, this.radius, Math.ceil(dt * 30));
+        // Each wave: a volley of sky arrows lands and bursts, then the damage tick.
         while (waves < 6 && t >= waves * 0.5 + 0.35) {
           waves++;
-          for (const u of world.enemiesInRadius(hero, x, y, this.radius)) world.damage(u, dmg, hero, { color: '#c28cff' });
+          world.skyWave(x, y, this.radius, 4 + Math.min(waves, 3));
+          for (const u of world.enemiesInRadius(hero, x, y, this.radius)) world.damage(u, dmg, hero, { color: '#9dffb0' });
         }
       },
     };

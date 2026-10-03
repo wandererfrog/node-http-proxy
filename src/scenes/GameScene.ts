@@ -358,6 +358,45 @@ export class GameScene extends Phaser.Scene implements World {
     return this.units.filter((u) => !u.dead && of.isEnemy(u) && Math.hypot(u.x - x, u.y - y) <= r + u.stats.radius);
   }
 
+  /** The leafy targeting ring: grows in, then pulses, with scatter leaves drifting over it. */
+  skyMark(x: number, y: number, radius: number, duration: number): void {
+    const mark = this.add.sprite(x, y, 'sky', 'skymark_0').setBlendMode(Phaser.BlendModes.ADD).setDepth(DEPTH_GROUND_FX + 1);
+    mark.setScale((radius * 2.3) / mark.width);
+    mark.play('sky_mark_in');
+    mark.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => mark.play('sky_mark_loop'));
+    const leaves = this.add.sprite(x, y - 6, 'sky', 'skyscatter_0').setBlendMode(Phaser.BlendModes.ADD).setDepth(DEPTH_GROUND_FX + 2).setAlpha(0.8);
+    leaves.setScale((radius * 2) / leaves.width);
+    leaves.play('sky_scatter');
+    this.tweens.add({
+      targets: [mark, leaves], alpha: 0, delay: Math.max(0, duration * 1000 - 400), duration: 400,
+      onComplete: () => { mark.destroy(); leaves.destroy(); },
+    });
+  }
+
+  /** A volley of sky arrows falling into the area; each one bursts where it lands. */
+  skyWave(x: number, y: number, radius: number, count: number): void {
+    for (let i = 0; i < count; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = Math.sqrt(Math.random()) * radius;
+      const gx = x + Math.cos(a) * r;
+      const gy = y + Math.sin(a) * r;
+      const delay = Math.random() * 180;
+      this.time.delayedCall(delay, () => {
+        const arrow = this.add.sprite(gx, gy - 90, 'sky', 'skyarrow_0').setOrigin(0.5, 1).setScale(0.45).setAlpha(0.85).setBlendMode(Phaser.BlendModes.ADD).setDepth(gy + 2);
+        arrow.play('sky_arrow');
+        this.tweens.add({
+          targets: arrow, y: gy + 4, duration: 240, ease: 'Quad.easeIn',
+          onComplete: () => {
+            arrow.destroy();
+            const hit = this.add.sprite(gx, gy, 'sky', 'skyhit_0').setOrigin(0.5, 0.8).setScale(0.35).setAlpha(0.6).setBlendMode(Phaser.BlendModes.ADD).setDepth(gy + 1);
+            hit.play('sky_hit');
+            hit.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => hit.destroy());
+          },
+        });
+      });
+    }
+  }
+
   fallingArrows(x: number, y: number, radius: number, count: number): void {
     for (let i = 0; i < count; i++) {
       const a = Math.random() * Math.PI * 2;
