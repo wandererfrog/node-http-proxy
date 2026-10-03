@@ -87,7 +87,7 @@ Each visit starts a fresh adventure in a new random world. **New game** (in the 
 
 Icons come from `art-source/items-sheet.png`, sliced into the `items` atlas (bows, quivers, daggers, armour, rings, amulets, belts, cloaks, potions, food, materials, quest items and misc; 113 icons).
 
-The hero has six bag slots, like a WC3 hero. Potions stack up to 9; each piece of gear takes a slot.
+The hero has six bag slots for gear, like a WC3 hero; each piece takes a slot. Potions don't use the bag: they sit on the belt behind the 1 / 2 buttons, up to 9 of each.
 - **Healing Potion:** +220 health. **Mana Potion:** +120 mana. Found by searching rocks and crystals, or as creep drops.
 - **Tomes** (from chests) permanently raise a stat.
 
@@ -109,7 +109,7 @@ Nine slots: bow, quiver, helmet, armour, gloves, boots, cloak, ring, amulet. Eac
 
 Armour takes a flat amount off every hit (a hit always does at least 1). Attack speed shortens the time between arrows.
 
-**Drops:** creeps drop gear 12% of the time, scaled to their level; alpha boars always drop something a tier up; treasure chests give a Moonsteel-or-better piece. Open the character page (portrait, bag button or C). It follows the HUD mockup: the paper doll (four slots down each side of the hero, the bow under them; empty slots show a faint silhouette), stats with icons, the six-slot bag, and an item card. Tap any item to see its card: name and quality in the rarity colour (Common, Uncommon, Fine, Rare, Epic, Legendary), its bonuses, how it compares with what you wear (green better, red worse), and the action: **Wear**, **Take off** or **Drink**. With a mouse, hovering previews the card. The card sits beside the panel when there's room, over the stats on narrow landscape screens, and at the bottom on portrait phones. Belts, daggers, food and materials are sliced but not used yet.
+**Drops:** creeps drop gear 12% of the time, scaled to their level; alpha boars always drop something a tier up; treasure chests give a Moonsteel-or-better piece. Open the character page (portrait, bag button or C). It follows the HUD mockup: the paper doll (four slots down each side of the hero, the bow under them; empty slots show a faint silhouette), stats with icons, the six-slot bag, and an item card. Gear moves by **drag and drop**: drag a piece from the bag onto its slot or onto the hero to wear it (whatever was worn goes back into that bag slot), drag a worn piece into the bag to take it off (onto a bag piece of the same kind to swap them), and drag between bag slots to rearrange. Valid places glow green while you drag. The bag holds gear only: **potions go on the belt** (the 1 / 2 buttons), up to 9 of each. Tap any item to see its card: name and quality in the rarity colour (Common, Uncommon, Fine, Rare, Epic, Legendary), its bonuses, how it compares with what you wear (green better, red worse), and the action: **Wear** or **Take off**. With a mouse, hovering previews the card. The card sits beside the panel when there's room, over the stats on narrow landscape screens, and at the bottom on portrait phones. Belts, daggers, food and materials are sliced but not used yet.
 
 ## The Ranger's kit
 

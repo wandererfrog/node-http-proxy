@@ -37,7 +37,22 @@ describe('Inventory with gear', () => {
     const inv = new Inventory();
     for (let i = 0; i < 6; i++) expect(inv.addGear(makeGear('bow', 0, 1))).toBe(true);
     expect(inv.addGear(makeGear('bow', 0, 1))).toBe(false);
-    expect(inv.add('hp_potion')).toBe(false);
-    expect(inv.count('hp_potion')).toBe(0);
+    // A full bag still takes potions: they go on the belt.
+    expect(inv.add('hp_potion')).toBe(true);
+    expect(inv.count('hp_potion')).toBe(1);
+  });
+
+  it('rearranges by swapping slots, or moving into an empty one', () => {
+    const inv = new Inventory();
+    const a = makeGear('bow', 0, 1);
+    const b = makeGear('ring', 2, 1);
+    inv.addGear(a);
+    inv.addGear(b);
+    inv.move(0, 1);
+    expect(inv.slots[0]?.gear).toBe(b);
+    expect(inv.slots[1]?.gear).toBe(a);
+    inv.move(1, 5);
+    expect(inv.slots[1]).toBeNull();
+    expect(inv.slots[5]?.gear).toBe(a);
   });
 });

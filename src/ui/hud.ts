@@ -21,7 +21,8 @@ export interface HudCallbacks {
   cancelTargeting(): void;
   usePotion(id: ItemId): void;
   equip(bagIndex: number): void;
-  unequip(slot: GearSlot): void;
+  unequip(slot: GearSlot, toIndex?: number): void;
+  moveBag(from: number, to: number): void;
   newGame(): void;
 }
 
@@ -169,9 +170,9 @@ export class Hud {
     this.tooltip = el('div', 'tooltip hidden', this.root);
     this.respawn = el('div', 'respawn hidden', this.root);
     this.charPage = new CharacterPage(this.root, hero, portraitUrl, dollUrl, this.icons, {
-      use: (id) => this.cb.usePotion(id),
       equip: (i) => this.cb.equip(i),
-      unequip: (slot) => this.cb.unequip(slot),
+      unequip: (slot, to) => this.cb.unequip(slot, to),
+      moveBag: (from, to) => this.cb.moveBag(from, to),
       close: () => this.toggleCharacter(false),
       newGame: () => this.cb.newGame(),
     });

@@ -86,7 +86,7 @@ export class Hero extends Unit {
   /** Wear the gear in bag slot `index`; whatever was worn goes back into that slot. */
   equipFromBag(index: number): string | null {
     const entry = this.inventory.slots[index];
-    if (!entry || entry.kind !== 'gear') return 'Nothing to equip';
+    if (!entry) return 'Nothing to equip';
     const worn = this.equipment[entry.gear.slot];
     this.equipment[entry.gear.slot] = entry.gear;
     this.inventory.slots[index] = worn ? { kind: 'gear', gear: worn } : null;
@@ -94,11 +94,12 @@ export class Hero extends Unit {
     return null;
   }
 
-  /** Take a worn piece off into the bag. */
-  unequip(slot: GearSlot): string | null {
+  /** Take a worn piece off into the bag: into bag slot `toIndex` if given and empty, else the first free one. */
+  unequip(slot: GearSlot, toIndex?: number): string | null {
     const worn = this.equipment[slot];
     if (!worn) return 'Nothing worn there';
-    if (!this.inventory.addGear(worn)) return 'Bag is full';
+    if (toIndex !== undefined && toIndex >= 0 && !this.inventory.slots[toIndex]) this.inventory.slots[toIndex] = { kind: 'gear', gear: worn };
+    else if (!this.inventory.addGear(worn)) return 'Bag is full';
     delete this.equipment[slot];
     this.recomputeGear();
     return null;

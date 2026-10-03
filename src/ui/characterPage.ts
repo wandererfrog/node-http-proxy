@@ -1,17 +1,5 @@
 import { Hero, MAX_LEVEL, xpForLevel } from '../entities/Hero';
-import {
-  EMPTY_STATS,
-  Gear,
-  GearSlot,
-  GearStats,
-  INVENTORY_SIZE,
-  ITEMS,
-  ItemId,
-  SLOT_NAMES,
-  TIERS,
-  describeStats,
-  gearIcon,
-} from '../entities/items';
+import { EMPTY_STATS, Gear, GearSlot, GearStats, INVENTORY_SIZE, SLOT_NAMES, TIERS, describeStats, gearIcon } from '../entities/items';
 import { statIconUrl } from '../art/sprites';
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, parent?: HTMLElement): HTMLElementTagNameMap[K] {
@@ -22,12 +10,12 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, parent?
 }
 
 export interface CharacterCallbacks {
-  /** Drink a potion from the bag. */
-  use(id: ItemId): void;
-  /** Wear the gear in a bag slot (swapping with whatever is worn). */
+  /** Wear the gear in a bag slot (whatever was worn goes into that bag slot). */
   equip(bagIndex: number): void;
-  /** Take worn gear off into the bag. */
-  unequip(slot: GearSlot): void;
+  /** Take worn gear off into the bag: into `toIndex` when given and empty, else the first free slot. */
+  unequip(slot: GearSlot, toIndex?: number): void;
+  /** Rearrange the bag: swap two slots. */
+  moveBag(from: number, to: number): void;
   close(): void;
   /** Start over in a new world (asks once). */
   newGame(): void;
@@ -51,15 +39,32 @@ const DOLL: Array<{ slot: GearSlot; col: number; row: number }> = [
 
 type Selection = { kind: 'worn'; slot: GearSlot } | { kind: 'bag'; index: number };
 
+/** Pointer travel (px) before a press on an item becomes a drag. */
+const DRAG_START = 6;
+
 /** Stat icon data URLs, made once. */
 const STAT_URLS: Record<string, string> = {};
 const statIcon = (name: string) => (STAT_URLS[name] ??= statIconUrl(name));
 
+interface Drag {
+  from: Selection;
+  gear: Gear;
+  pointerId: number;
+  startX: number;
+  startY: number;
+  ghost: HTMLImageElement | null;
+  over: HTMLElement | null;
+}
+
 /**
  * Hero sheet, styled after the HUD mockup: a header with the round portrait, the paper doll of worn
- * gear around the hero, the stat list with icons, the six WC3-style bag slots, and an item card.
- * Tapping a slot selects it and shows its card with the action (wear, take off, drink); with a mouse,
- * hovering previews the card. The game keeps running while it is open, like in Warcraft III.
+ * gear around the hero, the stat list with icons, the six WC3-style bag slots (gear only; potions
+ * live on the 1 / 2 belt), and an item card.
+ *
+ * Gear moves by drag and drop: drag from the bag onto its slot (or onto the hero) to wear it, from a
+ * worn slot to the bag to take it off, and between bag slots to rearrange. A tap selects an item
+ * and shows its card, with the same actions as buttons; a mouse hover previews the card. The game
+ * keeps running while the page is open, like in Warcraft III.
  */
 export class CharacterPage {
   readonly root: HTMLDivElement;
@@ -67,6 +72,7 @@ export class CharacterPage {
   private readonly xpFill: HTMLDivElement;
   private readonly levelBadge: HTMLDivElement;
   private readonly stats: HTMLDivElement;
+  private readonly figure: HTMLDivElement;
   private readonly gearSlots = new Map<GearSlot, HTMLButtonElement>();
   private readonly bagSlots: HTMLButtonElement[] = [];
   private readonly card: HTMLDivElement;
@@ -75,6 +81,9 @@ export class CharacterPage {
   /** Hover preview (mouse); the selection wins when both exist. */
   private hovered: Selection | null = null;
   private cardKey = '';
+  private drag: Drag | null = null;
+  /** Set when a drag ends, so the click that follows the pointerup doesn't also toggle the selection. */
+  private swallowClick = false;
 
   constructor(
     parent: HTMLElement,
@@ -138,10 +147,11 @@ export class CharacterPage {
 
     // --- Paper doll.
     const doll = el('div', 'char-doll', content);
-    const figure = el('div', 'doll-figure', doll);
-    const fig = el('img', '', figure);
+    this.figure = el('div', 'doll-figure', doll);
+    const fig = el('img', '', this.figure);
     fig.src = dollUrl;
     fig.alt = '';
+    fig.draggable = false;
     for (const d of DOLL) {
       const b = el('button', 'inv-slot gear-slot', doll);
       b.style.gridColumn = `${d.col}`;
@@ -153,6 +163,7 @@ export class CharacterPage {
       const ghost = el('img', 'ghost', b);
       ghost.src = this.icon(gearIcon(d.slot, 0));
       ghost.alt = '';
+      ghost.draggable = false;
       this.wireSlot(b, { kind: 'worn', slot: d.slot });
       this.gearSlots.set(d.slot, b);
     }
@@ -163,36 +174,154 @@ export class CharacterPage {
     el('div', 'char-label', side).textContent = 'Bag';
     const grid = el('div', 'inv-grid', side);
     for (let i = 0; i < INVENTORY_SIZE; i++) {
-      const b = el('button', 'inv-slot', grid);
+      const b = el('button', 'inv-slot bag-slot', grid);
+      b.dataset.bag = `${i}`;
       b.setAttribute('aria-label', `Bag slot ${i + 1}`);
       this.wireSlot(b, { kind: 'bag', index: i });
       this.bagSlots.push(b);
     }
-    el('div', 'char-hint', side).textContent = 'Tap an item to see it.';
+    el('div', 'char-hint', side).textContent = 'Drag gear onto the hero to wear it. Tap for details.';
 
     // --- Item card: beside the panel when there is room, over the stats column otherwise.
     this.card = el('div', 'char-card off', wrap);
     this.card.setAttribute('aria-live', 'polite');
   }
 
+  // --- Input ----------------------------------------------------------------------------------
+
   private wireSlot(b: HTMLButtonElement, sel: Selection): void {
     b.addEventListener('click', () => {
+      if (this.swallowClick) {
+        this.swallowClick = false;
+        return;
+      }
       const same = this.selected !== null && this.sameSel(this.selected, sel);
       this.selected = same ? null : sel;
       this.menu.classList.add('hidden');
       this.renderCard(true);
     });
     b.addEventListener('pointerenter', (e) => {
-      if (e.pointerType !== 'mouse') return;
+      if (e.pointerType !== 'mouse' || this.drag) return;
       this.hovered = sel;
       this.renderCard(true);
     });
     b.addEventListener('pointerleave', (e) => {
-      if (e.pointerType !== 'mouse') return;
+      if (e.pointerType !== 'mouse' || this.drag) return;
       this.hovered = null;
       this.renderCard(true);
     });
+    b.addEventListener('pointerdown', (e) => {
+      if (this.drag || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      const gear = this.gearAt(sel);
+      if (!gear) return;
+      this.drag = { from: sel, gear, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, ghost: null, over: null };
+      window.addEventListener('pointermove', this.onDragMove);
+      window.addEventListener('pointerup', this.onDragEnd);
+      window.addEventListener('pointercancel', this.onDragCancel);
+    });
   }
+
+  private readonly onDragMove = (e: PointerEvent): void => {
+    const d = this.drag;
+    if (!d || e.pointerId !== d.pointerId) return;
+    if (!d.ghost) {
+      if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < DRAG_START) return;
+      this.beginDrag(d);
+    }
+    e.preventDefault();
+    d.ghost!.style.transform = `translate(${e.clientX}px, ${e.clientY}px) translate(-50%, -60%)`;
+    const over = this.dropTargetAt(e.clientX, e.clientY);
+    if (over !== d.over) {
+      d.over?.classList.remove('drop-over');
+      over?.classList.add('drop-over');
+      d.over = over;
+    }
+  };
+
+  private readonly onDragEnd = (e: PointerEvent): void => {
+    const d = this.drag;
+    if (!d || e.pointerId !== d.pointerId) return;
+    if (d.ghost) {
+      this.swallowClick = true;
+      setTimeout(() => (this.swallowClick = false), 0);
+      this.drop(d, this.dropTargetAt(e.clientX, e.clientY));
+    }
+    this.endDrag();
+  };
+
+  private readonly onDragCancel = (e: PointerEvent): void => {
+    if (this.drag && e.pointerId === this.drag.pointerId) this.endDrag();
+  };
+
+  private beginDrag(d: Drag): void {
+    const g = el('img', 'drag-ghost', document.body);
+    g.src = this.icon(d.gear.icon);
+    g.alt = '';
+    g.style.borderColor = TIERS[d.gear.tier].color;
+    d.ghost = g;
+    this.root.classList.add('dragging');
+    this.slotEl(d.from)?.classList.add('drag-source');
+    for (const t of this.validTargets(d)) t.classList.add('drop-ok');
+    this.hovered = null;
+  }
+
+  private endDrag(): void {
+    const d = this.drag;
+    if (!d) return;
+    d.ghost?.remove();
+    this.root.classList.remove('dragging');
+    for (const e of this.root.querySelectorAll('.drop-ok, .drop-over, .drag-source')) e.classList.remove('drop-ok', 'drop-over', 'drag-source');
+    window.removeEventListener('pointermove', this.onDragMove);
+    window.removeEventListener('pointerup', this.onDragEnd);
+    window.removeEventListener('pointercancel', this.onDragCancel);
+    this.drag = null;
+  }
+
+  /** The slot (or the hero figure) under a screen point, if it's a place this drag can drop on. */
+  private dropTargetAt(x: number, y: number): HTMLElement | null {
+    const hit = document.elementFromPoint(x, y)?.closest<HTMLElement>('.inv-slot, .doll-figure') ?? null;
+    return hit && this.drag && this.validTargets(this.drag).includes(hit) ? hit : null;
+  }
+
+  /**
+   * Where a dragged piece can go. From the bag: its own gear slot, the hero figure (same thing), or
+   * any other bag slot (to rearrange). From a worn slot: an empty bag slot, or one holding gear for
+   * the same slot (a swap).
+   */
+  private validTargets(d: Drag): HTMLElement[] {
+    if (d.from.kind === 'bag') {
+      const from = d.from.index;
+      return [this.gearSlots.get(d.gear.slot)!, this.figure, ...this.bagSlots.filter((_, i) => i !== from)];
+    }
+    return this.bagSlots.filter((_, i) => {
+      const s = this.hero.inventory.slots[i];
+      return !s || s.gear.slot === d.gear.slot;
+    });
+  }
+
+  private drop(d: Drag, target: HTMLElement | null): void {
+    if (!target) return;
+    if (d.from.kind === 'bag') {
+      const from = d.from.index;
+      if (target === this.figure || target.dataset.slot === d.gear.slot) {
+        this.cb.equip(from);
+        this.selected = { kind: 'worn', slot: d.gear.slot };
+      } else if (target.dataset.bag !== undefined) {
+        const to = Number(target.dataset.bag);
+        this.cb.moveBag(from, to);
+        this.selected = { kind: 'bag', index: to };
+      }
+    } else if (target.dataset.bag !== undefined) {
+      const to = Number(target.dataset.bag);
+      const there = this.hero.inventory.slots[to];
+      if (there) this.cb.equip(to); // same slot type: swap them
+      else this.cb.unequip(d.gear.slot, to);
+      this.selected = { kind: 'bag', index: to };
+    }
+    this.renderCard(true);
+  }
+
+  // --- State ----------------------------------------------------------------------------------
 
   private sameSel(a: Selection, b: Selection): boolean {
     if (a.kind === 'worn' && b.kind === 'worn') return a.slot === b.slot;
@@ -200,11 +329,16 @@ export class CharacterPage {
     return false;
   }
 
+  private slotEl(sel: Selection): HTMLButtonElement | undefined {
+    return sel.kind === 'worn' ? this.gearSlots.get(sel.slot) : this.bagSlots[sel.index];
+  }
+
   get open(): boolean {
     return !this.root.classList.contains('hidden');
   }
 
   setOpen(open: boolean): void {
+    this.endDrag();
     this.root.classList.toggle('hidden', !open);
     this.selected = null;
     this.hovered = null;
@@ -215,15 +349,10 @@ export class CharacterPage {
     }
   }
 
-  /** The item a selection points at right now (it changes as gear moves). */
-  private itemAt(sel: Selection): { gear?: Gear; stack?: { id: ItemId; count: number } } | null {
-    if (sel.kind === 'worn') {
-      const g = this.hero.equipment[sel.slot];
-      return g ? { gear: g } : null;
-    }
-    const s = this.hero.inventory.slots[sel.index];
-    if (!s) return null;
-    return s.kind === 'gear' ? { gear: s.gear } : { stack: { id: s.id, count: s.count } };
+  /** The gear a selection points at right now (it changes as gear moves). */
+  private gearAt(sel: Selection): Gear | null {
+    if (sel.kind === 'worn') return this.hero.equipment[sel.slot] ?? null;
+    return this.hero.inventory.slots[sel.index]?.gear ?? null;
   }
 
   /** Stat differences of `g` against what is worn in its slot, as signed lines. */
@@ -250,23 +379,24 @@ export class CharacterPage {
 
   private markSelected(): void {
     for (const b of [...this.gearSlots.values(), ...this.bagSlots]) b.classList.remove('selected');
-    const s = this.selected;
-    if (s) (s.kind === 'worn' ? this.gearSlots.get(s.slot) : this.bagSlots[s.index])?.classList.add('selected');
+    if (this.selected) this.slotEl(this.selected)?.classList.add('selected');
   }
 
+  // --- Rendering ------------------------------------------------------------------------------
+
   private renderCard(force = false): void {
-    // A selection whose slot has emptied (drank the last potion, gear moved) is dropped.
-    if (this.selected && !this.itemAt(this.selected)) this.selected = null;
+    // A selection whose slot has emptied (gear moved away) is dropped.
+    if (this.selected && !this.gearAt(this.selected)) this.selected = null;
     const sel = this.selected ?? this.hovered;
-    const item = sel ? this.itemAt(sel) : null;
+    const g = sel ? this.gearAt(sel) : null;
     this.markSelected();
-    const wornInSlot = item?.gear ? this.hero.equipment[item.gear.slot] ?? null : null;
-    const key = sel && item ? JSON.stringify([sel, item, !!this.selected, wornInSlot, this.hero.inventory.firstFree() < 0]) : '';
+    const wornInSlot = g ? this.hero.equipment[g.slot] ?? null : null;
+    const key = sel && g ? JSON.stringify([sel, g, !!this.selected, wornInSlot, this.hero.inventory.firstFree() < 0]) : '';
     if (!force && key === this.cardKey) return;
     this.cardKey = key;
     const c = this.card;
     c.innerHTML = '';
-    if (!sel || !item) {
+    if (!sel || !g) {
       c.classList.add('off');
       return;
     }
@@ -287,90 +417,67 @@ export class CharacterPage {
       this.renderCard(true);
     });
 
-    if (item.gear) {
-      const g = item.gear;
-      const tier = TIERS[g.tier];
-      ic.src = this.icon(g.icon);
-      box.style.borderColor = tier.color;
-      name.textContent = g.name;
-      name.style.color = tier.color;
-      rarity.textContent = tier.rarity;
-      rarity.style.color = tier.color;
-      const type = el('div', 'card-row', c);
-      el('span', '', type).textContent = SLOT_NAMES[g.slot];
-      el('span', 'muted', type).textContent = `Item level ${g.level}`;
+    const tier = TIERS[g.tier];
+    ic.src = this.icon(g.icon);
+    box.style.borderColor = tier.color;
+    name.textContent = g.name;
+    name.style.color = tier.color;
+    rarity.textContent = tier.rarity;
+    rarity.style.color = tier.color;
+    const type = el('div', 'card-row', c);
+    el('span', '', type).textContent = SLOT_NAMES[g.slot];
+    el('span', 'muted', type).textContent = `Item level ${g.level}`;
+    el('hr', '', c);
+    const statsBox = el('div', 'card-stats', c);
+    for (const line of describeStats(g.stats)) el('div', '', statsBox).textContent = line;
+    const worn = sel.kind === 'worn';
+    if (worn) {
+      el('div', 'card-note', c).textContent = 'Equipped';
+    } else {
       el('hr', '', c);
-      const statsBox = el('div', 'card-stats', c);
-      for (const line of describeStats(g.stats)) el('div', '', statsBox).textContent = line;
-      const worn = sel.kind === 'worn';
-      if (worn) {
-        el('div', 'card-note', c).textContent = 'Equipped';
-      } else {
-        el('hr', '', c);
-        const cmpBox = el('div', 'card-compare', c);
-        el('div', 'muted', cmpBox).textContent = wornInSlot ? `Compared with ${wornInSlot.name}:` : 'Nothing worn in this slot.';
-        const cmp = this.compareLines(g);
-        if (wornInSlot && cmp.length === 0) el('div', 'muted', cmpBox).textContent = 'No change.';
-        for (const l of cmp) el('div', l.good ? 'up' : 'down', cmpBox).textContent = l.text;
-      }
-      if (this.selected) {
-        const act = el('button', 'card-action', c);
-        if (worn) {
-          const full = this.hero.inventory.firstFree() < 0;
-          act.textContent = full ? 'Bag full' : 'Take off';
-          act.disabled = full;
-          act.addEventListener('click', () => {
-            this.cb.unequip(g.slot);
-            const i = this.hero.inventory.slots.findIndex((s) => s?.kind === 'gear' && s.gear === g);
-            this.selected = i >= 0 ? { kind: 'bag', index: i } : null;
-            this.renderCard(true);
-          });
-        } else {
-          const index = (sel as { index: number }).index;
-          act.textContent = 'Wear';
-          act.addEventListener('click', () => {
-            this.cb.equip(index);
-            if (this.hero.equipment[g.slot] === g) this.selected = { kind: 'worn', slot: g.slot };
-            this.renderCard(true);
-          });
-        }
-      }
-    } else if (item.stack) {
-      const def = ITEMS[item.stack.id];
-      const id = item.stack.id;
-      ic.src = this.icon(def.icon);
-      name.textContent = def.name;
-      rarity.textContent = 'Consumable';
-      rarity.style.color = '#b8b0a0';
-      const row = el('div', 'card-row', c);
-      el('span', '', row).textContent = def.description;
-      el('span', 'muted', row).textContent = `×${item.stack.count}`;
-      if (this.selected) {
-        const act = el('button', 'card-action', c);
-        act.textContent = 'Drink';
-        act.addEventListener('click', () => {
-          this.cb.use(id);
-          this.renderCard(true);
-        });
-      }
+      const cmpBox = el('div', 'card-compare', c);
+      el('div', 'muted', cmpBox).textContent = wornInSlot ? `Compared with ${wornInSlot.name}:` : 'Nothing worn in this slot.';
+      const cmp = this.compareLines(g);
+      if (wornInSlot && cmp.length === 0) el('div', 'muted', cmpBox).textContent = 'No change.';
+      for (const l of cmp) el('div', l.good ? 'up' : 'down', cmpBox).textContent = l.text;
+    }
+    if (!this.selected) return;
+    const act = el('button', 'card-action', c);
+    if (worn) {
+      const full = this.hero.inventory.firstFree() < 0;
+      act.textContent = full ? 'Bag full' : 'Take off';
+      act.disabled = full;
+      act.addEventListener('click', () => {
+        this.cb.unequip(g.slot);
+        const i = this.hero.inventory.slots.findIndex((s) => s?.gear === g);
+        this.selected = i >= 0 ? { kind: 'bag', index: i } : null;
+        this.renderCard(true);
+      });
+    } else {
+      const index = (sel as { index: number }).index;
+      act.textContent = 'Wear';
+      act.addEventListener('click', () => {
+        this.cb.equip(index);
+        if (this.hero.equipment[g.slot] === g) this.selected = { kind: 'worn', slot: g.slot };
+        this.renderCard(true);
+      });
     }
   }
 
-  private renderSlot(b: HTMLButtonElement, entry: { icon: string; tier?: number; count?: number; name: string } | null): void {
-    const key = entry ? `${entry.icon}:${entry.tier ?? ''}:${entry.count ?? ''}` : '';
+  private renderSlot(b: HTMLButtonElement, g: Gear | null): void {
+    const key = g ? `${g.icon}:${g.tier}` : '';
     if (b.dataset.key === key) return;
     b.dataset.key = key;
     b.querySelector('.item')?.remove();
-    b.querySelector('.count')?.remove();
-    b.classList.toggle('filled', !!entry);
-    const color = entry && entry.tier !== undefined ? TIERS[entry.tier].color : '';
+    b.classList.toggle('filled', !!g);
+    const color = g ? TIERS[g.tier].color : '';
     b.style.borderColor = color;
     b.style.setProperty('--glow', color || 'transparent');
-    if (!entry) return;
+    if (!g) return;
     const img = el('img', 'item', b);
-    img.src = this.icon(entry.icon);
-    img.alt = entry.name;
-    if (entry.count !== undefined) el('span', 'count', b).textContent = `${entry.count}`;
+    img.src = this.icon(g.icon);
+    img.alt = g.name;
+    img.draggable = false;
   }
 
   /** Re-render live values. Cheap enough to call every frame while open. */
@@ -401,16 +508,8 @@ export class CharacterPage {
       .join('');
     if (this.stats.innerHTML !== html) this.stats.innerHTML = html;
 
-    for (const [slot, b] of this.gearSlots) {
-      const g = h.equipment[slot];
-      this.renderSlot(b, g ? { icon: g.icon, tier: g.tier, name: g.name } : null);
-    }
-    h.inventory.slots.forEach((s, i) => {
-      const b = this.bagSlots[i];
-      if (!s) this.renderSlot(b, null);
-      else if (s.kind === 'stack') this.renderSlot(b, { icon: ITEMS[s.id].icon, count: s.count, name: ITEMS[s.id].name });
-      else this.renderSlot(b, { icon: s.gear.icon, tier: s.gear.tier, name: s.gear.name });
-    });
+    for (const [slot, b] of this.gearSlots) this.renderSlot(b, h.equipment[slot] ?? null);
+    h.inventory.slots.forEach((s, i) => this.renderSlot(this.bagSlots[i], s?.gear ?? null));
     this.renderCard();
   }
 }

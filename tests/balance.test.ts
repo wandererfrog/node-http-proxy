@@ -28,23 +28,24 @@ describe('combat balance', () => {
   });
 });
 
-describe('Inventory', () => {
-  it('stacks potions and fills six slots', () => {
+describe('Inventory potions', () => {
+  it('keeps potions on the belt, never in the bag, up to 9 of each', () => {
     const inv = new Inventory();
-    expect(inv.add('hp_potion', 12)).toBe(true); // 9 + 3
-    expect(inv.slots.filter(Boolean)).toHaveLength(2);
+    expect(inv.add('hp_potion', 5)).toBe(true);
     expect(inv.add('mp_potion')).toBe(true);
-    expect(inv.count('hp_potion')).toBe(12);
+    expect(inv.slots.every((s) => s === null)).toBe(true);
+    expect(inv.count('hp_potion')).toBe(5);
+    expect(inv.add('hp_potion', 6)).toBe(false); // only 4 fit
+    expect(inv.count('hp_potion')).toBe(9);
     expect(inv.takeOne('hp_potion')).toBe(true);
-    expect(inv.count('hp_potion')).toBe(11);
-    expect(inv.add('mp_potion', 9 * 4)).toBe(false); // only room for 3 more stacks
+    expect(inv.count('hp_potion')).toBe(8);
   });
 
-  it('frees a slot when its last item is used', () => {
+  it('runs out cleanly', () => {
     const inv = new Inventory();
     inv.add('mp_potion');
     expect(inv.takeOne('mp_potion')).toBe(true);
-    expect(inv.slots.every((s) => s === null)).toBe(true);
     expect(inv.takeOne('mp_potion')).toBe(false);
+    expect(inv.count('mp_potion')).toBe(0);
   });
 });

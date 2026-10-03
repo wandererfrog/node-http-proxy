@@ -179,39 +179,24 @@ export function rollGear(level: number, rand: () => number = Math.random, minTie
 
 // --- Inventory --------------------------------------------------------------------------------
 
-export interface ItemStack {
-  id: ItemId;
-  count: number;
-}
-
-export type InvEntry = { kind: 'stack'; id: ItemId; count: number } | { kind: 'gear'; gear: Gear };
+/** A bag slot holds one piece of gear. Potions don't go in the bag: they live on the potion belt. */
+export type InvEntry = { kind: 'gear'; gear: Gear };
 
 export const INVENTORY_SIZE = 6;
 
-/** Six slots, like a WC3 hero. Potions stack; each piece of gear takes a slot. */
+/**
+ * Six bag slots for gear, like a WC3 hero, plus the potion belt behind the 1 / 2 buttons. Each
+ * potion kind holds up to its `maxStack`.
+ */
 export class Inventory {
   readonly slots: (InvEntry | null)[] = Array(INVENTORY_SIZE).fill(null);
+  readonly potions: Record<ItemId, number> = { hp_potion: 0, mp_potion: 0 };
 
-  /** Adds consumables, stacking where possible. Returns false when they don't all fit. */
+  /** Puts potions on the belt. Returns false when they don't all fit (the ones that fit are kept). */
   add(id: ItemId, count = 1): boolean {
-    const def = ITEMS[id];
-    let left = count;
-    for (const s of this.slots) {
-      if (s && s.kind === 'stack' && s.id === id && s.count < def.maxStack) {
-        const n = Math.min(left, def.maxStack - s.count);
-        s.count += n;
-        left -= n;
-        if (left === 0) return true;
-      }
-    }
-    for (let i = 0; i < this.slots.length && left > 0; i++) {
-      if (!this.slots[i]) {
-        const n = Math.min(left, def.maxStack);
-        this.slots[i] = { kind: 'stack', id, count: n };
-        left -= n;
-      }
-    }
-    return left === 0;
+    const room = ITEMS[id].maxStack - this.potions[id];
+    this.potions[id] += Math.min(room, count);
+    return count <= room;
   }
 
   /** Puts a piece of gear in the first free slot. Returns false when the bag is full. */
@@ -227,19 +212,19 @@ export class Inventory {
   }
 
   count(id: ItemId): number {
-    return this.slots.reduce((n, s) => n + (s && s.kind === 'stack' && s.id === id ? s.count : 0), 0);
+    return this.potions[id];
   }
 
-  /** Removes one of `id` (from the last stack first). Returns false if there was none. */
+  /** Uses up one potion. Returns false if there was none. */
   takeOne(id: ItemId): boolean {
-    for (let i = this.slots.length - 1; i >= 0; i--) {
-      const s = this.slots[i];
-      if (s && s.kind === 'stack' && s.id === id) {
-        s.count--;
-        if (s.count <= 0) this.slots[i] = null;
-        return true;
-      }
-    }
-    return false;
+    if (this.potions[id] <= 0) return false;
+    this.potions[id]--;
+    return true;
+  }
+
+  /** Swap two bag slots (moving into an empty one). */
+  move(from: number, to: number): void {
+    if (from === to || !this.slots[from]) return;
+    [this.slots[from], this.slots[to]] = [this.slots[to], this.slots[from]];
   }
 }

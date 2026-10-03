@@ -168,12 +168,13 @@ export class GameScene extends Phaser.Scene implements World {
         const g = this.hero.inventory.slots[i];
         const err = this.hero.equipFromBag(i);
         if (err) this.hud.toast(err, 'warn');
-        else if (g && g.kind === 'gear') this.hud.toast(`Equipped ${g.gear.name}`, 'good');
+        else if (g) this.hud.toast(`Equipped ${g.gear.name}`, 'good');
       },
-      unequip: (slot: GearSlot) => {
-        const err = this.hero.unequip(slot);
+      unequip: (slot: GearSlot, to?: number) => {
+        const err = this.hero.unequip(slot, to);
         if (err) this.hud.toast(err, 'warn');
       },
+      moveBag: (from, to) => this.hero.inventory.move(from, to),
       newGame: () => {
         this.scene.restart();
         document.querySelectorAll('#ui .hud').forEach((e) => e.remove());
@@ -353,12 +354,12 @@ export class GameScene extends Phaser.Scene implements World {
     this.tweens.add({ targets: icon, x: this.hero.x, y: this.hero.y - 10, duration: 350, ease: 'Quad.easeIn', onComplete: () => icon.destroy() });
   }
 
-  /** Put a consumable in the hero's bag with a little pickup flourish. */
+  /** Put a potion on the hero's belt (the 1 / 2 buttons, not the bag) with a little pickup flourish. */
   private giveLoot(x: number, y: number, id: ItemId): void {
     if (this.hero.dead) return;
     const def = ITEMS[id];
     if (!this.hero.inventory.add(id)) {
-      this.hud.toast(`Bag full — ${def.name} left behind`, 'warn');
+      this.hud.toast(`${def.name}s are full (${def.maxStack}) — left behind`, 'warn');
       return;
     }
     this.floatText(x, y - 12, `+ ${def.name}`, id === 'hp_potion' ? '#ff8a8a' : '#8fb8ff', true);
