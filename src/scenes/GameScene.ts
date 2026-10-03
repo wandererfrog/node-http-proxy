@@ -6,7 +6,10 @@ import { ATLASES, IMAGES } from '../assets';
 import { Ability } from '../abilities/Ability';
 import { Camp, Creep } from '../entities/Creep';
 import { CREEP_GEAR_DROP, CREEP_GOLD_DROP, CREEP_POTION_DROP, creepGold } from '../entities/balance';
-import { Gear, GearSlot, ITEMS, ItemId, TIERS, TOMES, TOME_IDS, rollGear } from '../entities/items';
+import { GEAR_SLOTS, Gear, GearSlot, ITEMS, ItemId, TIERS, TOMES, TOME_IDS, gearValue, makeGear, rollGear } from '../entities/items';
+import { NPCS, NpcId, QUEST_BY_ID, QuestDef, QuestId, QuestLog } from '../entities/quests';
+import { npcPortraitUrl, npcTexture } from '../art/npcs';
+import type { StockItem } from '../ui/npcDialog';
 import { Hero, HeroState } from '../entities/Hero';
 import { TALENT_BY_ID } from '../entities/talents';
 import { Arrow } from '../entities/Projectile';
@@ -43,6 +46,18 @@ interface RunState {
   looted: Set<string>;
   /** Dungeon camps cleared, as `${mapId}:c${index}`: dungeon monsters never come back. */
   cleared: Set<string>;
+  quests: QuestLog;
+  /** The merchant's wares, restocked whenever the hero's level changes. */
+  stock: { level: number; items: StockItem[] };
+}
+
+interface Villager {
+  id: NpcId;
+  x: number;
+  y: number;
+  sprite: Phaser.GameObjects.Image;
+  marker: Phaser.GameObjects.Text;
+  mark: string;
 }
 
 const OVERWORLD_SIZE = 128;
@@ -151,7 +166,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.dpr = (this.game.registry.get('dpr') as number) ?? 1;
     let run = this.registry.get('run') as RunState | undefined;
     if (!run || data.newGame) {
-      run = { worldSeed: (Math.random() * 1e9) | 0, looted: new Set(), cleared: new Set() };
+      run = { worldSeed: (Math.random() * 1e9) | 0, looted: new Set(), cleared: new Set(), quests: new QuestLog(), stock: { level: 0, items: [] } };
       this.registry.set('run', run);
     }
     this.run = run;
@@ -206,6 +221,7 @@ export class GameScene extends Phaser.Scene implements World {
       chest.glint.destroy();
     }
     this.buildPortals();
+    this.buildVillagers();
     if (this.map.kind === 'dungeon') this.buildDarkness();
 
     const cam = this.cameras.main;
@@ -263,7 +279,15 @@ export class GameScene extends Phaser.Scene implements World {
         document.querySelectorAll('#ui .hud').forEach((e) => e.remove());
         this.scene.restart({ newGame: true } satisfies TravelData);
       },
-    });
+      questAccept: (id) => {
+        if (!this.run.quests.accept(id)) return;
+        const q = QUEST_BY_ID[id];
+        this.hud.toast(`Quest accepted: ${q.title}`, 'good');
+      },
+      questComplete: (id) => this.completeQuest(id),
+      buy: (i) => this.buy(i),
+      sell: (i) => this.sell(i),
+    }, run.quests);
 
     if (this.map.moonwell) {
       // The healing circle in front of the moonwell, where the hero starts.
@@ -285,7 +309,162 @@ export class GameScene extends Phaser.Scene implements World {
       this.hud.toast(`${DUNGEON_NAMES[to.entrance % DUNGEON_NAMES.length]} — floor ${to.depth} (creep level ${to.level})`, 'good');
       if (to.depth === 1) this.hud.toast('The gate behind you leads back out. Find the rune portal to go deeper.', 'info');
     } else if (back) this.hud.toast('Back in the open air', 'info');
-    else this.hud.toast('Tap to move · tap enemies to attack · tap rocks to search them for potions', 'info');
+    else this.hud.toast('Tap to move · tap enemies to attack · tap villagers to talk', 'info');
+    if (to.kind === 'dungeon') this.questProgress(run.quests.onDepth(to.depth));
+    // A new ranger: the Elder greets them with the first quest of the intro.
+    if (!data.hero && to.kind === 'overworld' && run.quests.active.size === 0 && run.quests.done.size === 0) {
+      this.time.delayedCall(900, () => {
+        if (!this.hud.dialogOpen && !this.hud.characterOpen) this.hud.openDialog(NPCS.elder, npcPortraitUrl(this, NPCS.elder), [], 'arrival');
+      });
+    }
+  }
+
+  // --- Village, quests and trade ------------------------------------------------------------
+
+  private villagers: Villager[] = [];
+
+  /** The villagers stand on their (blocked) tiles with a name over their head and a quest marker. */
+  private buildVillagers(): void {
+    for (const n of this.map.npcs) {
+      const def = NPCS[n.id];
+      const x = (n.tx + 0.5) * TILE;
+      const y = (n.ty + 1) * TILE - 2;
+      this.add.image(x, y, 'shadow').setScale(0.7).setDepth(y - 1000);
+      const sprite = this.add.image(x, y, npcTexture(this, def)).setOrigin(0.5, 1).setScale(0.5).setDepth(y);
+      const top = y - sprite.displayHeight;
+      this.add
+        .text(x, top - 1, def.name, { fontFamily: 'Pixelify Sans, monospace', fontSize: '16px', color: '#e8dcb5', stroke: '#000', strokeThickness: 4 })
+        .setOrigin(0.5, 1)
+        .setScale(0.3)
+        .setResolution(3)
+        .setDepth(DEPTH_OVERLAY - 4);
+      const marker = this.add
+        .text(x, top - 7, '', { fontFamily: 'Pixelify Sans, monospace', fontSize: '32px', color: '#ffd84a', stroke: '#2a1a00', strokeThickness: 6 })
+        .setOrigin(0.5, 1)
+        .setScale(0.3)
+        .setResolution(3)
+        .setDepth(DEPTH_OVERLAY - 4);
+      this.villagers.push({ id: n.id, x, y, sprite, marker, mark: '' });
+    }
+  }
+
+  /** Gold ! for a new quest, gold ? to hand one in, grey ? while it's under way. */
+  private updateVillagers(): void {
+    const t = this.time.now / 1000;
+    for (const v of this.villagers) {
+      const m = this.run.quests.marker(v.id);
+      const mark = m === 'available' ? '!' : m ? '?' : '';
+      if (mark !== v.mark || (m === 'progress') !== (v.marker.style.color === '#9a9a9a')) {
+        v.mark = mark;
+        v.marker.setText(mark).setColor(m === 'progress' ? '#9a9a9a' : '#ffd84a');
+      }
+      v.marker.setY(v.y - v.sprite.displayHeight - 7 + Math.round(Math.sin(t * 3 + v.x) * 1.5));
+    }
+  }
+
+  /** The villager under a world point (generous, like enemies). */
+  private villagerAt(x: number, y: number): Villager | null {
+    const slop = 10 / (this.cameras.main.zoom / this.dpr) + 4;
+    let best: Villager | null = null;
+    let bestD = Infinity;
+    for (const v of this.villagers) {
+      const d = Math.hypot(v.x - x, v.y - 8 - y);
+      if (d < 7 + slop && d < bestD) {
+        best = v;
+        bestD = d;
+      }
+    }
+    return best;
+  }
+
+  /** The hero reached a villager (the `talk` order): open their dialog. */
+  talkTo(tx: number, ty: number): void {
+    const n = this.map.npcs.find((v) => v.tx === tx && v.ty === ty);
+    if (!n) return;
+    const def = NPCS[n.id];
+    // Arriving with a talk quest for this villager hands it in straight away.
+    const ready = this.run.quests.handInsAt(n.id).find((q) => q.objective.kind === 'talk');
+    this.hud.openDialog(def, npcPortraitUrl(this, def), def.vendor ? this.stock() : [], ready?.id);
+  }
+
+  /** The merchant's wares: potions always, plus a few pieces of gear at the hero's level. */
+  private stock(): StockItem[] {
+    const s = this.run.stock;
+    if (s.level !== this.hero.level) {
+      const items: StockItem[] = [
+        { kind: 'potion', id: 'hp_potion', price: 15 },
+        { kind: 'potion', id: 'mp_potion', price: 20 },
+      ];
+      const n = 4 + Math.floor(Math.random() * 2);
+      for (let i = 0; i < n; i++) {
+        const gear = rollGear(this.hero.level, Math.random, 0, 0.5);
+        items.push({ kind: 'gear', gear, price: gearValue(gear) * 4 });
+      }
+      this.run.stock = { level: this.hero.level, items };
+    }
+    return this.run.stock.items;
+  }
+
+  private buy(i: number): void {
+    const item = this.run.stock.items[i];
+    const h = this.hero;
+    if (!item) return;
+    if (h.gold < item.price) {
+      this.hud.toast('Not enough gold', 'warn');
+      return;
+    }
+    if (item.kind === 'potion') {
+      if (!h.inventory.add(item.id)) {
+        this.hud.toast(`${ITEMS[item.id].name}s are full`, 'warn');
+        return;
+      }
+      this.hud.toast(`Bought ${ITEMS[item.id].name}`, 'info');
+    } else {
+      if (!h.inventory.addGear(item.gear)) {
+        this.hud.toast('Bag is full', 'warn');
+        return;
+      }
+      this.run.stock.items.splice(i, 1);
+      this.hud.setStock(this.run.stock.items);
+      this.hud.toast(`Bought ${item.gear.name}`, 'good');
+    }
+    h.gold -= item.price;
+  }
+
+  private sell(i: number): void {
+    const slot = this.hero.inventory.slots[i];
+    if (!slot) return;
+    const value = gearValue(slot.gear);
+    this.hero.inventory.slots[i] = null;
+    this.hero.gold += value;
+    this.hud.toast(`Sold ${slot.gear.name} for ${value}g`, 'info');
+  }
+
+  private completeQuest(id: QuestId): void {
+    const r = this.run.quests.complete(id);
+    if (!r) return;
+    const h = this.hero;
+    const q = QUEST_BY_ID[id];
+    this.hud.toast(`Quest complete: ${q.title}`, 'good');
+    this.floatText(h.x, h.y - 34, `+${r.xp} xp`, '#c28cff', true);
+    if (h.gainXp(r.xp)) this.onLevelUp();
+    this.giveGold(h.x, h.y - 20, r.gold);
+    for (let k = 0; k < (r.potions ?? 0); k++) this.time.delayedCall(200 * k, () => this.giveLoot(h.x, h.y, 'hp_potion'));
+    if (r.gear) {
+      const slot = r.gear.slot ?? GEAR_SLOTS[Math.floor(Math.random() * GEAR_SLOTS.length)];
+      this.giveGear(h.x, h.y, makeGear(slot, r.gear.tier, h.level));
+    }
+    if (r.tome) this.hud.toast(h.readTome(r.tome), 'good');
+    this.auraOnce('precision', h, 1.2);
+  }
+
+  /** Quest objectives moved: a toast per step, and a louder one when one is done. */
+  private questProgress(moved: QuestDef[]): void {
+    for (const q of moved) {
+      const log = this.run.quests;
+      if (log.isComplete(q.id)) this.hud.toast(`${q.title}: done! Return to ${NPCS[q.turnIn].name}`, 'good');
+      else this.hud.toast(`${q.title}: ${log.status(q.id)}`, 'info');
+    }
   }
 
   // --- Maps and travel ----------------------------------------------------------------------
@@ -332,6 +511,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.wellGlow = null;
     this.lastCull = { x: Infinity, y: Infinity, zoom: 0 };
     this.chests = new Map();
+    this.villagers = [];
     this.levelTags = new Map();
     this.arrows = [];
     this.markers = [];
@@ -555,6 +735,7 @@ export class GameScene extends Phaser.Scene implements World {
         if (this.hero.gainXp(target.xpValue)) this.onLevelUp();
       }
       this.hero.kills++;
+      this.questProgress(this.run.quests.onKill(target.kind));
       if (Math.random() < CREEP_POTION_DROP) this.giveLoot(target.x, target.y, Math.random() < 0.6 ? 'hp_potion' : 'mp_potion');
       if (Math.random() < CREEP_GOLD_DROP || target.kind === 'alphaBoar') this.giveGold(target.x, target.y - 4, creepGold(target.level) * (target.kind === 'alphaBoar' ? 4 : 1));
       // Gear scaled to the creep's level; alpha boars always carry something better.
@@ -562,8 +743,10 @@ export class GameScene extends Phaser.Scene implements World {
       else if (Math.random() < CREEP_GEAR_DROP) this.giveGear(target.x, target.y, rollGear(target.level));
       if (target.camp.cleared) {
         // Overworld camps come back after a while; dungeon monsters stay dead for the run.
-        if (this.map.kind === 'dungeon') this.run.cleared.add(`${this.mapId}:c${target.camp.index}`);
-        else target.camp.respawnT = 45;
+        if (this.map.kind === 'dungeon') {
+          this.run.cleared.add(`${this.mapId}:c${target.camp.index}`);
+          if (this.map.camps[target.camp.index]?.treasure) this.questProgress(this.run.quests.onDungeonBoss());
+        } else target.camp.respawnT = 45;
       }
     } else if (isHero) {
       this.hud.toast('Sylva has fallen!', 'warn');
@@ -810,7 +993,8 @@ export class GameScene extends Phaser.Scene implements World {
       else if (k === 's') this.onCommand('stop');
       else if (k === 'h') this.onCommand('hold');
       else if (k === 'escape') {
-        if (this.hud.characterOpen) this.hud.toggleCharacter(false);
+        if (this.hud.dialogOpen) this.hud.closeDialog();
+        else if (this.hud.characterOpen) this.hud.toggleCharacter(false);
         else this.setTargeting(null);
       } else if (k === 'c' || k === 'i') this.hud.toggleCharacter();
       else if (k === 'n') this.hud.toggleTalents();
@@ -970,8 +1154,13 @@ export class GameScene extends Phaser.Scene implements World {
     if (this.hero.dead) return;
     this.cameraLocked = true;
     const e = this.enemyAt(x, y);
-    const rock = e ? null : this.rockAt(x, y);
-    if (e) {
+    const npc = e ? null : this.villagerAt(x, y);
+    const rock = e || npc ? null : this.rockAt(x, y);
+    if (npc) {
+      const n = this.map.npcs.find((v) => v.id === npc.id)!;
+      this.hero.issue({ type: 'talk', tx: n.tx, ty: n.ty }, queued);
+      this.addMarker(npc.x, npc.y, 'search');
+    } else if (e) {
       this.hero.issue({ type: 'attack', target: e }, queued);
       this.addMarker(e.x, e.y, 'attack');
     } else if (rock) {
@@ -1176,6 +1365,7 @@ export class GameScene extends Phaser.Scene implements World {
 
     this.updateRespawns(dt);
     this.updateMoonwell(dt);
+    this.updateVillagers();
     this.trueshotAura.setVisible(this.hero.hasTrueshotAura && !this.hero.dead).setPosition(this.hero.x, this.hero.y + 1);
     this.checkPortals();
     this.updateCamera(dt);

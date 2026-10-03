@@ -6,6 +6,9 @@ import { TILE, Tile, WorldMap } from '../world/map';
 import { GearSlot, ITEMS, ItemId } from '../entities/items';
 import { CharacterPage, CharacterTab } from './characterPage';
 import type { TalentId } from '../entities/talents';
+import { NpcDef, QUEST_BY_ID, QuestId, QuestLog } from '../entities/quests';
+import { NpcDialog, StockItem } from './npcDialog';
+import { applyUiArt } from './pixelFrame';
 
 export type Command = 'attack' | 'stop' | 'hold';
 
@@ -27,6 +30,10 @@ export interface HudCallbacks {
   learnTalent(id: TalentId): void;
   resetTalents(): void;
   newGame(): void;
+  questAccept(id: QuestId): void;
+  questComplete(id: QuestId): void;
+  buy(stockIndex: number): void;
+  sell(bagIndex: number): void;
 }
 
 export interface CameraRect {
@@ -75,6 +82,9 @@ export class Hud {
   private readonly cmdButtons: Partial<Record<Command, HTMLButtonElement>>;
   private readonly potionSlots: Array<{ id: ItemId; root: HTMLButtonElement; count: HTMLSpanElement }> = [];
   private readonly charPage: CharacterPage;
+  private readonly dialog: NpcDialog;
+  private readonly tracker: HTMLDivElement;
+  private trackerKey = '';
 
   constructor(
     parent: HTMLElement,
@@ -83,8 +93,10 @@ export class Hud {
     portraitUrl: string,
     private readonly icons: (frame: string) => string,
     private readonly cb: HudCallbacks,
+    private readonly quests: QuestLog,
   ) {
     this.root = el('div', 'hud', parent);
+    applyUiArt(this.root);
 
     // Hero frame (top-left)
     const frame = el('div', 'hero-frame', this.root);
@@ -114,6 +126,9 @@ export class Hud {
     bag.addEventListener('click', () => this.toggleCharacter());
     // Unspent talent points: a gold badge on the bag button (the Talents tab shows the same count).
     this.talentBadge = el('span', 'talent-badge hidden', bag);
+
+    // Quest tracker, under the hero frame: active quests and what's left to do.
+    this.tracker = el('div', 'quest-tracker hidden', this.root);
 
     // Minimap (top-right)
     const mmWrap = el('div', 'minimap-wrap', this.root);
@@ -175,6 +190,13 @@ export class Hud {
     });
     this.tooltip = el('div', 'tooltip hidden', this.root);
     this.respawn = el('div', 'respawn hidden', this.root);
+    this.dialog = new NpcDialog(this.root, hero, quests, this.icons, {
+      accept: (id) => this.cb.questAccept(id),
+      complete: (id) => this.cb.questComplete(id),
+      buy: (i) => this.cb.buy(i),
+      sell: (i) => this.cb.sell(i),
+      close: () => this.dialog.close(),
+    });
     this.charPage = new CharacterPage(this.root, hero, portraitUrl, this.icons, {
       equip: (i) => this.cb.equip(i),
       unequip: (slot, to) => this.cb.unequip(slot, to),
@@ -328,7 +350,42 @@ export class Hud {
     // Doorways: dungeon gates and the way down, as bright purple dots.
     ctx.fillStyle = '#d070ff';
     for (const p of this.map.portals) ctx.fillRect(Math.floor(p.x / TILE) * 2 - 2, Math.floor(p.y / TILE) * 2 - 2, 5, 5);
+    // Villagers, as gold dots.
+    ctx.fillStyle = '#ffd84a';
+    for (const n of this.map.npcs) ctx.fillRect(n.tx * 2 - 1, n.ty * 2 - 1, 4, 4);
     return c;
+  }
+
+  // --- Villagers and quests -------------------------------------------------------------------
+
+  get dialogOpen(): boolean {
+    return this.dialog.isOpen;
+  }
+
+  openDialog(npc: NpcDef, portrait: string, stock: StockItem[] = [], questId?: QuestId): void {
+    this.charPage.setOpen(false);
+    this.dialog.open(npc, portrait, stock, questId);
+  }
+
+  closeDialog(): void {
+    this.dialog.close();
+  }
+
+  setStock(stock: StockItem[]): void {
+    this.dialog.setStock(stock);
+  }
+
+  /** The tracker: each active quest's title and its objective, or who to return to (in green). */
+  private updateTracker(): void {
+    const q = this.quests;
+    const lines = [...q.active.keys()].map((id) => ({ title: QUEST_BY_ID[id].title, status: q.status(id), done: q.isComplete(id) }));
+    const key = JSON.stringify(lines);
+    if (key === this.trackerKey) return;
+    this.trackerKey = key;
+    this.tracker.classList.toggle('hidden', lines.length === 0);
+    this.tracker.innerHTML = lines
+      .map((l) => `<div class="qt"><div class="qt-title">${l.title}</div><div class="qt-status${l.done ? ' done' : ''}">${l.done ? '✓ ' : '• '}${l.status}</div></div>`)
+      .join('');
   }
 
   get characterOpen(): boolean {
@@ -336,6 +393,7 @@ export class Hud {
   }
 
   toggleCharacter(open = !this.charPage.open, tab?: CharacterTab): void {
+    if (open) this.dialog.close();
     this.charPage.setOpen(open, tab);
   }
 
@@ -359,6 +417,8 @@ export class Hud {
       p.root.classList.toggle('empty', n === 0);
     }
     this.charPage.refresh();
+    this.dialog.refresh();
+    this.updateTracker();
     const tp = h.talents.points > 0 ? `${h.talents.points}` : '';
     if (this.talentBadge.textContent !== tp) {
       this.talentBadge.textContent = tp;

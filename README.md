@@ -142,6 +142,26 @@ Buffs come from a WoW-style talent tree, **Marksmanship** (`src/entities/talents
 
 The test mode (every ability maxed, all talent points from the start) is gone: abilities and talents are earned.
 
+## The village and quests
+
+The sanctuary at the start is **Elderglade**, and three villagers live there. Each one is the archer sprite with the hood and cloak recoloured (`src/art/npcs.ts`) and a name over their head. A **gold !** means they have a quest for you, a **gold ?** means you can hand one in, and a **grey ?** means a quest is still under way. Tap a villager to walk over and talk. The dialog is a WoW-style gossip window (`src/ui/npcDialog.ts`): their portrait, a greeting, then their quests, Trade and Goodbye. A quest page shows the story, the objective, the rewards (XP, gold, potions, gear of a set quality, a tome) and **Accept** or **Complete**.
+
+- **Elder Maelis**, Keeper of the Moonwell (purple), by the moonwell.
+- **Tamsin**, the merchant (red), at the market stall west of the moonwell. She sells healing and mana potions (15g / 20g) and 4–5 pieces of gear at your level (priced at 4× their sell value; restocked each time you level up). She buys any gear from your backpack.
+- **Warden Corin**, Captain of the Watch (blue), by the south gate.
+
+**The intro quest line** (`src/entities/quests.ts`). The Elder greets a new ranger with the first quest as soon as the game starts:
+
+| Quest | From → to | Objective | Reward |
+|---|---|---|---|
+| A Ranger Arrives | Elder → Tamsin | Speak with Tamsin | 60 XP, 25g, 3 healing potions |
+| Tusks for Trade | Tamsin | Slay 5 boars | 150 XP, 40g, Uncommon quiver |
+| Restless Bones | Elder → Warden | Put 8 skeletons to rest | 300 XP, 60g, Uncommon bow |
+| Into the Dark | Warden | Destroy a dungeon's boss-room guardians | 600 XP, 120g, Rare gear |
+| The Elder's Thanks | Warden → Elder | Return to the Elder | 200 XP, 100g, Tome of Power |
+
+The Warden also has two side quests: **Alpha Hunt** (slay an alpha boar, after Restless Bones) and **Deeper Still** (reach floor 3 of a crypt, after Into the Dark). Active quests are listed under the hero frame with their progress, and each step shows a toast. Gold comes from creeps (60% of kills), chests, quests and selling, and the bag header and dialogs show how much you have.
+
 ## Dungeons
 
 The overworld (128 × 128 tiles) has **four dungeon entrances**: stone gates far from the start (with rocks behind them and a road to the door), each labelled with its name and creep level. Walk into a gate's doorway to go down. Every floor is generated (`src/world/dungeon.ts`), fixed by the world seed so each entrance always has the same floors:
@@ -169,6 +189,7 @@ Every game builds a new random map (`src/world/map.ts`, seeded, so a seed always
 - The shrine and a **moonwell**: standing in its glowing circle restores health and mana.
 - Moon banners, lamps, a statue and a crystal pillar.
 - An arch gate you walk under, a market stall and a cart.
+- The three villagers (see **The village and quests**).
 
 Roads leave from the sanctuary's edge to every camp.
 
@@ -194,7 +215,7 @@ Forests block every tile but only draw a tree on every other one, since the cano
 
 ## Creeps
 
-The map is 96×96 tiles with about 24 camps scattered across it, all joined by dirt roads.
+The map is 128×128 tiles with about 43 camps scattered across it, all joined by dirt roads.
 - **Group sizes vary:** loners (a level higher, so they still matter), pairs, trios, and packs of 4–5. Groups can mix skeletons and boars; boars get more common further out, and big packs may be led by an alpha boar.
 - **Levels:** camps get tougher with distance from the start.
 - **Behaviour:** camps aggro together, leash home (regenerating) if you pull them too far, and respawn 45s after being cleared, as long as you're not standing in them.
@@ -224,7 +245,10 @@ src/
   art/                    terrain/props/icons drawn in code, atlas animation setup
   assets/sprites/         unit atlases generated from art-source/ by tools/slice_sheet.py
   ui/hud.ts               DOM HUD: hero frame, minimap, command card, potion slots, tooltips
-  ui/characterPage.ts     stats + six-slot inventory
+  ui/characterPage.ts     WoW-style character page: stats, equipment, 24-slot backpack, talents
+  ui/npcDialog.ts         villager dialog: quests (accept / complete) and the merchant's buy / sell
+  entities/quests.ts      villagers, the intro quest line and side quests, the quest log
+  art/npcs.ts             villager sprites (the archer recoloured) and dialog portraits
   entities/balance.ts     combat tuning (damage, creep hp per level, xp, drops)
   entities/items.ts       items and the inventory
 ```

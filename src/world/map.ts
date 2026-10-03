@@ -2,6 +2,7 @@ import { Grid, Point, findTilePath } from './pathfinding';
 import type { CreepKind } from '../entities/balance';
 import { GROUPS, PROPS, footprint } from './props';
 import { layoutDungeon, roomCentre } from './dungeon';
+import type { NpcId } from '../entities/quests';
 
 export const TILE = 16;
 
@@ -160,6 +161,8 @@ export class WorldMap implements Grid {
   readonly level: number = 0;
   readonly portals: Portal[] = [];
   readonly lights: Light[] = [];
+  /** Villagers in Elderglade (overworld only), each standing on its own (blocked) tile. */
+  readonly npcs: Array<{ id: NpcId; tx: number; ty: number }> = [];
   /** Props by anchor tile index. */
   readonly props = new Map<number, PropPlacement>();
   /** For every blocked tile that belongs to a prop: the anchor index of that prop. */
@@ -236,7 +239,7 @@ export class WorldMap implements Grid {
 
     this.spawn = { x: Math.floor(width / 2) + 0.5, y: Math.floor(height / 2) + 0.5 };
     this.clearCircle(this.spawn.x, this.spawn.y, SANCTUARY_R + 2);
-    this.paintCircle(this.spawn.x, this.spawn.y, 4.6, Tile.Paved);
+    this.paintCircle(this.spawn.x, this.spawn.y, 5.4, Tile.Paved);
 
     this.placeCamps(rand);
     this.buildSanctuary();
@@ -284,6 +287,34 @@ export class WorldMap implements Grid {
       const a = this.placeProp(x, y, key, false, true);
       if (a >= 0) this.dressing.push({ anchor: a, camp: -1 });
     }
+    // The villagers: the Elder by the moonwell, the merchant at her stall, the warden by the south gate.
+    const npcs: Array<[NpcId, number, number]> = [
+      ['elder', sx + 2, sy - 2],
+      ['merchant', sx - 7, sy + 2],
+      ['warden', sx + 2, sy + 5],
+    ];
+    for (const [id, x, y] of npcs) {
+      const spot = this.freeSpotNear(x, y);
+      if (!spot) continue;
+      this.tiles[spot.y * this.width + spot.x] = Tile.Block;
+      this.npcs.push({ id, tx: spot.x, ty: spot.y });
+    }
+  }
+
+  /** The nearest walkable, unoccupied tile to (x, y) that isn't the spawn (rings outward). */
+  private freeSpotNear(x: number, y: number): { x: number; y: number } | null {
+    const sx = Math.floor(this.spawn.x);
+    const sy = Math.floor(this.spawn.y);
+    for (let r = 0; r <= 4; r++)
+      for (let dy = -r; dy <= r; dy++)
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const tx = x + dx;
+          const ty = y + dy;
+          if (tx === sx && Math.abs(ty - sy) <= 1) continue;
+          if (this.isWalkable(tx, ty) && this.owner[ty * this.width + tx] === -1 && !this.npcs.some((n) => n.tx === tx && n.ty === ty)) return { x: tx, y: ty };
+        }
+    return null;
   }
 
   /**

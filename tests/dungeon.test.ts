@@ -61,3 +61,17 @@ describe('dungeon entrances in the overworld', () => {
     }
   });
 });
+
+describe('the village', () => {
+  it.each([1, 42, 777])('seed %i: three villagers in Elderglade, each reachable', (seed) => {
+    const m = new WorldMap(128, 128, seed);
+    expect(m.npcs.map((n) => n.id).sort()).toEqual(['elder', 'merchant', 'warden']);
+    for (const n of m.npcs) {
+      expect(m.isWalkable(n.tx, n.ty)).toBe(false); // villagers block their tile
+      expect(Math.hypot(n.tx - m.spawn.x, n.ty - m.spawn.y)).toBeLessThan(10);
+      const nextTo = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => m.isWalkable(n.tx + dx, n.ty + dy) && reach(m, n.tx + dx, n.ty + dy));
+      expect(nextTo).toBe(true);
+    }
+    expect(new WorldMap(64, 56, seed, { kind: 'dungeon', depth: 1, level: 2 }).npcs).toEqual([]);
+  });
+});

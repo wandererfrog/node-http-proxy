@@ -14,7 +14,9 @@ export type Order =
   | { type: 'hold' }
   | { type: 'cast'; ability: Ability; x: number; y: number }
   /** Walk up to a rock tile and search it (hero only). */
-  | { type: 'search'; tx: number; ty: number };
+  | { type: 'search'; tx: number; ty: number }
+  /** Walk up to a villager and talk. */
+  | { type: 'talk'; tx: number; ty: number };
 
 export interface DamageOpts {
   color?: string;
@@ -53,6 +55,8 @@ export interface World {
   volleyBurst(x: number, y: number, angle: number): void;
   /** Break a searchable rock and hand out its loot. */
   searchRock(tx: number, ty: number): void;
+  /** The hero reached the villager standing on this tile. */
+  talkTo(tx: number, ty: number): void;
 }
 
 export interface UnitStats {

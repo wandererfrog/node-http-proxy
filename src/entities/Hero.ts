@@ -349,7 +349,28 @@ export class Hero extends Unit {
 
   protected runOrder(dt: number): void {
     if (this.order.type === 'search') this.runSearch(this.order, dt);
+    else if (this.order.type === 'talk') this.runTalk(this.order, dt);
     else super.runOrder(dt);
+  }
+
+  /** Walk up to the villager, face them and start talking. */
+  private runTalk(o: Extract<Order, { type: 'talk' }>, dt: number): void {
+    const cx = (o.tx + 0.5) * TILE;
+    const cy = (o.ty + 0.5) * TILE;
+    const d = Math.hypot(cx - this.x, cy - this.y);
+    if (d > TILE * 1.6) {
+      this.chase(cx, cy, dt);
+      if (this.path.length === 0 && !this.moving && d > TILE * 2.2) {
+        this.world.floatText(this.x, this.y - 30, "Can't reach them", '#ffd84a');
+        this.nextOrder();
+      }
+      return;
+    }
+    this.path = [];
+    this.moving = false;
+    this.angle = Math.atan2(cy - this.y, cx - this.x);
+    this.world.talkTo(o.tx, o.ty);
+    this.nextOrder();
   }
 
   /** Walk next to the rock, rummage for a moment, then break it. */
