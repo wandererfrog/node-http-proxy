@@ -654,7 +654,8 @@ export class GameScene extends Phaser.Scene implements World {
       if (this.touches.size < 2) this.pinch = null;
       const wasGesture = this.gestureUsed;
       if (this.touches.size === 0) this.gestureUsed = false;
-      if (t.dragged || wasGesture) return;
+      // A cancelled touch (the OS took it, e.g. an edge swipe) is not a tap.
+      if (t.dragged || wasGesture || p.wasCanceled) return;
       this.onTap(p.worldX, p.worldY, this.shiftHeld(p));
     };
     this.input.on('pointerup', release);

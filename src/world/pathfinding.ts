@@ -242,5 +242,7 @@ export function planPath(grid: Grid, from: Point, to: Point, radius = 0.3): Poin
   const pts: Point[] = tiles.map((t) => ({ x: t.x + 0.5, y: t.y + 0.5 }));
   pts[0] = { x: from.x, y: from.y };
   pts[pts.length - 1] = goal;
+  // Start and goal in the same tile: the tile path is a single point, so walk straight to the goal.
+  if (pts.length < 2) return [goal];
   return smoothPath(grid, pts, radius).slice(1);
 }

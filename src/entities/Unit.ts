@@ -225,6 +225,7 @@ export class Unit {
       return false;
     }
     this.path = p.map((q) => ({ x: q.x * TILE, y: q.y * TILE }));
+    if (this.path.length === 0) return false;
     // Lock the first segment's heading now, so the first walking frame already goes straight.
     this.heading = Math.atan2(this.path[0].y - this.y, this.path[0].x - this.x);
     return true;

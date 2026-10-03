@@ -90,4 +90,13 @@ describe('planPath', () => {
     const end = p[p.length - 1];
     expect(g.isWalkable(Math.floor(end.x), Math.floor(end.y))).toBe(true);
   });
+
+  it('never returns an empty path when start and goal share a tile', () => {
+    // Hero pushed up against a wall so the straight line clips the corner; goal in the same tile.
+    const g = grid(['...', '.#.', '...']);
+    const p = planPath(g, { x: 0.98, y: 0.98 }, { x: 0.2, y: 0.9 }, 0.45)!;
+    expect(p.length).toBeGreaterThan(0);
+    const end = p[p.length - 1];
+    expect(g.isWalkable(Math.floor(end.x), Math.floor(end.y))).toBe(true);
+  });
 });
