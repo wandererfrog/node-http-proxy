@@ -81,7 +81,7 @@ export interface CampSpec {
 
 /** Camp level from distance to the spawn (tiles). */
 export function campLevel(dist: number): number {
-  return Math.max(1, Math.min(12, 1 + Math.floor((dist - 10) / 5)));
+  return Math.max(1, Math.min(12, 1 + Math.floor((dist - 15) / 5)));
 }
 
 /**
@@ -147,7 +147,8 @@ interface Biome {
 }
 
 /** Radius (tiles) of the elven sanctuary around the start. Roads begin at its edge. */
-const SANCTUARY_R = 7.5;
+/** Radius of the village around the start (tiles): no camps inside, roads stop at its edge. */
+const SANCTUARY_R = 13;
 
 export class WorldMap implements Grid {
   readonly tiles: Uint8Array;
@@ -163,6 +164,10 @@ export class WorldMap implements Grid {
   readonly lights: Light[] = [];
   /** Villagers in Elderglade (overworld only), each standing on its own (blocked) tile. */
   readonly npcs: Array<{ id: NpcId; tx: number; ty: number }> = [];
+  /** Village guards standing watch (scenery on a blocked tile). */
+  readonly guards: Array<{ tx: number; ty: number }> = [];
+  /** Townsfolk who wander the plaza: their sprite (town atlas frame) and start tile. */
+  readonly townsfolk: Array<{ sprite: string; tx: number; ty: number }> = [];
   /** Props by anchor tile index. */
   readonly props = new Map<number, PropPlacement>();
   /** For every blocked tile that belongs to a prop: the anchor index of that prop. */
@@ -238,8 +243,8 @@ export class WorldMap implements Grid {
     }
 
     this.spawn = { x: Math.floor(width / 2) + 0.5, y: Math.floor(height / 2) + 0.5 };
-    this.clearCircle(this.spawn.x, this.spawn.y, SANCTUARY_R + 2);
-    this.paintCircle(this.spawn.x, this.spawn.y, 5.4, Tile.Paved);
+    this.clearCircle(this.spawn.x, this.spawn.y, SANCTUARY_R + 4);
+    this.paintCircle(this.spawn.x, this.spawn.y, 6.4, Tile.Paved);
 
     this.placeCamps(rand);
     this.buildSanctuary();
@@ -266,32 +271,58 @@ export class WorldMap implements Grid {
   private buildSanctuary(): void {
     const sx = Math.floor(this.spawn.x);
     const sy = Math.floor(this.spawn.y);
+    // Streets: east-west through the plaza to the two shops, and south to the gate.
+    const pave = (x: number, y: number) => {
+      const t = this.get(x, y);
+      if (t === Tile.Grass || t === Tile.Dirt) this.set(x, y, Tile.Paved);
+    };
+    for (let x = sx - 15; x <= sx + 16; x++) for (const y of [sy, sy + 1]) pave(x, y);
+    for (let y = sy; y <= sy + 12; y++) for (const x of [sx, sx + 1]) pave(x, y);
     const core: Array<[string, number, number]> = [
       ['moonwell', sx - 1, sy - 2],
-      ['shrine', sx - 4, sy - 5],
+      ['cathedral', sx - 4, sy - 4],
     ];
     for (const [key, x, y] of core) {
       const a = this.placeProp(x, y, key, false, true);
       // The healing circle sits just in front of the well, where the hero starts.
       if (key === 'moonwell' && a >= 0) this.moonwell = { x: sx + 0.5, y: sy - 0.5 };
     }
+    // Elderglade: the temple behind the moonwell, Tamsin's store to the west, Brann's smithy to the
+    // east, houses around, the angel and the fountain on the plaza, the watch at the south gate.
     const dressing: Array<[string, number, number]> = [
-      ['banner_pole', sx - 4, sy - 1], ['banner_pole_1', sx + 3, sy - 1],
-      ['spire_lamp', sx - 4, sy + 3], ['lamp_post_1', sx + 3, sy + 3],
-      ['statue', sx + 4, sy - 4], ['crystal_pillar', sx - 5, sy - 4],
-      ['arch_gate', sx - 3, sy + 6],
-      ['market_stall', sx - 9, sy + 1], ['barrel_0', sx - 9, sy + 2],
-      ['market_stall_1', sx + 5, sy + 1], ['sack', sx + 5, sy + 3], ['bench_1', sx - 1, sy + 4], ['lamp_post_0', sx + 6, sy + 3],
+      // buildings
+      ['house_red', sx - 14, sy - 1], ['house_shop', sx + 10, sy - 1], ['house_blue', sx + 5, sy - 5], ['house_narrow', sx - 8, sy - 5],
+      ['house_blue', sx - 13, sy - 6], ['house_blue', sx - 12, sy + 9], ['house_narrow', sx - 7, sy + 9], ['house_red', sx + 9, sy + 9],
+      ['watchtower', sx + 5, sy + 7], ['arch_gate', sx - 3, sy + 6],
+      // the store: a stall out front, stock piled up beside it
+      ['stall_blue', sx - 9, sy + 3], ['barrels', sx - 15, sy + 1], ['sack_town', sx - 9, sy - 1], ['crate_town', sx - 15, sy - 1],
+      ['stall_red', sx - 12, sy + 4], ['stall_flowers', sx - 14, sy + 4],
+      // the smithy
+      ['forge', sx + 13, sy - 1], ['anvil', sx + 9, sy - 1], ['weapon_rack', sx + 13, sy + 3], ['sword_rack', sx + 9, sy + 3],
+      ['quench_barrel', sx + 15, sy - 1], ['shield_stand', sx + 11, sy + 3], ['grindstone', sx + 15, sy + 3],
+      // the plaza
+      ['fountain', sx - 6, sy + 3], ['angel_statue', sx + 5, sy + 3], ['noticeboard', sx + 3, sy + 3],
+      ['lamp_ornate', sx - 3, sy + 2], ['lamp_ornate', sx + 3, sy + 2], ['lamp_double', sx - 6, sy - 2], ['lamp_double', sx + 6, sy - 2],
+      ['banner_post', sx - 5, sy - 4], ['banner_post', sx + 4, sy - 4], ['bench_town', sx - 3, sy + 4], ['bench_town', sx + 2, sy + 4],
+      ['planter_round', sx - 7, sy - 1], ['planter_round', sx + 7, sy - 1], ['flowerbed_0', sx - 3, sy - 1], ['flowerbed_1', sx + 2, sy - 1],
+      ['lamp_iron', sx - 1, sy + 8], ['lamp_iron', sx + 2, sy + 8],
+      // gardens and trees between the houses
+      ['tree_town_0', sx - 16, sy + 5], ['tree_blossom', sx + 16, sy + 5], ['tree_town_1', sx - 9, sy - 7], ['tree_blossom', sx + 10, sy - 6],
+      ['tree_town_0', sx - 5, sy + 11], ['tree_town_1', sx + 7, sy + 11], ['bush_town_0', sx - 9, sy + 9], ['flowerbed_2', sx + 13, sy + 9],
+      ['planter_big', sx - 10, sy + 7], ['potted_plant', sx + 8, sy + 7], ['pump', sx - 4, sy + 9], ['buckets', sx - 3, sy + 9],
+      ['flowerbox', sx + 4, sy - 6], ['flowerbox', sx - 6, sy - 6],
     ];
     for (const [key, x, y] of dressing) {
       const a = this.placeProp(x, y, key, false, true);
       if (a >= 0) this.dressing.push({ anchor: a, camp: -1 });
     }
-    // The villagers: the Elder by the moonwell, the merchant at her stall, the warden by the south gate.
+    // The villagers: the Elder by the moonwell, Tamsin outside her store, Brann at his forge,
+    // the warden by the watchtower at the south gate.
     const npcs: Array<[NpcId, number, number]> = [
       ['elder', sx + 2, sy - 2],
-      ['merchant', sx - 7, sy + 2],
-      ['warden', sx + 2, sy + 5],
+      ['merchant', sx - 11, sy + 2],
+      ['smith', sx + 12, sy + 2],
+      ['warden', sx + 7, sy + 5],
     ];
     for (const [id, x, y] of npcs) {
       const spot = this.freeSpotNear(x, y);
@@ -299,6 +330,17 @@ export class WorldMap implements Grid {
       this.tiles[spot.y * this.width + spot.x] = Tile.Block;
       this.npcs.push({ id, tx: spot.x, ty: spot.y });
     }
+    // Two guards outside the gate, and townsfolk who wander the plaza (scenery: they don't block).
+    for (const [x, y] of [[sx - 3, sy + 8], [sx + 4, sy + 8]]) {
+      if (!this.isWalkable(x, y) || this.owner[y * this.width + x] !== -1) continue;
+      this.tiles[y * this.width + x] = Tile.Block;
+      this.guards.push({ tx: x, ty: y });
+    }
+    const folk = ['npc_grey', 'npc_green', 'npc_white', 'npc_brown', 'npc_blue', 'npc_child', 'npc_girl'];
+    folk.forEach((sprite, i) => {
+      const spot = this.freeSpotNear(sx - 6 + ((i * 5) % 13), sy + (i % 2 ? 1 : 0));
+      if (spot) this.townsfolk.push({ sprite, tx: spot.x, ty: spot.y });
+    });
   }
 
   /** The nearest walkable, unoccupied tile to (x, y) that isn't the spawn (rings outward). */
@@ -330,7 +372,7 @@ export class WorldMap implements Grid {
       const cx = tx + 2;
       const cy = ty;
       const dist = Math.hypot(cx - this.spawn.x, cy - this.spawn.y);
-      if (dist < 18) continue;
+      if (dist < SANCTUARY_R + 10) continue;
       if (this.camps.some((c) => Math.hypot(c.x - cx, c.y - cy) < 7)) continue;
       if (this.portals.some((p) => Math.hypot(p.x / TILE - cx, p.y / TILE - cy) < 16)) continue;
       let water = false;
@@ -454,7 +496,7 @@ export class WorldMap implements Grid {
     for (let tries = 0; tries < 400 && placed < 2; tries++) {
       const x = 8 + Math.floor(rand() * (this.width - 16));
       const y = 8 + Math.floor(rand() * (this.height - 16));
-      if (Math.hypot(x - this.spawn.x, y - this.spawn.y) < 16) continue;
+      if (Math.hypot(x - this.spawn.x, y - this.spawn.y) < SANCTUARY_R + 10) continue;
       if (this.camps.some((c) => Math.hypot(c.x - x, c.y - y) < 8)) continue;
       if (this.get(x, y) === Tile.Water) continue;
       this.clearCircle(x + 0.5, y, 5);
@@ -592,7 +634,7 @@ export class WorldMap implements Grid {
     spots.sort((a, b) => a.dist - b.dist);
 
     // Rare treasure camps: roughly one in ten, at least two, never right next to the start.
-    const far = spots.map((_, i) => i).filter((i) => spots[i].dist >= 16);
+    const far = spots.map((_, i) => i).filter((i) => spots[i].dist >= SANCTUARY_R + 9);
     const treasure = new Set(far.filter(() => rand() < 0.1));
     for (let k = 0; treasure.size < Math.min(2, far.length) && k < 50; k++) treasure.add(far[Math.floor(rand() * far.length)]);
 
@@ -676,8 +718,10 @@ export class WorldMap implements Grid {
       y += dy / d + (dx / d) * wobble * 0.5;
       const tx = Math.floor(x);
       const ty = Math.floor(y);
-      // Roads from the start begin at the sanctuary's edge, leaving the plaza intact.
+      // Roads from the start begin at the village's edge, and no road cuts through the village
+      // (gates and their roads are laid after it is built).
       if (Math.hypot(x - a.x, y - a.y) < skipStart) continue;
+      if (this.kind === 'overworld' && Math.hypot(x - this.spawn.x, y - this.spawn.y) < SANCTUARY_R + 4) continue;
       for (let oy = -1; oy <= 1; oy++)
         for (let ox = -1; ox <= 1; ox++) if (!this.isWalkable(tx + ox, ty + oy)) this.set(tx + ox, ty + oy, Tile.Grass);
       this.set(tx, ty, Tile.Dirt);

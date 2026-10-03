@@ -171,10 +171,10 @@ export const RARITY_WEIGHTS = [60, 26, 9, 3.5, 1.2, 0.3];
 /**
  * Random gear for a drop from something of `level`. Quality follows RARITY_WEIGHTS; higher levels
  * tilt the odds slightly up (+4% per level per tier step), `bias` tilts them more (chests, alpha
- * boars), and `minTier` sets a floor.
+ * boars), `minTier` sets a floor, and `slots` limits the kind (a vendor sells only their own wares).
  */
-export function rollGear(level: number, rand: () => number = Math.random, minTier = 0, bias = 0): Gear {
-  const slot = GEAR_SLOTS[Math.floor(rand() * GEAR_SLOTS.length)];
+export function rollGear(level: number, rand: () => number = Math.random, minTier = 0, bias = 0, slots: readonly GearSlot[] = GEAR_SLOTS): Gear {
+  const slot = slots[Math.floor(rand() * slots.length)];
   const tilt = (1 + 0.04 * (level - 1)) * (1 + bias);
   const weights = TIERS.map((_, t) => (t < minTier ? 0 : RARITY_WEIGHTS[t] * tilt ** t));
   const total = weights.reduce((a, b) => a + b, 0);

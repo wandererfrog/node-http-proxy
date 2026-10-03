@@ -1,0 +1,1792 @@
+{
+ "frames": {
+  "cathedral": {
+   "frame": {
+    "x": 0,
+    "y": 0,
+    "w": 248,
+    "h": 221
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 248,
+    "h": 221
+   },
+   "sourceSize": {
+    "w": 248,
+    "h": 221
+   }
+  },
+  "house_blue": {
+   "frame": {
+    "x": 249,
+    "y": 0,
+    "w": 133,
+    "h": 190
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 133,
+    "h": 190
+   },
+   "sourceSize": {
+    "w": 133,
+    "h": 190
+   }
+  },
+  "house_red": {
+   "frame": {
+    "x": 383,
+    "y": 0,
+    "w": 148,
+    "h": 186
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 148,
+    "h": 186
+   },
+   "sourceSize": {
+    "w": 148,
+    "h": 186
+   }
+  },
+  "house_shop": {
+   "frame": {
+    "x": 532,
+    "y": 0,
+    "w": 86,
+    "h": 176
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 86,
+    "h": 176
+   },
+   "sourceSize": {
+    "w": 86,
+    "h": 176
+   }
+  },
+  "house_narrow": {
+   "frame": {
+    "x": 619,
+    "y": 0,
+    "w": 59,
+    "h": 176
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 59,
+    "h": 176
+   },
+   "sourceSize": {
+    "w": 59,
+    "h": 176
+   }
+  },
+  "watchtower": {
+   "frame": {
+    "x": 679,
+    "y": 0,
+    "w": 29,
+    "h": 168
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 29,
+    "h": 168
+   },
+   "sourceSize": {
+    "w": 29,
+    "h": 168
+   }
+  },
+  "angel_statue": {
+   "frame": {
+    "x": 709,
+    "y": 0,
+    "w": 50,
+    "h": 123
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 50,
+    "h": 123
+   },
+   "sourceSize": {
+    "w": 50,
+    "h": 123
+   }
+  },
+  "column": {
+   "frame": {
+    "x": 760,
+    "y": 0,
+    "w": 18,
+    "h": 110
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 18,
+    "h": 110
+   },
+   "sourceSize": {
+    "w": 18,
+    "h": 110
+   }
+  },
+  "obelisk": {
+   "frame": {
+    "x": 779,
+    "y": 0,
+    "w": 30,
+    "h": 107
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 30,
+    "h": 107
+   },
+   "sourceSize": {
+    "w": 30,
+    "h": 107
+   }
+  },
+  "lamp_tall": {
+   "frame": {
+    "x": 810,
+    "y": 0,
+    "w": 18,
+    "h": 107
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 18,
+    "h": 107
+   },
+   "sourceSize": {
+    "w": 18,
+    "h": 107
+   }
+  },
+  "lamp_ornate": {
+   "frame": {
+    "x": 829,
+    "y": 0,
+    "w": 26,
+    "h": 97
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 26,
+    "h": 97
+   },
+   "sourceSize": {
+    "w": 26,
+    "h": 97
+   }
+  },
+  "banner_post": {
+   "frame": {
+    "x": 856,
+    "y": 0,
+    "w": 42,
+    "h": 93
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 42,
+    "h": 93
+   },
+   "sourceSize": {
+    "w": 42,
+    "h": 93
+   }
+  },
+  "lamp_double": {
+   "frame": {
+    "x": 899,
+    "y": 0,
+    "w": 22,
+    "h": 91
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 22,
+    "h": 91
+   },
+   "sourceSize": {
+    "w": 22,
+    "h": 91
+   }
+  },
+  "lamp_iron": {
+   "frame": {
+    "x": 922,
+    "y": 0,
+    "w": 14,
+    "h": 86
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 14,
+    "h": 86
+   },
+   "sourceSize": {
+    "w": 14,
+    "h": 86
+   }
+  },
+  "stone_arch": {
+   "frame": {
+    "x": 937,
+    "y": 0,
+    "w": 64,
+    "h": 81
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 64,
+    "h": 81
+   },
+   "sourceSize": {
+    "w": 64,
+    "h": 81
+   }
+  },
+  "fountain": {
+   "frame": {
+    "x": 0,
+    "y": 222,
+    "w": 49,
+    "h": 81
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 49,
+    "h": 81
+   },
+   "sourceSize": {
+    "w": 49,
+    "h": 81
+   }
+  },
+  "rune_pillar": {
+   "frame": {
+    "x": 50,
+    "y": 222,
+    "w": 26,
+    "h": 81
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 26,
+    "h": 81
+   },
+   "sourceSize": {
+    "w": 26,
+    "h": 81
+   }
+  },
+  "forge": {
+   "frame": {
+    "x": 77,
+    "y": 222,
+    "w": 34,
+    "h": 73
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 34,
+    "h": 73
+   },
+   "sourceSize": {
+    "w": 34,
+    "h": 73
+   }
+  },
+  "pillar_vines": {
+   "frame": {
+    "x": 112,
+    "y": 222,
+    "w": 27,
+    "h": 70
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 27,
+    "h": 70
+   },
+   "sourceSize": {
+    "w": 27,
+    "h": 70
+   }
+  },
+  "tree_town_0": {
+   "frame": {
+    "x": 140,
+    "y": 222,
+    "w": 48,
+    "h": 63
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 48,
+    "h": 63
+   },
+   "sourceSize": {
+    "w": 48,
+    "h": 63
+   }
+  },
+  "tree_blossom": {
+   "frame": {
+    "x": 189,
+    "y": 222,
+    "w": 49,
+    "h": 63
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 49,
+    "h": 63
+   },
+   "sourceSize": {
+    "w": 49,
+    "h": 63
+   }
+  },
+  "tree_town_1": {
+   "frame": {
+    "x": 239,
+    "y": 222,
+    "w": 48,
+    "h": 61
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 48,
+    "h": 61
+   },
+   "sourceSize": {
+    "w": 48,
+    "h": 61
+   }
+  },
+  "banner_town": {
+   "frame": {
+    "x": 288,
+    "y": 222,
+    "w": 30,
+    "h": 55
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 30,
+    "h": 55
+   },
+   "sourceSize": {
+    "w": 30,
+    "h": 55
+   }
+  },
+  "crystal_lantern": {
+   "frame": {
+    "x": 319,
+    "y": 222,
+    "w": 29,
+    "h": 55
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 29,
+    "h": 55
+   },
+   "sourceSize": {
+    "w": 29,
+    "h": 55
+   }
+  },
+  "potion_bench": {
+   "frame": {
+    "x": 349,
+    "y": 222,
+    "w": 60,
+    "h": 55
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 60,
+    "h": 55
+   },
+   "sourceSize": {
+    "w": 60,
+    "h": 55
+   }
+  },
+  "lamp_small_town": {
+   "frame": {
+    "x": 410,
+    "y": 222,
+    "w": 12,
+    "h": 52
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 12,
+    "h": 52
+   },
+   "sourceSize": {
+    "w": 12,
+    "h": 52
+   }
+  },
+  "weapon_rack": {
+   "frame": {
+    "x": 423,
+    "y": 222,
+    "w": 38,
+    "h": 52
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 38,
+    "h": 52
+   },
+   "sourceSize": {
+    "w": 38,
+    "h": 52
+   }
+  },
+  "stall_blue": {
+   "frame": {
+    "x": 462,
+    "y": 222,
+    "w": 45,
+    "h": 51
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 45,
+    "h": 51
+   },
+   "sourceSize": {
+    "w": 45,
+    "h": 51
+   }
+  },
+  "stall_red": {
+   "frame": {
+    "x": 508,
+    "y": 222,
+    "w": 63,
+    "h": 50
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 63,
+    "h": 50
+   },
+   "sourceSize": {
+    "w": 63,
+    "h": 50
+   }
+  },
+  "wall_planters": {
+   "frame": {
+    "x": 572,
+    "y": 222,
+    "w": 68,
+    "h": 49
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 68,
+    "h": 49
+   },
+   "sourceSize": {
+    "w": 68,
+    "h": 49
+   }
+  },
+  "water_wheel": {
+   "frame": {
+    "x": 641,
+    "y": 222,
+    "w": 49,
+    "h": 49
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 49,
+    "h": 49
+   },
+   "sourceSize": {
+    "w": 49,
+    "h": 49
+   }
+  },
+  "planter_round": {
+   "frame": {
+    "x": 691,
+    "y": 222,
+    "w": 39,
+    "h": 48
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 39,
+    "h": 48
+   },
+   "sourceSize": {
+    "w": 39,
+    "h": 48
+   }
+  },
+  "water_barrel": {
+   "frame": {
+    "x": 731,
+    "y": 222,
+    "w": 19,
+    "h": 48
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 19,
+    "h": 48
+   },
+   "sourceSize": {
+    "w": 19,
+    "h": 48
+   }
+  },
+  "stall_red_1": {
+   "frame": {
+    "x": 751,
+    "y": 222,
+    "w": 41,
+    "h": 48
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 41,
+    "h": 48
+   },
+   "sourceSize": {
+    "w": 41,
+    "h": 48
+   }
+  },
+  "gem_table": {
+   "frame": {
+    "x": 793,
+    "y": 222,
+    "w": 47,
+    "h": 47
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 47,
+    "h": 47
+   },
+   "sourceSize": {
+    "w": 47,
+    "h": 47
+   }
+  },
+  "lectern": {
+   "frame": {
+    "x": 841,
+    "y": 222,
+    "w": 41,
+    "h": 47
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 41,
+    "h": 47
+   },
+   "sourceSize": {
+    "w": 41,
+    "h": 47
+   }
+  },
+  "potted_plant": {
+   "frame": {
+    "x": 883,
+    "y": 222,
+    "w": 20,
+    "h": 46
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 20,
+    "h": 46
+   },
+   "sourceSize": {
+    "w": 20,
+    "h": 46
+   }
+  },
+  "bush_town_0": {
+   "frame": {
+    "x": 904,
+    "y": 222,
+    "w": 29,
+    "h": 46
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 29,
+    "h": 46
+   },
+   "sourceSize": {
+    "w": 29,
+    "h": 46
+   }
+  },
+  "stall_blue_1": {
+   "frame": {
+    "x": 934,
+    "y": 222,
+    "w": 40,
+    "h": 45
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 40,
+    "h": 45
+   },
+   "sourceSize": {
+    "w": 40,
+    "h": 45
+   }
+  },
+  "enchant_table": {
+   "frame": {
+    "x": 975,
+    "y": 222,
+    "w": 44,
+    "h": 44
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 44,
+    "h": 44
+   },
+   "sourceSize": {
+    "w": 44,
+    "h": 44
+   }
+  },
+  "flowerbed_2": {
+   "frame": {
+    "x": 0,
+    "y": 304,
+    "w": 33,
+    "h": 43
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 33,
+    "h": 43
+   },
+   "sourceSize": {
+    "w": 33,
+    "h": 43
+   }
+  },
+  "npc_green": {
+   "frame": {
+    "x": 34,
+    "y": 304,
+    "w": 24,
+    "h": 43
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 43
+   },
+   "sourceSize": {
+    "w": 24,
+    "h": 43
+   }
+  },
+  "npc_mage": {
+   "frame": {
+    "x": 59,
+    "y": 304,
+    "w": 27,
+    "h": 43
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 27,
+    "h": 43
+   },
+   "sourceSize": {
+    "w": 27,
+    "h": 43
+   }
+  },
+  "potion_table": {
+   "frame": {
+    "x": 87,
+    "y": 304,
+    "w": 50,
+    "h": 43
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 50,
+    "h": 43
+   },
+   "sourceSize": {
+    "w": 50,
+    "h": 43
+   }
+  },
+  "npc_guard": {
+   "frame": {
+    "x": 138,
+    "y": 304,
+    "w": 22,
+    "h": 42
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 22,
+    "h": 42
+   },
+   "sourceSize": {
+    "w": 22,
+    "h": 42
+   }
+  },
+  "npc_blue": {
+   "frame": {
+    "x": 161,
+    "y": 304,
+    "w": 23,
+    "h": 42
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 23,
+    "h": 42
+   },
+   "sourceSize": {
+    "w": 23,
+    "h": 42
+   }
+  },
+  "stall_cream": {
+   "frame": {
+    "x": 185,
+    "y": 304,
+    "w": 30,
+    "h": 41
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 30,
+    "h": 41
+   },
+   "sourceSize": {
+    "w": 30,
+    "h": 41
+   }
+  },
+  "npc_white": {
+   "frame": {
+    "x": 216,
+    "y": 304,
+    "w": 20,
+    "h": 41
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 20,
+    "h": 41
+   },
+   "sourceSize": {
+    "w": 20,
+    "h": 41
+   }
+  },
+  "npc_smith": {
+   "frame": {
+    "x": 237,
+    "y": 304,
+    "w": 19,
+    "h": 41
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 19,
+    "h": 41
+   },
+   "sourceSize": {
+    "w": 19,
+    "h": 41
+   }
+  },
+  "moon_banner": {
+   "frame": {
+    "x": 257,
+    "y": 304,
+    "w": 17,
+    "h": 41
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 17,
+    "h": 41
+   },
+   "sourceSize": {
+    "w": 17,
+    "h": 41
+   }
+  },
+  "fence_rail": {
+   "frame": {
+    "x": 275,
+    "y": 304,
+    "w": 57,
+    "h": 40
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 57,
+    "h": 40
+   },
+   "sourceSize": {
+    "w": 57,
+    "h": 40
+   }
+  },
+  "npc_brown": {
+   "frame": {
+    "x": 333,
+    "y": 304,
+    "w": 20,
+    "h": 40
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 20,
+    "h": 40
+   },
+   "sourceSize": {
+    "w": 20,
+    "h": 40
+   }
+  },
+  "npc_red": {
+   "frame": {
+    "x": 354,
+    "y": 304,
+    "w": 21,
+    "h": 40
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 21,
+    "h": 40
+   },
+   "sourceSize": {
+    "w": 21,
+    "h": 40
+   }
+  },
+  "potion_shelf": {
+   "frame": {
+    "x": 376,
+    "y": 304,
+    "w": 46,
+    "h": 40
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 46,
+    "h": 40
+   },
+   "sourceSize": {
+    "w": 46,
+    "h": 40
+   }
+  },
+  "npc_grey": {
+   "frame": {
+    "x": 423,
+    "y": 304,
+    "w": 21,
+    "h": 39
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 21,
+    "h": 39
+   },
+   "sourceSize": {
+    "w": 21,
+    "h": 39
+   }
+  },
+  "scry_orb": {
+   "frame": {
+    "x": 445,
+    "y": 304,
+    "w": 25,
+    "h": 39
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 25,
+    "h": 39
+   },
+   "sourceSize": {
+    "w": 25,
+    "h": 39
+   }
+  },
+  "workbench": {
+   "frame": {
+    "x": 471,
+    "y": 304,
+    "w": 38,
+    "h": 39
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 38,
+    "h": 39
+   },
+   "sourceSize": {
+    "w": 38,
+    "h": 39
+   }
+  },
+  "wall_window": {
+   "frame": {
+    "x": 510,
+    "y": 304,
+    "w": 35,
+    "h": 38
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 35,
+    "h": 38
+   },
+   "sourceSize": {
+    "w": 35,
+    "h": 38
+   }
+  },
+  "stall_flowers": {
+   "frame": {
+    "x": 546,
+    "y": 304,
+    "w": 26,
+    "h": 38
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 26,
+    "h": 38
+   },
+   "sourceSize": {
+    "w": 26,
+    "h": 38
+   }
+  },
+  "sword_rack": {
+   "frame": {
+    "x": 573,
+    "y": 304,
+    "w": 31,
+    "h": 38
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 31,
+    "h": 38
+   },
+   "sourceSize": {
+    "w": 31,
+    "h": 38
+   }
+  },
+  "planter_big": {
+   "frame": {
+    "x": 605,
+    "y": 304,
+    "w": 31,
+    "h": 37
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 31,
+    "h": 37
+   },
+   "sourceSize": {
+    "w": 31,
+    "h": 37
+   }
+  },
+  "scales": {
+   "frame": {
+    "x": 637,
+    "y": 304,
+    "w": 24,
+    "h": 37
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 37
+   },
+   "sourceSize": {
+    "w": 24,
+    "h": 37
+   }
+  },
+  "crystal_stand": {
+   "frame": {
+    "x": 662,
+    "y": 304,
+    "w": 21,
+    "h": 36
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 21,
+    "h": 36
+   },
+   "sourceSize": {
+    "w": 21,
+    "h": 36
+   }
+  },
+  "herb_rack": {
+   "frame": {
+    "x": 684,
+    "y": 304,
+    "w": 46,
+    "h": 36
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 46,
+    "h": 36
+   },
+   "sourceSize": {
+    "w": 46,
+    "h": 36
+   }
+  },
+  "vase_flowers": {
+   "frame": {
+    "x": 731,
+    "y": 304,
+    "w": 18,
+    "h": 33
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 18,
+    "h": 33
+   },
+   "sourceSize": {
+    "w": 18,
+    "h": 33
+   }
+  },
+  "bollard": {
+   "frame": {
+    "x": 750,
+    "y": 304,
+    "w": 10,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 10,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 10,
+    "h": 32
+   }
+  },
+  "gem_crystals": {
+   "frame": {
+    "x": 761,
+    "y": 304,
+    "w": 22,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 22,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 22,
+    "h": 32
+   }
+  },
+  "barrels": {
+   "frame": {
+    "x": 784,
+    "y": 304,
+    "w": 36,
+    "h": 31
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 36,
+    "h": 31
+   },
+   "sourceSize": {
+    "w": 36,
+    "h": 31
+   }
+  },
+  "npc_child": {
+   "frame": {
+    "x": 821,
+    "y": 304,
+    "w": 18,
+    "h": 31
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 18,
+    "h": 31
+   },
+   "sourceSize": {
+    "w": 18,
+    "h": 31
+   }
+  },
+  "npc_girl": {
+   "frame": {
+    "x": 840,
+    "y": 304,
+    "w": 21,
+    "h": 31
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 21,
+    "h": 31
+   },
+   "sourceSize": {
+    "w": 21,
+    "h": 31
+   }
+  },
+  "fence_rail_1": {
+   "frame": {
+    "x": 862,
+    "y": 304,
+    "w": 52,
+    "h": 30
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 52,
+    "h": 30
+   },
+   "sourceSize": {
+    "w": 52,
+    "h": 30
+   }
+  },
+  "barrel_big": {
+   "frame": {
+    "x": 915,
+    "y": 304,
+    "w": 25,
+    "h": 30
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 25,
+    "h": 30
+   },
+   "sourceSize": {
+    "w": 25,
+    "h": 30
+   }
+  },
+  "crate_town": {
+   "frame": {
+    "x": 941,
+    "y": 304,
+    "w": 35,
+    "h": 30
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 35,
+    "h": 30
+   },
+   "sourceSize": {
+    "w": 35,
+    "h": 30
+   }
+  },
+  "shield_stand": {
+   "frame": {
+    "x": 977,
+    "y": 304,
+    "w": 22,
+    "h": 30
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 22,
+    "h": 30
+   },
+   "sourceSize": {
+    "w": 22,
+    "h": 30
+   }
+  },
+  "workbench_smith": {
+   "frame": {
+    "x": 0,
+    "y": 348,
+    "w": 42,
+    "h": 29
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 42,
+    "h": 29
+   },
+   "sourceSize": {
+    "w": 42,
+    "h": 29
+   }
+  },
+  "herb_basket": {
+   "frame": {
+    "x": 43,
+    "y": 348,
+    "w": 29,
+    "h": 29
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 29,
+    "h": 29
+   },
+   "sourceSize": {
+    "w": 29,
+    "h": 29
+   }
+  },
+  "bush_town_1": {
+   "frame": {
+    "x": 73,
+    "y": 348,
+    "w": 28,
+    "h": 28
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 28,
+    "h": 28
+   },
+   "sourceSize": {
+    "w": 28,
+    "h": 28
+   }
+  },
+  "sack_town": {
+   "frame": {
+    "x": 102,
+    "y": 348,
+    "w": 22,
+    "h": 27
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 22,
+    "h": 27
+   },
+   "sourceSize": {
+    "w": 22,
+    "h": 27
+   }
+  },
+  "bench_town": {
+   "frame": {
+    "x": 125,
+    "y": 348,
+    "w": 41,
+    "h": 27
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 41,
+    "h": 27
+   },
+   "sourceSize": {
+    "w": 41,
+    "h": 27
+   }
+  },
+  "noticeboard": {
+   "frame": {
+    "x": 167,
+    "y": 348,
+    "w": 25,
+    "h": 27
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 25,
+    "h": 27
+   },
+   "sourceSize": {
+    "w": 25,
+    "h": 27
+   }
+  },
+  "pump": {
+   "frame": {
+    "x": 193,
+    "y": 348,
+    "w": 14,
+    "h": 27
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 14,
+    "h": 27
+   },
+   "sourceSize": {
+    "w": 14,
+    "h": 27
+   }
+  },
+  "quench_barrel": {
+   "frame": {
+    "x": 208,
+    "y": 348,
+    "w": 20,
+    "h": 27
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 20,
+    "h": 27
+   },
+   "sourceSize": {
+    "w": 20,
+    "h": 27
+   }
+  },
+  "flowerbox": {
+   "frame": {
+    "x": 229,
+    "y": 348,
+    "w": 31,
+    "h": 26
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 31,
+    "h": 26
+   },
+   "sourceSize": {
+    "w": 31,
+    "h": 26
+   }
+  },
+  "flowerbed_0": {
+   "frame": {
+    "x": 261,
+    "y": 348,
+    "w": 31,
+    "h": 26
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 31,
+    "h": 26
+   },
+   "sourceSize": {
+    "w": 31,
+    "h": 26
+   }
+  },
+  "flowerbed_1": {
+   "frame": {
+    "x": 293,
+    "y": 348,
+    "w": 30,
+    "h": 26
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 30,
+    "h": 26
+   },
+   "sourceSize": {
+    "w": 30,
+    "h": 26
+   }
+  },
+  "anvil": {
+   "frame": {
+    "x": 324,
+    "y": 348,
+    "w": 29,
+    "h": 26
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 29,
+    "h": 26
+   },
+   "sourceSize": {
+    "w": 29,
+    "h": 26
+   }
+  },
+  "buckets": {
+   "frame": {
+    "x": 354,
+    "y": 348,
+    "w": 33,
+    "h": 23
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 33,
+    "h": 23
+   },
+   "sourceSize": {
+    "w": 33,
+    "h": 23
+   }
+  },
+  "herb_basket_1": {
+   "frame": {
+    "x": 388,
+    "y": 348,
+    "w": 27,
+    "h": 23
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 27,
+    "h": 23
+   },
+   "sourceSize": {
+    "w": 27,
+    "h": 23
+   }
+  },
+  "grindstone": {
+   "frame": {
+    "x": 416,
+    "y": 348,
+    "w": 19,
+    "h": 22
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 19,
+    "h": 22
+   },
+   "sourceSize": {
+    "w": 19,
+    "h": 22
+   }
+  }
+ },
+ "meta": {
+  "image": "town.png",
+  "size": {
+   "w": 1024,
+   "h": 377
+  },
+  "scale": "1"
+ }
+}

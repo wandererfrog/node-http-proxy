@@ -858,6 +858,99 @@ def slice_auras():
     pack_atlas(images, 'auras', width=1024)
 
 
+
+# --- Town (art-source/town-sheet.png) and shops (art-source/shops-sheet.png) --------------------
+# Both sheets are RGB with a noisy grey "transparency" checkerboard baked in. Each sprite gets a box
+# by hand; inside it, background = light near-neutral pixels connected to the box edge (the art has
+# dark outlines, so grey stone inside a building isn't reached), then small holes are filled back.
+TOWN_SRC = os.path.join(ROOT, 'art-source', 'town-sheet.png')
+SHOPS_SRC = os.path.join(ROOT, 'art-source', 'shops-sheet.png')
+
+# name: (x0, y0, x1, y1, source px per texel). The hero is ~44 texels tall (22 world px); the town
+# sheet's people are ~64px, so its small props and NPCs are cut at ~1.45. Buildings a little larger.
+TOWN_SPRITES = {
+    # buildings
+    'cathedral': (5, 222, 241, 437, 0.95), 'house_blue': (244, 222, 391, 437, 1.1), 'house_red': (390, 222, 553, 437, 1.1),
+    'watchtower': (574, 232, 608, 435, 1.15), 'house_shop': (607, 226, 702, 435, 1.1), 'house_narrow': (731, 230, 802, 435, 1.1),
+    # walls and elevation
+    'wall_planters': (389, 24, 491, 102, 1.45), 'wall_window': (536, 26, 589, 85, 1.45), 'stone_arch': (543, 87, 630, 193, 1.3),
+    'pillar_vines': (445, 99, 488, 204, 1.45), 'column': (638, 42, 668, 204, 1.45), 'fence_rail': (673, 141, 759, 204, 1.45),
+    'fence_rail_1': (677, 88, 756, 135, 1.45),
+    # props
+    'barrels': (8, 463, 63, 511, 1.45), 'barrel_big': (66, 463, 105, 510, 1.45), 'sack_town': (109, 463, 144, 506, 1.45),
+    'banner_town': (212, 463, 258, 545, 1.45), 'banner_post': (258, 459, 321, 597, 1.45), 'bench_town': (328, 468, 390, 510, 1.45),
+    'bollard': (395, 462, 412, 511, 1.45), 'lamp_double': (438, 467, 471, 597, 1.4), 'lamp_iron': (473, 467, 497, 591, 1.4),
+    'planter_big': (751, 462, 799, 519, 1.45), 'crate_town': (10, 512, 64, 558, 1.45), 'noticeboard': (107, 511, 148, 553, 1.45),
+    'pump': (190, 502, 214, 547, 1.45), 'flowerbox': (365, 517, 414, 562, 1.45), 'lamp_small_town': (418, 517, 439, 598, 1.45),
+    'planter_round': (306, 524, 365, 598, 1.45), 'potted_plant': (499, 528, 531, 597, 1.45), 'water_barrel': (653, 524, 683, 597, 1.45),
+    'stall_red': (689, 519, 787, 598, 1.45), 'stall_blue': (527, 450, 592, 524, 1.45), 'stall_cream': (600, 462, 647, 524, 1.45),
+    'stall_blue_1': (586, 528, 647, 598, 1.45), 'stall_flowers': (536, 528, 577, 598, 1.45), 'stall_red_1': (687, 450, 747, 519, 1.45),
+    'buckets': (12, 562, 63, 598, 1.45), 'vase_flowers': (221, 546, 250, 598, 1.45),
+    # vegetation
+    'tree_town_0': (8, 626, 69, 707, 1.2), 'tree_town_1': (68, 626, 131, 707, 1.2), 'tree_blossom': (130, 626, 194, 707, 1.2),
+    'bush_town_0': (193, 636, 236, 705, 1.45), 'bush_town_1': (247, 630, 290, 675, 1.45), 'flowerbed_0': (304, 634, 354, 675, 1.45),
+    'flowerbed_1': (365, 637, 412, 679, 1.45), 'flowerbed_2': (415, 640, 464, 705, 1.45),
+    # statues and lights
+    'angel_statue': (63, 736, 128, 888, 1.2), 'obelisk': (124, 750, 166, 892, 1.3), 'fountain': (186, 740, 249, 837, 1.15),
+    'crystal_stand': (197, 837, 233, 893, 1.45), 'lamp_ornate': (276, 743, 318, 892, 1.4), 'lamp_tall': (365, 738, 395, 892, 1.4),
+    'crystal_lantern': (406, 812, 451, 893, 1.45),
+    # people: villagers and townsfolk
+    'npc_grey': (8, 930, 44, 991, 1.45), 'npc_green': (44, 932, 81, 1001, 1.45), 'npc_white': (80, 932, 116, 1001, 1.45),
+    'npc_guard': (116, 935, 153, 1001, 1.45), 'npc_brown': (154, 937, 189, 1001, 1.45), 'npc_mage': (189, 932, 233, 1001, 1.45),
+    'npc_blue': (235, 935, 273, 1001, 1.45), 'npc_red': (275, 937, 310, 1001, 1.45), 'npc_child': (312, 952, 345, 1001, 1.45),
+    'npc_girl': (348, 952, 383, 1001, 1.45), 'npc_smith': (385, 936, 419, 1001, 1.45),
+}
+# The shops sheet draws its props bigger than the town sheet does: cut coarser so an anvil is knee-high.
+SHOP_SPRITES = {
+    'anvil': (25, 620, 84, 671, 1.9), 'forge': (231, 618, 296, 758, 1.9), 'weapon_rack': (9, 686, 85, 790, 1.9),
+    'sword_rack': (178, 620, 242, 696, 1.9), 'shield_stand': (90, 715, 135, 777, 1.9), 'workbench_smith': (169, 733, 250, 790, 1.9),
+    'grindstone': (199, 690, 236, 736, 1.9), 'quench_barrel': (273, 729, 311, 781, 1.9),
+    'potion_shelf': (528, 621, 619, 700, 1.9), 'potion_table': (520, 700, 619, 788, 1.9), 'herb_rack': (421, 620, 515, 692, 1.9),
+    'herb_basket': (458, 684, 517, 745, 1.9), 'herb_basket_1': (450, 743, 506, 793, 1.9), 'potion_bench': (320, 681, 442, 788, 1.9),
+    'gem_crystals': (804, 626, 846, 686, 1.9), 'scales': (852, 621, 900, 693, 1.9), 'gem_table': (814, 696, 906, 786, 1.9),
+    'scry_orb': (927, 621, 975, 696, 1.9), 'rune_pillar': (1164, 634, 1214, 788, 1.9), 'lectern': (1023, 694, 1116, 785, 1.9),
+    'enchant_table': (929, 701, 1016, 790, 1.9), 'moon_banner': (1092, 621, 1125, 701, 1.9),
+    'workbench': (1232, 624, 1304, 698, 1.9), 'water_wheel': (1367, 696, 1461, 791, 1.9),
+}
+
+
+def flood_cut(rgb, box, scale, smax=16, lmin=105):
+    x0, y0, x1, y1 = box
+    sub = rgb[y0:y1, x0:x1]
+    sat = sub.max(axis=2) - sub.min(axis=2)
+    lum = sub.mean(axis=2)
+    cand = (sat < smax) & (lum > lmin)
+    lab, n = ndimage.label(cand)
+    # Seed from a few pixels in from each edge: a box can start on the panel's dark frame line.
+    edge = set(np.unique(np.concatenate([lab[:4].ravel(), lab[-4:].ravel(), lab[:, :4].ravel(), lab[:, -4:].ravel()]))) - {0}
+    bg = np.isin(lab, list(edge))
+    sprite = ~bg
+    sprite = ndimage.binary_opening(sprite, iterations=1)
+    holes = ndimage.binary_fill_holes(sprite) & ~sprite
+    hl, hn = ndimage.label(holes)
+    if hn:
+        sizes = ndimage.sum(holes, hl, range(1, hn + 1))
+        sprite |= np.isin(hl, np.nonzero(sizes < 60)[0] + 1)
+    lab, n = ndimage.label(sprite)
+    if n > 1:
+        sizes = ndimage.sum(sprite, lab, range(1, n + 1))
+        sprite = np.isin(lab, np.nonzero(sizes >= max(12, sizes.max() * 0.04))[0] + 1)
+    px = to_pixel_art(sub, sprite.astype(np.float32), scale)
+    on = np.nonzero(px[..., 3])
+    return px[on[0].min(): on[0].max() + 1, on[1].min(): on[1].max() + 1]
+
+
+def slice_town():
+    images = {}
+    for src, table, smax, lmin in ((TOWN_SRC, TOWN_SPRITES, 16, 105), (SHOPS_SRC, SHOP_SPRITES, 18, 150)):
+        rgb = np.array(Image.open(src).convert('RGB')).astype(np.float32)
+        for name, (x0, y0, x1, y1, scale) in table.items():
+            images[name] = flood_cut(rgb, (x0, y0, x1, y1), scale, smax, lmin)
+    pack_atlas(images, 'town')
+    sizes = {n: (round(im.shape[1] / 2), round(im.shape[0] / 2)) for n, im in images.items()}
+    print('  world px:', ' '.join(f'{n}={w}x{h}' for n, (w, h) in sorted(sizes.items())))
+
+
 def main():
     rgb, mask = load()
     if '--only' in sys.argv:
@@ -872,6 +965,7 @@ def main():
     slice_items()
     slice_concept()
     slice_auras()
+    slice_town()
 
 
 if __name__ == '__main__':

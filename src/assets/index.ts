@@ -8,6 +8,8 @@ import boarAlphaPng from './sprites/boar_alpha.png';
 import boarAlphaJson from './sprites/boar_alpha.json';
 import elvenPng from './sprites/elven.png';
 import elvenJson from './sprites/elven.json';
+import townPng from './sprites/town.png';
+import townJson from './sprites/town.json';
 import itemsPng from './sprites/items.png';
 import itemsJson from './sprites/items.json';
 import rangerFxPng from './sprites/rangerfx.png';
@@ -22,6 +24,7 @@ export const ATLASES = [
   { key: 'skeleton', png: skeletonPng, json: skeletonJson },
   { key: 'boar_alpha', png: boarAlphaPng, json: boarAlphaJson },
   { key: 'elven', png: elvenPng, json: elvenJson },
+  { key: 'town', png: townPng, json: townJson },
   { key: 'items', png: itemsPng, json: itemsJson },
   { key: 'rangerfx', png: rangerFxPng, json: rangerFxJson },
   { key: 'auras', png: aurasPng, json: aurasJson },

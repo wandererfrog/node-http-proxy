@@ -1,14 +1,13 @@
 import Phaser from 'phaser';
 import { AuraName, buildAllTextures, frameDataUrl, iconDataUrl, portraitDataUrl } from '../art/sprites';
 import { DENSITY, GroundChunk, buildGround } from '../art/ground';
-import { ENV_ATLAS, PROPS } from '../world/props';
+import { ENV_ATLAS, PROPS, TOWN_ATLAS, propAtlas } from '../world/props';
 import { ATLASES, IMAGES } from '../assets';
 import { Ability } from '../abilities/Ability';
 import { Camp, Creep } from '../entities/Creep';
 import { CREEP_GEAR_DROP, CREEP_GOLD_DROP, CREEP_POTION_DROP, creepGold } from '../entities/balance';
 import { GEAR_SLOTS, Gear, GearSlot, ITEMS, ItemId, TIERS, TOMES, TOME_IDS, gearValue, makeGear, rollGear } from '../entities/items';
-import { NPCS, NpcId, QUEST_BY_ID, QuestDef, QuestId, QuestLog } from '../entities/quests';
-import { npcPortraitUrl, npcTexture } from '../art/npcs';
+import { NPCS, NpcDef, NpcId, QUEST_BY_ID, QuestDef, QuestId, QuestLog } from '../entities/quests';
 import type { StockItem } from '../ui/npcDialog';
 import { Hero, HeroState } from '../entities/Hero';
 import { TALENT_BY_ID } from '../entities/talents';
@@ -47,8 +46,8 @@ interface RunState {
   /** Dungeon camps cleared, as `${mapId}:c${index}`: dungeon monsters never come back. */
   cleared: Set<string>;
   quests: QuestLog;
-  /** The merchant's wares, restocked whenever the hero's level changes. */
-  stock: { level: number; items: StockItem[] };
+  /** Each vendor's wares, restocked whenever the hero's level changes. */
+  stock: Partial<Record<NpcId, { level: number; items: StockItem[] }>>;
 }
 
 interface Villager {
@@ -166,7 +165,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.dpr = (this.game.registry.get('dpr') as number) ?? 1;
     let run = this.registry.get('run') as RunState | undefined;
     if (!run || data.newGame) {
-      run = { worldSeed: (Math.random() * 1e9) | 0, looted: new Set(), cleared: new Set(), quests: new QuestLog(), stock: { level: 0, items: [] } };
+      run = { worldSeed: (Math.random() * 1e9) | 0, looted: new Set(), cleared: new Set(), quests: new QuestLog(), stock: {} };
       this.registry.set('run', run);
     }
     this.run = run;
@@ -314,7 +313,7 @@ export class GameScene extends Phaser.Scene implements World {
     // A new ranger: the Elder greets them with the first quest of the intro.
     if (!data.hero && to.kind === 'overworld' && run.quests.active.size === 0 && run.quests.done.size === 0) {
       this.time.delayedCall(900, () => {
-        if (!this.hud.dialogOpen && !this.hud.characterOpen) this.hud.openDialog(NPCS.elder, npcPortraitUrl(this, NPCS.elder), [], 'arrival');
+        if (!this.hud.dialogOpen && !this.hud.characterOpen) this.hud.openDialog(NPCS.elder, this.npcPortrait(NPCS.elder), [], 'arrival');
       });
     }
   }
@@ -330,7 +329,7 @@ export class GameScene extends Phaser.Scene implements World {
       const x = (n.tx + 0.5) * TILE;
       const y = (n.ty + 1) * TILE - 2;
       this.add.image(x, y, 'shadow').setScale(0.7).setDepth(y - 1000);
-      const sprite = this.add.image(x, y, npcTexture(this, def)).setOrigin(0.5, 1).setScale(0.5).setDepth(y);
+      const sprite = this.add.image(x, y, TOWN_ATLAS, def.sprite).setOrigin(0.5, 1).setScale(1 / DENSITY).setDepth(y);
       const top = y - sprite.displayHeight;
       this.add
         .text(x, top - 1, def.name, { fontFamily: 'Pixelify Sans, monospace', fontSize: '16px', color: '#e8dcb5', stroke: '#000', strokeThickness: 4 })
@@ -345,6 +344,75 @@ export class GameScene extends Phaser.Scene implements World {
         .setResolution(3)
         .setDepth(DEPTH_OVERLAY - 4);
       this.villagers.push({ id: n.id, x, y, sprite, marker, mark: '' });
+    }
+    for (const g of this.map.guards) {
+      const x = (g.tx + 0.5) * TILE;
+      const y = (g.ty + 1) * TILE - 2;
+      this.add.image(x, y, 'shadow').setScale(0.7).setDepth(y - 1000);
+      this.add.image(x, y, TOWN_ATLAS, 'npc_guard').setOrigin(0.5, 1).setScale(1 / DENSITY).setDepth(y);
+    }
+    for (const f of this.map.townsfolk) {
+      const x = (f.tx + 0.5) * TILE;
+      const y = (f.ty + 0.5) * TILE;
+      const shadow = this.add.image(x, y, 'shadow').setScale(0.6).setDepth(y - 1000);
+      const sprite = this.add.image(x, y, TOWN_ATLAS, f.sprite).setOrigin(0.5, 1).setScale(1 / DENSITY).setDepth(y);
+      this.townsfolk.push({ sprite, shadow, x, y, tx: x, ty: y, wait: 1 + Math.random() * 4, phase: Math.random() * 6 });
+    }
+  }
+
+  private townsfolk: Array<{ sprite: Phaser.GameObjects.Image; shadow: Phaser.GameObjects.Image; x: number; y: number; tx: number; ty: number; wait: number; phase: number }> = [];
+
+  /**
+   * Townsfolk stroll around the plaza: pause, pick a paved spot within a few tiles that they can
+   * walk to in a straight line, walk there (a little bob for the steps), pause again.
+   */
+  private updateTownsfolk(dt: number): void {
+    const map = this.map;
+    const clear = (ax: number, ay: number, bx: number, by: number) => {
+      const steps = Math.ceil(Math.hypot(bx - ax, by - ay) / 4);
+      for (let k = 1; k <= steps; k++) {
+        const t = k / steps;
+        const tx = Math.floor((ax + (bx - ax) * t) / TILE);
+        const ty = Math.floor((ay + (by - ay) * t) / TILE);
+        if (!map.isWalkable(tx, ty) || this.map.npcs.some((n) => n.tx === tx && n.ty === ty)) return false;
+      }
+      return true;
+    };
+    const cx = map.spawn.x * TILE;
+    const cy = map.spawn.y * TILE;
+    for (const f of this.townsfolk) {
+      const d = Math.hypot(f.tx - f.x, f.ty - f.y);
+      if (d < 0.5) {
+        f.wait -= dt;
+        if (f.wait <= 0) {
+          for (let k = 0; k < 8; k++) {
+            const a = Math.random() * Math.PI * 2;
+            const r = (2 + Math.random() * 4) * TILE;
+            let nx = f.x + Math.cos(a) * r;
+            let ny = f.y + Math.sin(a) * r;
+            // Stay in the village.
+            if (Math.hypot(nx - cx, ny - cy) > 11 * TILE) {
+              nx = (f.x + cx) / 2;
+              ny = (f.y + cy) / 2 + TILE;
+            }
+            if (map.get(Math.floor(nx / TILE), Math.floor(ny / TILE)) !== Tile.Paved || !clear(f.x, f.y, nx, ny)) continue;
+            f.tx = nx;
+            f.ty = ny;
+            break;
+          }
+          f.wait = 2 + Math.random() * 5;
+        }
+        f.sprite.setPosition(Math.round(f.x), Math.round(f.y));
+      } else {
+        const step = Math.min(d, 13 * dt);
+        f.x += ((f.tx - f.x) / d) * step;
+        f.y += ((f.ty - f.y) / d) * step;
+        f.phase += dt * 9;
+        if (Math.abs(f.tx - f.x) > 0.5) f.sprite.setFlipX(f.tx < f.x);
+        f.sprite.setPosition(Math.round(f.x), Math.round(f.y - Math.abs(Math.sin(f.phase)) * 1.2));
+      }
+      f.shadow.setPosition(Math.round(f.x), Math.round(f.y + 1));
+      f.sprite.setDepth(f.y);
     }
   }
 
@@ -382,33 +450,45 @@ export class GameScene extends Phaser.Scene implements World {
     const n = this.map.npcs.find((v) => v.tx === tx && v.ty === ty);
     if (!n) return;
     const def = NPCS[n.id];
+    this.tradingWith = def.vendor ? n.id : null;
     // Arriving with a talk quest for this villager hands it in straight away.
     const ready = this.run.quests.handInsAt(n.id).find((q) => q.objective.kind === 'talk');
-    this.hud.openDialog(def, npcPortraitUrl(this, def), def.vendor ? this.stock() : [], ready?.id);
+    this.hud.openDialog(def, this.npcPortrait(def), def.vendor ? this.stock(def) : [], ready?.id);
   }
 
-  /** The merchant's wares: potions always, plus a few pieces of gear at the hero's level. */
-  private stock(): StockItem[] {
-    const s = this.run.stock;
-    if (s.level !== this.hero.level) {
-      const items: StockItem[] = [
-        { kind: 'potion', id: 'hp_potion', price: 15 },
-        { kind: 'potion', id: 'mp_potion', price: 20 },
-      ];
-      const n = 4 + Math.floor(Math.random() * 2);
-      for (let i = 0; i < n; i++) {
-        const gear = rollGear(this.hero.level, Math.random, 0, 0.5);
-        items.push({ kind: 'gear', gear, price: gearValue(gear) * 4 });
-      }
-      this.run.stock = { level: this.hero.level, items };
+  /** A villager's face for the dialog: their sprite, big and crisp. */
+  private npcPortrait(def: NpcDef): string {
+    return frameDataUrl(this, TOWN_ATLAS, def.sprite, 4);
+  }
+
+  private tradingWith: NpcId | null = null;
+
+  /**
+   * A vendor's wares at the hero's level. Tamsin: potions and trinkets (rings, amulets, cloaks,
+   * quivers). Brann: bows and armour. Gear is priced at four times what they'd pay for it.
+   */
+  private stock(def: NpcDef): StockItem[] {
+    const s = this.run.stock[def.id];
+    if (s && s.level === this.hero.level) return s.items;
+    const items: StockItem[] = [];
+    const slots: GearSlot[] = def.vendor === 'smith' ? ['bow', 'helmet', 'chest', 'gloves', 'boots'] : ['ring', 'amulet', 'cloak', 'quiver'];
+    if (def.vendor === 'goods') {
+      items.push({ kind: 'potion', id: 'hp_potion', price: 15 }, { kind: 'potion', id: 'mp_potion', price: 20 });
     }
-    return this.run.stock.items;
+    const n = def.vendor === 'smith' ? 5 : 3;
+    for (let i = 0; i < n; i++) {
+      const gear = rollGear(this.hero.level, Math.random, 0, 0.5, slots);
+      items.push({ kind: 'gear', gear, price: gearValue(gear) * 4 });
+    }
+    this.run.stock[def.id] = { level: this.hero.level, items };
+    return items;
   }
 
   private buy(i: number): void {
-    const item = this.run.stock.items[i];
+    const stock = this.tradingWith ? this.run.stock[this.tradingWith]?.items : undefined;
+    const item = stock?.[i];
     const h = this.hero;
-    if (!item) return;
+    if (!stock || !item) return;
     if (h.gold < item.price) {
       this.hud.toast('Not enough gold', 'warn');
       return;
@@ -424,8 +504,8 @@ export class GameScene extends Phaser.Scene implements World {
         this.hud.toast('Bag is full', 'warn');
         return;
       }
-      this.run.stock.items.splice(i, 1);
-      this.hud.setStock(this.run.stock.items);
+      stock.splice(i, 1);
+      this.hud.setStock(stock);
       this.hud.toast(`Bought ${item.gear.name}`, 'good');
     }
     h.gold -= item.price;
@@ -512,6 +592,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.lastCull = { x: Infinity, y: Infinity, zoom: 0 };
     this.chests = new Map();
     this.villagers = [];
+    this.townsfolk = [];
     this.levelTags = new Map();
     this.arrows = [];
     this.markers = [];
@@ -667,7 +748,7 @@ export class GameScene extends Phaser.Scene implements World {
       const def = PROPS[p.key];
       const bottom = (p.ty + 1) * TILE;
       const img = this.add
-        .image((p.tx + def.w / 2) * TILE, bottom + 1, ENV_ATLAS, p.key)
+        .image((p.tx + def.w / 2) * TILE, bottom + 1, propAtlas(p.key), p.key)
         .setOrigin(0.5, 1)
         .setScale(1 / DENSITY)
         .setDepth(bottom - 3);
@@ -1366,6 +1447,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.updateRespawns(dt);
     this.updateMoonwell(dt);
     this.updateVillagers();
+    this.updateTownsfolk(dt);
     this.trueshotAura.setVisible(this.hero.hasTrueshotAura && !this.hero.dead).setPosition(this.hero.x, this.hero.y + 1);
     this.checkPortals();
     this.updateCamera(dt);
@@ -1426,8 +1508,8 @@ export class GameScene extends Phaser.Scene implements World {
     const last = this.lastCull;
     if (Math.abs(v.x - last.x) < TILE && Math.abs(v.y - last.y) < TILE && cam.zoom === last.zoom) return;
     this.lastCull = { x: v.x, y: v.y, zoom: cam.zoom };
-    // Sprites are anchored at their feet and can be ~110px wide and ~120px tall.
-    const m = TILE * 4;
+    // Sprites are anchored at their feet and can be ~125px wide (the cathedral) and ~120px tall.
+    const m = TILE * 5;
     for (const p of this.props) p.setVisible(p.x > v.x - m && p.x < v.right + m && p.y > v.y - TILE && p.y < v.bottom + TILE * 8);
   }
 

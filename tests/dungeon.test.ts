@@ -63,15 +63,29 @@ describe('dungeon entrances in the overworld', () => {
 });
 
 describe('the village', () => {
-  it.each([1, 42, 777])('seed %i: three villagers in Elderglade, each reachable', (seed) => {
+  it.each([1, 42, 777, 2024, 31337])('seed %i: four villagers in Elderglade, each reachable, and the whole village built', (seed) => {
     const m = new WorldMap(128, 128, seed);
-    expect(m.npcs.map((n) => n.id).sort()).toEqual(['elder', 'merchant', 'warden']);
+    expect(m.npcs.map((n) => n.id).sort()).toEqual(['elder', 'merchant', 'smith', 'warden']);
     for (const n of m.npcs) {
       expect(m.isWalkable(n.tx, n.ty)).toBe(false); // villagers block their tile
-      expect(Math.hypot(n.tx - m.spawn.x, n.ty - m.spawn.y)).toBeLessThan(10);
+      expect(Math.hypot(n.tx - m.spawn.x, n.ty - m.spawn.y)).toBeLessThan(15);
       const nextTo = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => m.isWalkable(n.tx + dx, n.ty + dy) && reach(m, n.tx + dx, n.ty + dy));
       expect(nextTo).toBe(true);
     }
+    const keys = [...m.props.values()].map((p) => p.key);
+    const count = (k: string) => keys.filter((x) => x === k).length;
+    // Every building goes up: the temple, Tamsin's store and two more red houses' worth, the smithy...
+    expect(count('cathedral')).toBe(1);
+    expect(count('moonwell')).toBe(1);
+    expect(count('house_red')).toBe(2);
+    expect(count('house_blue')).toBe(3);
+    expect(count('house_shop')).toBe(1);
+    expect(count('house_narrow')).toBe(2);
+    expect(count('forge')).toBe(1);
+    expect(count('arch_gate')).toBe(1);
+    expect(m.guards.length).toBe(2);
+    expect(m.townsfolk.length).toBeGreaterThanOrEqual(6);
+    for (const f of m.townsfolk) expect(m.isWalkable(f.tx, f.ty)).toBe(true);
     expect(new WorldMap(64, 56, seed, { kind: 'dungeon', depth: 1, level: 2 }).npcs).toEqual([]);
   });
 });

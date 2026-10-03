@@ -144,11 +144,21 @@ The test mode (every ability maxed, all talent points from the start) is gone: a
 
 ## The village and quests
 
-The sanctuary at the start is **Elderglade**, and three villagers live there. Each one is the archer sprite with the hood and cloak recoloured (`src/art/npcs.ts`) and a name over their head. A **gold !** means they have a quest for you, a **gold ?** means you can hand one in, and a **grey ?** means a quest is still under way. Tap a villager to walk over and talk. The dialog is a WoW-style gossip window (`src/ui/npcDialog.ts`): their portrait, a greeting, then their quests, Trade and Goodbye. A quest page shows the story, the objective, the rewards (XP, gold, potions, gear of a set quality, a tome) and **Accept** or **Complete**.
+The start is the village of **Elderglade**, built from `art-source/town-sheet.png` and `art-source/shops-sheet.png` (sliced into the `town` atlas by `slice_town` in `tools/slice_sheet.py`). Both sheets have a noisy grey "transparency" checkerboard baked in, so each sprite is cut from a hand-placed box: background is the light, near-grey pixels connected to the box edge, which the art's dark outlines keep out of grey stonework. The village has:
+- **The temple** (the blue cathedral) with the **moonwell** in front of it: standing in the glowing circle restores health and mana.
+- **Tamsin's store** to the west: a red timber house with stalls, barrels and crates.
+- **Brann's smithy** to the east, with a forge, anvil, quench barrel, grindstone and weapon racks.
+- Houses, gardens and trees around a paved plaza with the **fountain** and the **angel statue**, lamps, benches and a notice board.
+- Streets to both shops and south through the arch gate. A watchtower stands by the gate, two guards outside it, and townsfolk stroll the plaza.
 
-- **Elder Maelis**, Keeper of the Moonwell (purple), by the moonwell.
-- **Tamsin**, the merchant (red), at the market stall west of the moonwell. She sells healing and mana potions (15g / 20g) and 4–5 pieces of gear at your level (priced at 4× their sell value; restocked each time you level up). She buys any gear from your backpack.
-- **Warden Corin**, Captain of the Watch (blue), by the south gate.
+The four villagers use the town sheet's people. A **gold !** means they have a quest for you, a **gold ?** means you can hand one in, and a **grey ?** means a quest is still under way. Tap a villager to walk over and talk. The dialog is a WoW-style gossip window (`src/ui/npcDialog.ts`): their portrait, a greeting, then their quests, Trade and Goodbye. A quest page shows the story, the objective, the rewards (XP, gold, potions, gear of a set quality, a tome) and **Accept** or **Complete**.
+
+- **Elder Maelis**, Keeper of the Moonwell, by the moonwell.
+- **Tamsin**, the merchant, outside her store. She sells healing and mana potions (15g / 20g) and three trinkets at your level (rings, amulets, cloaks, quivers).
+- **Brann**, the blacksmith, at his smithy. He sells five pieces of arms and armour at your level (bows, helmets, chest armour, gloves, boots).
+- **Warden Corin**, Captain of the Watch, by the watchtower at the south gate.
+
+Gear in the shops costs four times its sell value, and each vendor restocks when you level up. Both vendors buy any gear from your backpack.
 
 **The intro quest line** (`src/entities/quests.ts`). The Elder greets a new ranger with the first quest as soon as the game starts:
 
@@ -185,18 +195,12 @@ Every game builds a new random map (`src/world/map.ts`, seeded, so a seed always
 - **Ponds:** muddy banks and reeds.
 - **Meadows:** wildflowers, thicker near the trees.
 
-**The elven sanctuary at the start** is a paved plaza with:
-- The shrine and a **moonwell**: standing in its glowing circle restores health and mana.
-- Moon banners, lamps, a statue and a crystal pillar.
-- An arch gate you walk under, a market stall and a cart.
-- The three villagers (see **The village and quests**).
-
-Roads leave from the sanctuary's edge to every camp.
+**The start is the village of Elderglade** (see **The village and quests**): about 30 tiles across, with no camps inside it. Roads leave from the village's edge to every camp, and no road cuts through it.
 
 **Scale:** the hero is 22px tall (1.4 tiles) and everything is sized against it, matching the reference mockup:
 - Big trees ~3 heroes, young trees and bushes ~1.2, the giant violet tree 3.5.
 - Rune stones ~2, boulders ~1.2, searchable rocks ~1.
-- Shrine ~5, moonwell ~2.6, statues ~3, gates ~3.
+- Shrine ~5, moonwell ~2.6, statues ~3, gates ~3; village houses ~4 heroes tall, the temple ~5, villagers as tall as the hero.
 - Market stalls ~1.5 heroes tall, lamp posts and banners ~1.7–2, barrels and crates ~0.8.
 - Ponds are small pools (10–40 tiles); roads are 2–3 tiles (~3 heroes) wide.
 
@@ -247,8 +251,7 @@ src/
   ui/hud.ts               DOM HUD: hero frame, minimap, command card, potion slots, tooltips
   ui/characterPage.ts     WoW-style character page: stats, equipment, 24-slot backpack, talents
   ui/npcDialog.ts         villager dialog: quests (accept / complete) and the merchant's buy / sell
-  entities/quests.ts      villagers, the intro quest line and side quests, the quest log
-  art/npcs.ts             villager sprites (the archer recoloured) and dialog portraits
+  entities/quests.ts      villagers (and what they sell), the intro quest line and side quests, the quest log
   entities/balance.ts     combat tuning (damage, creep hp per level, xp, drops)
   entities/items.ts       items and the inventory
 ```

@@ -7,7 +7,8 @@ import boar from '../src/assets/sprites/boar.json';
 import skeleton from '../src/assets/sprites/skeleton.json';
 import boarAlpha from '../src/assets/sprites/boar_alpha.json';
 import env from '../src/assets/sprites/elven.json';
-import { GRASS_FRAMES, GROUPS, PROPS, footprint } from '../src/world/props';
+import town from '../src/assets/sprites/town.json';
+import { GRASS_FRAMES, GROUPS, PROPS, TOWN_ATLAS, footprint } from '../src/world/props';
 
 describe('WorldMap', () => {
   it.each([1, 2, 3, 42, 1337, 99999])('seed %i: lots of camps, all reachable, with guarded treasure', (seed) => {
@@ -59,11 +60,11 @@ describe('environment props', () => {
     }
   });
 
-  it.each([3, 31, 4096])('seed %i: the start is an elven sanctuary with a moonwell and the shrine', (seed) => {
+  it.each([3, 31, 4096])('seed %i: the start is the village of Elderglade, with the moonwell before the temple', (seed) => {
     const m = new WorldMap(96, 96, seed);
     const keys = new Set([...m.props.values()].map((p) => p.key));
     expect(keys.has('moonwell')).toBe(true);
-    expect(keys.has('shrine')).toBe(true);
+    expect(keys.has('cathedral')).toBe(true);
     expect(m.moonwell).not.toBeNull();
     expect(m.get(Math.floor(m.spawn.x), Math.floor(m.spawn.y))).toBe(Tile.Paved);
     expect(m.allCampsReachable()).toBe(true);
@@ -72,9 +73,12 @@ describe('environment props', () => {
     if (gate) expect(m.isWalkable(gate.tx + 1, gate.ty)).toBe(true);
   });
 
-  it('every prop and ground frame exists in the env atlas', () => {
-    for (const key of Object.keys(PROPS)) expect(env.frames).toHaveProperty(key);
+  it('every prop and ground frame exists in its atlas', () => {
+    for (const [key, def] of Object.entries(PROPS)) expect(def.atlas === TOWN_ATLAS ? town.frames : env.frames).toHaveProperty(key);
     for (const list of Object.values(GROUPS)) for (const key of list) expect(env.frames).toHaveProperty(key);
+    // Villagers, guards and townsfolk use the town atlas's people.
+    for (const key of ['npc_mage', 'npc_red', 'npc_smith', 'npc_guard', 'npc_grey', 'npc_green', 'npc_white', 'npc_brown', 'npc_blue', 'npc_child', 'npc_girl'])
+      expect(town.frames).toHaveProperty(key);
     for (const key of [...GRASS_FRAMES, 'ground_dirt', 'ground_water', 'ground_plaza', 'ground_stone', 'rubble', 'fx_moon', 'fx_runes', 'fx_burst'])
       expect(env.frames).toHaveProperty(key);
   });

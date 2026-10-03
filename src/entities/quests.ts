@@ -2,17 +2,17 @@ import type { CreepKind } from './balance';
 import type { GearSlot, TomeId } from './items';
 
 /** Villagers of Elderglade (the village around the moonwell at the start). */
-export type NpcId = 'elder' | 'merchant' | 'warden';
+export type NpcId = 'elder' | 'merchant' | 'smith' | 'warden';
 
 export interface NpcDef {
   id: NpcId;
   name: string;
   title: string;
-  /** Hood colour: the archer sprite recoloured to this hue (degrees), and its lightness shift. */
-  hue: number;
-  light: number;
+  /** Their sprite: a frame of the town atlas. */
+  sprite: string;
   greeting: string;
-  vendor?: boolean;
+  /** What they sell, if they trade: general goods (potions, trinkets) or the smith's arms and armour. */
+  vendor?: 'goods' | 'smith';
 }
 
 export const NPCS: Record<NpcId, NpcDef> = {
@@ -20,25 +20,30 @@ export const NPCS: Record<NpcId, NpcDef> = {
     id: 'elder',
     name: 'Elder Maelis',
     title: 'Keeper of the Moonwell',
-    hue: 275,
-    light: 0.05,
+    sprite: 'npc_mage',
     greeting: 'The moonwell still sings, Ranger, but the woods around it have grown restless. Rest here whenever you need: its waters will mend you.',
   },
   merchant: {
     id: 'merchant',
     name: 'Tamsin',
     title: 'Merchant',
-    hue: 8,
-    light: 0,
-    vendor: true,
-    greeting: 'Potions, bows, a bit of everything! Coin is coin, Ranger, and I pay fair for what you bring back from the wilds.',
+    sprite: 'npc_red',
+    vendor: 'goods',
+    greeting: 'Potions, rings, cloaks, quivers: a bit of everything! Coin is coin, Ranger, and I pay fair for what you bring back from the wilds.',
+  },
+  smith: {
+    id: 'smith',
+    name: 'Brann',
+    title: 'Blacksmith',
+    sprite: 'npc_smith',
+    vendor: 'smith',
+    greeting: "Bows, mail, helms and boots: if it's steel or leather, I made it. Mind the forge, it bites. Got something you don't need? I'll buy it.",
   },
   warden: {
     id: 'warden',
     name: 'Warden Corin',
     title: 'Captain of the Watch',
-    hue: 210,
-    light: -0.05,
+    sprite: 'npc_guard',
     greeting: 'Stay sharp out there. The roads are ours by day; the old gates in the hills belong to something else.',
   },
 };
