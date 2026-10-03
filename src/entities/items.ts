@@ -179,14 +179,14 @@ export function rollGear(level: number, rand: () => number = Math.random, minTie
 
 // --- Inventory --------------------------------------------------------------------------------
 
-/** A bag slot holds one piece of gear. Potions don't go in the bag: they live on the potion belt. */
+/** A backpack slot holds one piece of gear. Potions don't go in the bag: they live on the potion belt. */
 export type InvEntry = { kind: 'gear'; gear: Gear };
 
-export const INVENTORY_SIZE = 6;
+export const INVENTORY_SIZE = 24;
 
 /**
- * Six bag slots for gear, like a WC3 hero, plus the potion belt behind the 1 / 2 buttons. Each
- * potion kind holds up to its `maxStack`.
+ * A 24-slot backpack for gear, plus the potion belt behind the 1 / 2 buttons. Each potion kind holds
+ * up to its `maxStack`.
  */
 export class Inventory {
   readonly slots: (InvEntry | null)[] = Array(INVENTORY_SIZE).fill(null);

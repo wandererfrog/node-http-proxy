@@ -1,6 +1,7 @@
 import { Hero, MAX_LEVEL, xpForLevel } from '../entities/Hero';
 import { EMPTY_STATS, Gear, GearSlot, GearStats, INVENTORY_SIZE, SLOT_NAMES, TIERS, describeStats, gearIcon } from '../entities/items';
 import { statIconUrl } from '../art/sprites';
+import { applyUiArt } from './pixelFrame';
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, parent?: HTMLElement): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -21,21 +22,8 @@ export interface CharacterCallbacks {
   newGame(): void;
 }
 
-/**
- * Paper doll: four slots down each side of the hero, and the bow (the main weapon) under them.
- * The game has nine gear slots, so the weapon gets the centre and the sides stay symmetric.
- */
-const DOLL: Array<{ slot: GearSlot; col: number; row: number }> = [
-  { slot: 'helmet', col: 1, row: 1 },
-  { slot: 'chest', col: 1, row: 2 },
-  { slot: 'gloves', col: 1, row: 3 },
-  { slot: 'boots', col: 1, row: 4 },
-  { slot: 'amulet', col: 3, row: 1 },
-  { slot: 'cloak', col: 3, row: 2 },
-  { slot: 'ring', col: 3, row: 3 },
-  { slot: 'quiver', col: 3, row: 4 },
-  { slot: 'bow', col: 2, row: 5 },
-];
+/** Equipped gear, a 3x3 grid read like a body: head row, torso row, then feet and weapons. */
+const EQUIP_ORDER: GearSlot[] = ['helmet', 'amulet', 'cloak', 'chest', 'gloves', 'ring', 'boots', 'bow', 'quiver'];
 
 type Selection = { kind: 'worn'; slot: GearSlot } | { kind: 'bag'; index: number };
 
@@ -57,14 +45,14 @@ interface Drag {
 }
 
 /**
- * Hero sheet, styled after the HUD mockup: a header with the round portrait, the paper doll of worn
- * gear around the hero, the stat list with icons, the six WC3-style bag slots (gear only; potions
- * live on the 1 / 2 belt), and an item card.
+ * Hero sheet in a pixel-art take on the World of Warcraft character frame: a gold-framed panel with
+ * the round portrait, stats on the left and the nine equipped slots on the right, the 24-slot
+ * backpack below (gear only; potions live on the 1 / 2 belt), and a WoW-style item tooltip card.
  *
- * Gear moves by drag and drop: drag from the bag onto its slot (or onto the hero) to wear it, from a
- * worn slot to the bag to take it off, and between bag slots to rearrange. A tap selects an item
- * and shows its card, with the same actions as buttons; a mouse hover previews the card. The game
- * keeps running while the page is open, like in Warcraft III.
+ * Gear moves by drag and drop: drag from the backpack onto the equipment grid (anywhere on it: the
+ * piece goes to its own slot) to wear it, from a worn slot to the backpack to take it off, and
+ * between backpack slots to rearrange. A tap selects an item and shows its card, with the same
+ * actions as buttons; a mouse hover previews the card. The game keeps running while it is open.
  */
 export class CharacterPage {
   readonly root: HTMLDivElement;
@@ -72,7 +60,8 @@ export class CharacterPage {
   private readonly xpFill: HTMLDivElement;
   private readonly levelBadge: HTMLDivElement;
   private readonly stats: HTMLDivElement;
-  private readonly figure: HTMLDivElement;
+  private readonly equipGrid: HTMLDivElement;
+  private readonly bagCount: HTMLSpanElement;
   private readonly gearSlots = new Map<GearSlot, HTMLButtonElement>();
   private readonly bagSlots: HTMLButtonElement[] = [];
   private readonly card: HTMLDivElement;
@@ -89,11 +78,11 @@ export class CharacterPage {
     parent: HTMLElement,
     private readonly hero: Hero,
     portraitUrl: string,
-    dollUrl: string,
     private readonly icon: (frame: string) => string,
     private readonly cb: CharacterCallbacks,
   ) {
     this.root = el('div', 'char-page hidden', parent);
+    applyUiArt(this.root);
     this.root.addEventListener('pointerdown', (e) => {
       if (e.target === this.root) this.cb.close();
     });
@@ -144,43 +133,45 @@ export class CharacterPage {
     close.addEventListener('click', () => this.cb.close());
 
     const content = el('div', 'char-content', panel);
+    const top = el('div', 'char-top', content);
 
-    // --- Paper doll.
-    const doll = el('div', 'char-doll', content);
-    this.figure = el('div', 'doll-figure', doll);
-    const fig = el('img', '', this.figure);
-    fig.src = dollUrl;
-    fig.alt = '';
-    fig.draggable = false;
-    for (const d of DOLL) {
-      const b = el('button', 'inv-slot gear-slot', doll);
-      b.style.gridColumn = `${d.col}`;
-      b.style.gridRow = `${d.row}`;
-      b.dataset.slot = d.slot;
-      b.setAttribute('aria-label', SLOT_NAMES[d.slot]);
-      b.title = SLOT_NAMES[d.slot];
+    // --- Stats (left).
+    const statSec = el('section', 'char-sec stats-sec', top);
+    el('div', 'sec-title', statSec).textContent = 'Attributes';
+    this.stats = el('div', 'char-stats', statSec);
+
+    // --- Equipped gear (right).
+    const equipSec = el('section', 'char-sec equip-sec', top);
+    el('div', 'sec-title', equipSec).textContent = 'Equipped';
+    this.equipGrid = el('div', 'equip-grid', equipSec);
+    for (const slot of EQUIP_ORDER) {
+      const b = el('button', 'inv-slot gear-slot', this.equipGrid);
+      b.dataset.slot = slot;
+      b.setAttribute('aria-label', SLOT_NAMES[slot]);
+      b.title = SLOT_NAMES[slot];
       // Faint silhouette of what goes here, shown while the slot is empty.
       const ghost = el('img', 'ghost', b);
-      ghost.src = this.icon(gearIcon(d.slot, 0));
+      ghost.src = this.icon(gearIcon(slot, 0));
       ghost.alt = '';
       ghost.draggable = false;
-      this.wireSlot(b, { kind: 'worn', slot: d.slot });
-      this.gearSlots.set(d.slot, b);
+      this.wireSlot(b, { kind: 'worn', slot });
+      this.gearSlots.set(slot, b);
     }
 
-    // --- Stats and bag.
-    const side = el('div', 'char-side', content);
-    this.stats = el('div', 'char-stats', side);
-    el('div', 'char-label', side).textContent = 'Bag';
-    const grid = el('div', 'inv-grid', side);
+    // --- Backpack (bottom).
+    const bagSec = el('section', 'char-sec bag-sec', content);
+    const bagHead = el('div', 'sec-title', bagSec);
+    el('span', '', bagHead).textContent = 'Backpack';
+    this.bagCount = el('span', 'sec-count', bagHead);
+    const grid = el('div', 'inv-grid', bagSec);
     for (let i = 0; i < INVENTORY_SIZE; i++) {
       const b = el('button', 'inv-slot bag-slot', grid);
       b.dataset.bag = `${i}`;
-      b.setAttribute('aria-label', `Bag slot ${i + 1}`);
+      b.setAttribute('aria-label', `Backpack slot ${i + 1}`);
       this.wireSlot(b, { kind: 'bag', index: i });
       this.bagSlots.push(b);
     }
-    el('div', 'char-hint', side).textContent = 'Drag gear onto the hero to wear it. Tap for details.';
+    el('div', 'char-hint', bagSec).textContent = 'Drag gear onto Equipped to wear it · tap an item for details';
 
     // --- Item card: beside the panel when there is room, over the stats column otherwise.
     this.card = el('div', 'char-card off', wrap);
@@ -277,21 +268,28 @@ export class CharacterPage {
     this.drag = null;
   }
 
-  /** The slot (or the hero figure) under a screen point, if it's a place this drag can drop on. */
+  /**
+   * The place under a screen point that this drag can drop on. From the backpack, anywhere on the
+   * equipment grid counts as the piece's own slot (no need to aim for it).
+   */
   private dropTargetAt(x: number, y: number): HTMLElement | null {
-    const hit = document.elementFromPoint(x, y)?.closest<HTMLElement>('.inv-slot, .doll-figure') ?? null;
-    return hit && this.drag && this.validTargets(this.drag).includes(hit) ? hit : null;
+    const d = this.drag;
+    const under = document.elementFromPoint(x, y);
+    if (!d || !under) return null;
+    if (d.from.kind === 'bag' && under.closest('.equip-sec')) return this.gearSlots.get(d.gear.slot)!;
+    const hit = under.closest<HTMLElement>('.inv-slot');
+    return hit && this.validTargets(d).includes(hit) ? hit : null;
   }
 
   /**
-   * Where a dragged piece can go. From the bag: its own gear slot, the hero figure (same thing), or
-   * any other bag slot (to rearrange). From a worn slot: an empty bag slot, or one holding gear for
-   * the same slot (a swap).
+   * Where a dragged piece can go. From the backpack: its own gear slot, or any other backpack slot
+   * (to rearrange). From a worn slot: an empty backpack slot, or one holding gear for the same slot
+   * (a swap).
    */
   private validTargets(d: Drag): HTMLElement[] {
     if (d.from.kind === 'bag') {
       const from = d.from.index;
-      return [this.gearSlots.get(d.gear.slot)!, this.figure, ...this.bagSlots.filter((_, i) => i !== from)];
+      return [this.gearSlots.get(d.gear.slot)!, ...this.bagSlots.filter((_, i) => i !== from)];
     }
     return this.bagSlots.filter((_, i) => {
       const s = this.hero.inventory.slots[i];
@@ -299,27 +297,22 @@ export class CharacterPage {
     });
   }
 
+  /** Carry out a drop. Dragging is direct manipulation, so it doesn't open the item card (taps do). */
   private drop(d: Drag, target: HTMLElement | null): void {
     if (!target) return;
     if (d.from.kind === 'bag') {
       const from = d.from.index;
-      if (target === this.figure || target.dataset.slot === d.gear.slot) {
-        this.cb.equip(from);
-        this.selected = { kind: 'worn', slot: d.gear.slot };
-      } else if (target.dataset.bag !== undefined) {
-        const to = Number(target.dataset.bag);
-        this.cb.moveBag(from, to);
-        this.selected = { kind: 'bag', index: to };
-      }
+      if (target.dataset.slot === d.gear.slot) this.cb.equip(from);
+      else if (target.dataset.bag !== undefined) this.cb.moveBag(from, Number(target.dataset.bag));
     } else if (target.dataset.bag !== undefined) {
       const to = Number(target.dataset.bag);
-      const there = this.hero.inventory.slots[to];
-      if (there) this.cb.equip(to); // same slot type: swap them
+      if (this.hero.inventory.slots[to]) this.cb.equip(to); // same slot type: swap them
       else this.cb.unequip(d.gear.slot, to);
-      this.selected = { kind: 'bag', index: to };
     }
+    this.selected = null;
     this.renderCard(true);
   }
+
 
   // --- State ----------------------------------------------------------------------------------
 
@@ -487,7 +480,7 @@ export class CharacterPage {
     const lo = xpForLevel(h.level);
     const hi = xpForLevel(h.level + 1);
     const maxed = h.level >= MAX_LEVEL;
-    const sub = `Ranger • Level ${h.level}${maxed ? '' : ` · ${h.xp - lo} / ${hi - lo} XP`}`;
+    const sub = `Level ${h.level} Ranger${maxed ? '' : ` · ${h.xp - lo} / ${hi - lo} XP`}`;
     if (this.sub.textContent !== sub) this.sub.textContent = sub;
     if (this.levelBadge.textContent !== `${h.level}`) this.levelBadge.textContent = `${h.level}`;
     this.xpFill.style.width = `${maxed ? 100 : Math.min(100, ((h.xp - lo) / (hi - lo)) * 100)}%`;
@@ -510,6 +503,8 @@ export class CharacterPage {
 
     for (const [slot, b] of this.gearSlots) this.renderSlot(b, h.equipment[slot] ?? null);
     h.inventory.slots.forEach((s, i) => this.renderSlot(this.bagSlots[i], s?.gear ?? null));
+    const used = `${h.inventory.slots.filter(Boolean).length} / ${h.inventory.slots.length}`;
+    if (this.bagCount.textContent !== used) this.bagCount.textContent = used;
     this.renderCard();
   }
 }

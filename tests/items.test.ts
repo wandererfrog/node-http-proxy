@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GEAR_SLOTS, Inventory, MAX_TIER, TIERS, gearIcon, makeGear, rollGear } from '../src/entities/items';
+import { GEAR_SLOTS, INVENTORY_SIZE, Inventory, MAX_TIER, TIERS, gearIcon, makeGear, rollGear } from '../src/entities/items';
 import { mulberry32 } from '../src/world/map';
 import items from '../src/assets/sprites/items.json';
 
@@ -35,7 +35,8 @@ describe('gear', () => {
 describe('Inventory with gear', () => {
   it('gear takes a slot each and does not stack', () => {
     const inv = new Inventory();
-    for (let i = 0; i < 6; i++) expect(inv.addGear(makeGear('bow', 0, 1))).toBe(true);
+    expect(INVENTORY_SIZE).toBe(24);
+    for (let i = 0; i < INVENTORY_SIZE; i++) expect(inv.addGear(makeGear('bow', 0, 1))).toBe(true);
     expect(inv.addGear(makeGear('bow', 0, 1))).toBe(false);
     // A full bag still takes potions: they go on the belt.
     expect(inv.add('hp_potion')).toBe(true);
