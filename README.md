@@ -42,6 +42,10 @@ npm test           # pathfinding / map / sprite sanity tests
 npm run build      # static build in dist/ (relative paths, so it works from any static host)
 ```
 
+### Deploy on Netlify
+
+`netlify.toml` has everything Netlify needs: it runs `npm run build` on Node 22 and publishes `dist/`. Fingerprinted files under `/assets` are cached for a year and `index.html` always revalidates, so a new deploy shows on the next load. In Netlify: **Add new site → Import an existing project → GitHub**, pick this repository and the branch to deploy. The build settings fill in from the file.
+
 ## Controls
 
 | | Touch | Mouse / keyboard |
